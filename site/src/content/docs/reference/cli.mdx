@@ -1,0 +1,66 @@
+---
+title: CLI
+description: Every command and flag that exists in v0, with defaults, from src/cli.ts.
+---
+
+import StatusBadge from '../../../components/StatusBadge.astro';
+
+<StatusBadge status="shipped" />
+
+Everything on this page is implemented in
+[src/cli.ts](https://github.com/kunal-drall/policywright/blob/main/src/cli.ts),
+with defaults defined in
+[src/types.ts](https://github.com/kunal-drall/policywright/blob/main/src/types.ts)
+(`DEFAULT_SYNTH_CONFIG`).
+
+## Commands
+
+| Command                          | What it does                                                                              |
+| -------------------------------- | ----------------------------------------------------------------------------------------- |
+| `npm run demo`                   | End-to-end pipeline + dry-run self-check (offline). Exits non-zero if a scenario deviates. |
+| `npm run cli -- synth`           | Synthesize a spec from the baked-in fixture and print the summary + `spec.json`.           |
+| `npm run cli -- simulate`        | Run the dry-run scenarios against the fixture's spec and print the report.                 |
+| `npm run record -- <txHash>`     | Fetch a live transaction by hash and print the `RecordedTx` as JSON.                       |
+| `npm run cli -- help`            | Print usage (also `--help` / `-h` / no arguments).                                         |
+
+`npm run synth`, `npm run simulate`, and `npm run record` are direct package
+scripts for the corresponding commands
+([package.json](https://github.com/kunal-drall/policywright/blob/main/package.json)).
+
+## Synthesis flags (`synth` and `simulate`)
+
+Anything omitted keeps its default.
+
+| Flag                        | Default         | Meaning                                                        |
+| --------------------------- | --------------- | -------------------------------------------------------------- |
+| `--lifetime <secs>`         | `2592000` (30d) | Context-rule lifetime (sets `valid_until` = synth time + this). |
+| `--spend-window <secs>`     | `86400` (1d)    | Rolling window the spend cap is measured over.                  |
+| `--cap-multiplier <number>` | `1.1`           | Cap = observed gross outflow × this (rounded up).               |
+| `--frequency-window <secs>` | `86400` (1d)    | Rolling window for the frequency limit.                         |
+| `--frequency-max <count>`   | `5`             | Max calls allowed within the frequency window.                  |
+| `--constrain-arguments`     | off             | Enforce the swap-path token set (deny instead of flag).         |
+
+```bash
+npm run cli -- synth --lifetime 604800 --cap-multiplier 1.25
+npm run cli -- simulate --constrain-arguments
+```
+
+## `record` flags
+
+| Flag                | Default                       | Meaning                                                                 |
+| ------------------- | ----------------------------- | ----------------------------------------------------------------------- |
+| `<txHash>`          | (required)                    | 64-character hex transaction hash.                                      |
+| `--network <name>`  | `testnet`                     | One of `testnet`, `mainnet`, `futurenet`.                               |
+| `--rpc-url <url>`   | the network's public endpoint | Override the Soroban RPC endpoint, e.g. a node you run yourself.        |
+
+Default public endpoints per network are defined in
+[src/sources/rpc.ts](https://github.com/kunal-drall/policywright/blob/main/src/sources/rpc.ts).
+
+## Flag syntax and errors
+
+- Flags accept `--key value` or `--key=value`. A boolean flag is true when
+  present unless explicitly set to `false`.
+- Numeric flags reject non-numeric values with a clear message.
+- Every command exits non-zero on error, printing the reason to stderr —
+  including RPC failures (not found, failed on-chain, wrong network, malformed
+  envelope) and invalid synthesis config.

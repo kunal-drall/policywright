@@ -1,0 +1,38 @@
+---
+title: Changelog
+description: Project history, seeded from the repository's git log.
+---
+
+import StatusBadge from '../../components/StatusBadge.astro';
+
+<StatusBadge status="shipped" />
+
+Seeded from the repository's
+[commit history](https://github.com/kunal-drall/policywright/commits/main). The
+project is pre-release: version `0.1.0` in
+[package.json](https://github.com/kunal-drall/policywright/blob/main/package.json),
+no tagged releases yet.
+
+## 2026-06-25
+
+- [`3294ca9`](https://github.com/kunal-drall/policywright/commit/3294ca9) docs: finalize README and architecture for the full feature set
+- [`ceb645c`](https://github.com/kunal-drall/policywright/commit/ceb645c) docs: add a committed example run under examples/
+- [`22709a5`](https://github.com/kunal-drall/policywright/commit/22709a5) ci: run lint, format, typecheck, test, and demo on push and PR
+- [`bc530cc`](https://github.com/kunal-drall/policywright/commit/bc530cc) feat: expose SynthConfig overrides as CLI flags
+- [`c076ff9`](https://github.com/kunal-drall/policywright/commit/c076ff9) feat: add config-gated argument-level scope for swap paths
+- [`1179b2b`](https://github.com/kunal-drall/policywright/commit/1179b2b) feat: harden the live RPC adapter with SAC metadata resolution
+
+## 2026-06-09
+
+- [`37bd9fa`](https://github.com/kunal-drall/policywright/commit/37bd9fa) test: add Vitest suite for the synthesizer and simulator
+- [`598df1f`](https://github.com/kunal-drall/policywright/commit/598df1f) chore: add ESLint flat config and Prettier with lint scripts
+- [`84b40ca`](https://github.com/kunal-drall/policywright/commit/84b40ca) docs: document the pipeline, commands, and architecture
+- [`c838c13`](https://github.com/kunal-drall/policywright/commit/c838c13) feat: add dry-run simulator, demo, and CLI
+
+## 2026-06-07
+
+- [`3447225`](https://github.com/kunal-drall/policywright/commit/3447225) feat: emit spec JSON, human summary, and illustrative Rust policy
+- [`58ded3e`](https://github.com/kunal-drall/policywright/commit/58ded3e) feat: synthesize least-privilege smart-account spec from a recording
+- [`6ba8691`](https://github.com/kunal-drall/policywright/commit/6ba8691) feat: add recording layer (fixture loader and live RPC adapter)
+- [`a915f9d`](https://github.com/kunal-drall/policywright/commit/a915f9d) chore: scaffold TypeScript project and core domain types
+- [`0221c1a`](https://github.com/kunal-drall/policywright/commit/0221c1a) Initial commit
