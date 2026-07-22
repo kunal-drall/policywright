@@ -13,3 +13,4 @@ out/
 # Editor / OS noise
 *.log
 .DS_Store
+._*

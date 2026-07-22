@@ -4,3 +4,6 @@ out/
 examples/
 package-lock.json
 .claude/
+
+# The docs site is its own package with its own tooling and CI job.
+site/
