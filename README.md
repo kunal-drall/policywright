@@ -51,12 +51,12 @@ any scenario deviates, so it doubles as a smoke test. It needs no network access
 
 ## Commands
 
-| Command                                                              | What it does                                                     |
-| -------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `npm run demo`                                                       | End-to-end pipeline + dry-run self-check (offline).              |
-| `npm run cli -- synth`                                               | Synthesize a spec from the fixture and print the summary + JSON. |
-| `npm run cli -- simulate`                                            | Run the dry-run scenarios against the fixture's spec.            |
-| `npm run record -- <txHash> [--network testnet\|mainnet\|futurenet]` | Fetch a live transaction by hash and print the recording.        |
+| Command                                                                                | What it does                                                     |
+| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `npm run demo`                                                                         | End-to-end pipeline + dry-run self-check (offline).              |
+| `npm run cli -- synth`                                                                 | Synthesize a spec from the fixture and print the summary + JSON. |
+| `npm run cli -- simulate`                                                              | Run the dry-run scenarios against the fixture's spec.            |
+| `npm run record -- <txHash> [--network testnet\|mainnet\|futurenet] [--rpc-url <url>]` | Fetch a live transaction by hash and print the recording.        |
 
 The live `record` path is optional and not exercised by the demo or tests. Given a valid
 transaction hash within the RPC node's retention window, it decodes the `InvokeContract`
@@ -134,6 +134,41 @@ CI runs `npm ci` then lint → format:check → typecheck → test → demo on e
 | `fixtures/recorded-tx.json`            | The committed offline recording.            |
 
 See [docs/architecture.md](docs/architecture.md) for the design in depth.
+
+## Documentation site
+
+[`site/`](site/) contains the public documentation site
+(<https://policywright.lemmalabs.space>), built with Astro + Starlight. It is
+fully static — no backend, no analytics — with built-in Pagefind search.
+
+```bash
+cd site
+npm ci
+npm run dev     # local dev server
+npm run build   # static build to site/dist/
+```
+
+CI builds the site on every push and pull request (the `site` job in
+[ci.yml](.github/workflows/ci.yml)).
+
+### Deploying to policywright.lemmalabs.space (Vercel)
+
+1. **Import the repo** at <https://vercel.com/new>. The committed
+   [vercel.json](vercel.json) points install/build at `site/` and serves
+   `site/dist`, so no build settings are needed. (Equivalent alternative:
+   set the project's **Root Directory** to `site` in the Vercel dashboard and
+   let it auto-detect Astro — in that case Vercel ignores the root
+   `vercel.json`.)
+2. **Add the domain** in the Vercel project: Settings → Domains →
+   `policywright.lemmalabs.space`.
+3. **DNS** — in the DNS zone for `lemmalabs.space`, add the record Vercel
+   shows for the subdomain:
+
+   | Type  | Name           | Value                   |
+   | ----- | -------------- | ----------------------- |
+   | CNAME | `policywright` | `cname.vercel-dns.com.` |
+
+   Certificates are provisioned automatically once the record propagates.
 
 ## Deliverables
 
