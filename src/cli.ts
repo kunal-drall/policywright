@@ -26,7 +26,7 @@ Usage:
   npm run demo                          end-to-end demo + dry-run self-check
   npm run cli -- synth     [synth-flags] synthesize from the baked-in fixture
   npm run cli -- simulate  [synth-flags] dry-run scenarios against the spec
-  npm run record -- <txHash> [--network testnet|mainnet|futurenet]
+  npm run record -- <txHash> [--network testnet|mainnet|futurenet] [--rpc-url <url>]
 
 Synthesis flags (defaults in parentheses):
   --lifetime <secs>          context-rule lifetime (${D.lifetimeSecs})
