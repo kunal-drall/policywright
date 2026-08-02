@@ -16,6 +16,7 @@ import { readFileSync } from 'node:fs';
 import { emit } from './emitter.js';
 import { runDemo } from './demo.js';
 import { loadFixture } from './sources/fixture.js';
+import { loadRecordedTx } from './sources/recorded.js';
 import { recordFromHashes, tokenResolverFor } from './sources/rpc.js';
 import { ingestSimulation } from './sources/simulation.js';
 import { badInput } from './sources/errors.js';
@@ -49,6 +50,8 @@ Soroban allows one InvokeHostFunction per transaction. Passing every hash
 merges them into ONE RecordedTx ordered by ledger close time.
 
 Synthesis flags (defaults in parentheses):
+  --input <recorded.json>    synthesize from a saved record output instead of
+                             the baked-in fixture (e.g. examples/live/recorded-claim-swap.json)
   --lifetime <secs>          context-rule lifetime (${D.lifetimeSecs})
   --spend-window <secs>      spend-cap rolling window (${D.spendWindowSecs})
   --cap-multiplier <number>  cap = observed gross out * this (${D.capMultiplier})
@@ -151,13 +154,15 @@ function recordedTxToJson(tx: RecordedTx): string {
   );
 }
 
-function cmdSynth(config: SynthConfig): void {
-  const tx = loadFixture();
+function cmdSynth(config: SynthConfig, inputPath: string | undefined): void {
+  const tx = inputPath === undefined ? loadFixture() : loadRecordedTx(inputPath);
   const spec = synthesize(tx, config, tx.timestamp ?? 0);
   const artifacts = emit(tx, spec);
   process.stdout.write(artifacts.summary);
   process.stdout.write('\n--- spec.json ---\n');
   process.stdout.write(`${artifacts.specJson}\n`);
+  process.stdout.write('\n--- context-rule.json ---\n');
+  process.stdout.write(`${artifacts.contextRuleJson}\n`);
 }
 
 function cmdSimulate(config: SynthConfig): void {
@@ -236,9 +241,11 @@ async function main(): Promise<void> {
     case 'demo':
       runDemo();
       return;
-    case 'synth':
-      cmdSynth(parseSynthConfig(parseFlags(rest)));
+    case 'synth': {
+      const flags = parseFlags(rest);
+      cmdSynth(parseSynthConfig(flags), flags.get('input'));
       return;
+    }
     case 'simulate':
       cmdSimulate(parseSynthConfig(parseFlags(rest)));
       return;

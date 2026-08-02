@@ -16,9 +16,9 @@ out, USDC in).
 
 ```
 RecordedTx ─▶ synthesize ─▶ SmartAccountSpec ─▶ emit ─┬─▶ spec.json
- (fixture or                (context rule +           ├─▶ summary.txt
-  live RPC)                  minimal policies)         └─▶ FrequencyLimitPolicy.rs
-                                  │
+ (fixture or                (context rules +          ├─▶ context-rule.json
+  live RPC)                  minimal policies)         ├─▶ summary.txt
+                                  │                    └─▶ FrequencyLimitPolicy.rs
                                   └─▶ dry-run simulator ─▶ permit / deny / flag report
 ```
 
@@ -33,8 +33,15 @@ RecordedTx ─▶ synthesize ─▶ SmartAccountSpec ─▶ emit ─┬─▶ sp
    - **no cap** for assets that only flowed in (e.g. the USDC received) — the
      minimal-permission case;
    - an always-on frequency-limit policy.
-3. **Emit** — render the spec as JSON, a human-readable summary, and an _illustrative_
-   custom Rust policy.
+3. **Emit** — render the spec as JSON, a human-readable summary, an _illustrative_
+   custom Rust policy, and **`context-rule.json`**: the installable OpenZeppelin
+   context rules (one `CallContract` rule per contract, plus a rule per token whose
+   `transfer` the subject authorized — where the **stock `spending_limit`** attaches
+   with its real install params, `{ spending_limit: i128, period_ledgers: u32 }`).
+   Units are converted to the on-chain ledger basis, every param shape carries its OZ
+   source citation, and anything the stock policies cannot express is recorded as a
+   delta note rather than emitted in a shape the real contract would reject. Schema:
+   [docs/context-rule-schema.md](docs/context-rule-schema.md).
 4. **Simulate** — dry-run candidate calls against the spec and report whether each would
    be permitted or denied (and why), before anything is installed on-chain.
 
@@ -51,12 +58,12 @@ any scenario deviates, so it doubles as a smoke test. It needs no network access
 
 ## Commands
 
-| Command                                                                                | What it does                                                     |
-| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `npm run demo`                                                                         | End-to-end pipeline + dry-run self-check (offline).              |
-| `npm run cli -- synth`                                                                 | Synthesize a spec from the fixture and print the summary + JSON. |
-| `npm run cli -- simulate`                                                              | Run the dry-run scenarios against the fixture's spec.            |
-| `npm run record -- <txHash> [--network testnet\|mainnet\|futurenet] [--rpc-url <url>]` | Fetch a live transaction by hash and print the recording.        |
+| Command                                                                                | What it does                                                                                                                                              |
+| -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run demo`                                                                         | End-to-end pipeline + dry-run self-check (offline).                                                                                                       |
+| `npm run cli -- synth [--input <recorded.json>]`                                       | Synthesize from the fixture (or a saved record output, e.g. `examples/live/recorded-claim-swap.json`) and print the summary, spec, and context-rule JSON. |
+| `npm run cli -- simulate`                                                              | Run the dry-run scenarios against the fixture's spec.                                                                                                     |
+| `npm run record -- <txHash> [--network testnet\|mainnet\|futurenet] [--rpc-url <url>]` | Fetch a live transaction by hash and print the recording.                                                                                                 |
 
 The live `record` path is optional and not exercised by the demo or tests. Given a valid
 transaction hash within the RPC node's retention window, it decodes the `InvokeContract`
@@ -187,15 +194,17 @@ what is actually verifiable in this repository today — see
 | **T3 — Mainnet launch**    | 30 Nov 2026 | Three end-to-end walkthroughs; OpenZeppelin validation; production release; mainnet demonstration; audit readiness (SCF Audit Bank)   | ⏳ Not started  |
 
 **Shipped and verifiable today** (all inside T1 scope): the recording layer from the
-offline fixture and from a live Soroban RPC node; the synthesizer (exact scope binding,
-gross-outflow spend caps, minimal-permission inflows, frequency limits); the emitter
-(`spec.json`, `summary.txt`, stamped illustrative Rust); the offline dry-run harness; the
-CLI; the Vitest suite with coverage thresholds; and CI.
+offline fixture, from a live Soroban RPC node (multi-hash sequences with authorization
+trees), and from a saved `simulateTransaction` exchange; the synthesizer (exact scope
+binding, gross-outflow spend caps, minimal-permission inflows, frequency limits, and
+installable OZ context rules with real stock-policy install params —
+[docs/context-rule-schema.md](docs/context-rule-schema.md)); the emitter (`spec.json`,
+`context-rule.json`, `summary.txt`, stamped illustrative Rust); the offline dry-run
+harness; the CLI; the Vitest suite with coverage thresholds; and CI. The emitted
+artifacts for a real testnet claim+swap sequence are committed under
+[`examples/live/`](examples/live/).
 
-**Not yet done in T1:** the simulated-transaction recording path, and compiling and
-deploying a generated policy to testnet. Two verified gaps between the emitted spec and
-the OpenZeppelin shapes it targets are recorded in
-[docs/FACTS.md §4](docs/FACTS.md) and are open.
+**Not yet done in T1:** compiling and deploying a generated policy to testnet.
 
 ¹ One T2 item landed early: config-gated argument-level scope (`--constrain-arguments`,
 off by default). The rest of T2 — MCP server, Claude skill, storage-segregated codegen,

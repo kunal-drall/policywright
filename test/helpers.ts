@@ -1,6 +1,6 @@
 /** Shared builders for constructing RecordedTx values in tests. */
 
-import type { AssetFlow, RecordedTx, ScopedCall, TokenRef } from '../src/types.js';
+import type { AssetFlow, InvocationNode, RecordedTx, ScopedCall, TokenRef } from '../src/types.js';
 
 /** A well-formed (length-correct) illustrative contract id for tests. */
 export function contractId(seed: string): string {
@@ -19,8 +19,23 @@ export function flow(
   return { asset, direction, amount };
 }
 
-export function call(contract: string, fnName: string, args: ScopedCall['args'] = []): ScopedCall {
-  return { contract, fnName, args, sourceHash: 'a'.repeat(64), authorizations: [] };
+export function call(
+  contract: string,
+  fnName: string,
+  args: ScopedCall['args'] = [],
+  authorizations: readonly InvocationNode[] = [],
+): ScopedCall {
+  return { contract, fnName, args, sourceHash: 'a'.repeat(64), authorizations };
+}
+
+/** An authorization-entry tree node. */
+export function auth(
+  contract: string,
+  fnName: string,
+  args: InvocationNode['args'] = [],
+  subInvocations: readonly InvocationNode[] = [],
+): InvocationNode {
+  return { contract, fnName, args, subInvocations };
 }
 
 export function makeTx(partial: Partial<RecordedTx> = {}): RecordedTx {

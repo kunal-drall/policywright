@@ -173,6 +173,33 @@ export interface SynthConfig {
 /** OpenZeppelin smart accounts cap a context rule at this many policies. */
 export const MAX_POLICIES = 5;
 
+/**
+ * Estimated seconds per Stellar ledger, used to convert configured
+ * seconds-based windows into the ledger-based units the OZ contracts measure
+ * in (`period_ledgers`, `valid_until`). A documented estimate, not a network
+ * read: OZ's own `DAY_IN_LEDGERS = 17280` equals 86400 s at exactly this rate
+ * (see docs/FACTS.md §2.4, RECONCILIATION rows 11 and 15).
+ */
+export const ESTIMATED_SECS_PER_LEDGER = 5;
+
+/**
+ * Version of the emitted `context-rule.json` schema. Bump on any change to
+ * the emitted shape; the schema is documented in docs/context-rule-schema.md.
+ */
+export const CONTEXT_RULE_SCHEMA_VERSION = 1;
+
+/**
+ * The OpenZeppelin release every emitted install shape is verified against.
+ * File:line citations in emitted artifacts are relative to this commit.
+ */
+export const OZ_TARGET = {
+  package: 'stellar-accounts (OpenZeppelin/stellar-contracts)',
+  version: 'v0.7.2',
+  commit: 'a9c42169000638da937577f592ebf61a7a3c94ca',
+  installEntryPoint:
+    'SmartAccount::add_context_rule(context_type, name, valid_until, signers, policies: Map<Address, Val>) — packages/accounts/src/smart_account/mod.rs:238-248',
+} as const;
+
 /** Default synthesis configuration. Conservative but demo-friendly. */
 export const DEFAULT_SYNTH_CONFIG: SynthConfig = {
   lifetimeSecs: 30 * 24 * 60 * 60, // 30 days
@@ -235,6 +262,73 @@ export interface ArgumentConstraintPolicy {
 /** The synthesised policy set. */
 export type PolicySpec = SpendingLimitPolicy | FrequencyLimitPolicy | ArgumentConstraintPolicy;
 
+/**
+ * A policy bound to an installable OZ context rule, in the shape
+ * `add_context_rule` consumes: a policy contract address (unknown until
+ * deployment, hence `null`) mapped to its install params. `installParams`
+ * uses the REAL parameter names of the target contract; `paramsSource` cites
+ * the file:line (at {@link OZ_TARGET}) the shape was verified against.
+ */
+export interface StockSpendingLimitBinding {
+  readonly policy: 'stock:spending_limit';
+  /** Deployed policy-wrapper contract address; null until deployed. */
+  readonly address: null;
+  /** Exact `SpendingLimitAccountParams` field names and types. */
+  readonly installParams: {
+    /** i128 — max spend within the period, smallest token unit. */
+    readonly spending_limit: bigint;
+    /** u32 — rolling window length in LEDGERS (not seconds). */
+    readonly period_ledgers: number;
+  };
+  readonly paramsSource: string;
+  /** How the params were derived from the recording (transparency). */
+  readonly derivedFrom: {
+    readonly asset: TokenRef;
+    readonly observedGrossOut: bigint;
+    readonly spendWindowSecs: number;
+  };
+}
+
+/** The generated custom frequency policy, bound with its own install params. */
+export interface CustomFrequencyLimitBinding {
+  readonly policy: 'custom:FrequencyLimitPolicy';
+  /** Deployed policy contract address; null until deployed. */
+  readonly address: null;
+  /** Exact `FrequencyLimitParams` field names of the generated Rust. */
+  readonly installParams: {
+    /** u64 — rolling window length in seconds. */
+    readonly window_secs: number;
+    /** u32 — max enforcements within the window. */
+    readonly max_calls: number;
+  };
+  readonly paramsSource: string;
+}
+
+export type OzPolicyBinding = StockSpendingLimitBinding | CustomFrequencyLimitBinding;
+
+/**
+ * One installable OZ context rule. Mirrors what `add_context_rule` accepts
+ * (see {@link OZ_TARGET}): a rule binds exactly ONE contract via
+ * `CallContract` and carries no function names — the observed functions are
+ * recorded in {@link observedFns} for review, and function-level narrowing
+ * must live in a policy (RECONCILIATION row 14).
+ */
+export interface OzContextRule {
+  readonly contextType: { readonly type: 'CallContract'; readonly contract: string };
+  /** Rule name, capped at 20 BYTES (OZ `MAX_NAME_SIZE`). */
+  readonly name: string;
+  /**
+   * `valid_until` as a LEDGER SEQUENCE (u32), computed from the recording's
+   * ledger + the configured lifetime at {@link ESTIMATED_SECS_PER_LEDGER}.
+   * Null when the recording has no ledger; must be recomputed from the live
+   * ledger head at install time either way (the recording ledger is past).
+   */
+  readonly validUntilLedger: number | null;
+  /** Functions observed on this contract in the recording (advisory). */
+  readonly observedFns: readonly string[];
+  readonly policies: readonly OzPolicyBinding[];
+}
+
 /** The scope of the context rule: which (contract, fn) pairs are permitted. */
 export interface ContextRule {
   /** Short human-readable rule name (OZ caps names at 20 chars). */
@@ -257,6 +351,20 @@ export interface SmartAccountSpec {
    * advisory and the simulator flags — rather than denies — violations.
    */
   readonly argumentScopes: readonly ArgumentConstraintPolicy[];
+  /**
+   * Installable OZ context rules derived from the recording: one
+   * `CallContract` rule per called contract, plus one per token the subject
+   * authorized a direct `transfer` on (each `require_auth` in the tree is its
+   * own context at `__check_auth` — FACTS §2.5). Spend caps compose onto the
+   * token rules as stock `spending_limit` params.
+   */
+  readonly ozContextRules: readonly OzContextRule[];
+  /**
+   * Composition deltas: places where this spec's internal model and the real
+   * OZ primitives differ (unit conversions, caps the stock policies cannot
+   * express). These are expected mapping notes, not warnings.
+   */
+  readonly notes: readonly string[];
   /** Non-fatal advisories surfaced to the user (e.g. policy-count over the cap). */
   readonly warnings: readonly string[];
   /** The config the spec was synthesised with (echoed for reproducibility). */
