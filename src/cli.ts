@@ -4,16 +4,21 @@
  *   demo                 run the end-to-end demo and self-check (see demo.ts)
  *   synth                synthesize a spec from the baked-in fixture and print it
  *   simulate             run the dry-run scenarios against the fixture's spec
- *   record <hash>        fetch a live transaction by hash and print the recording
+ *   record <hash...>     fetch a transaction sequence by hash (or ingest a saved
+ *                        simulation with --from-simulation) and print the merged
+ *                        RecordedTx
  *
  * synth and simulate accept SynthConfig overrides as flags (see USAGE); any
  * flag left out keeps its documented default from DEFAULT_SYNTH_CONFIG.
  */
 
+import { readFileSync } from 'node:fs';
 import { emit } from './emitter.js';
 import { runDemo } from './demo.js';
 import { loadFixture } from './sources/fixture.js';
-import { recordFromHash } from './sources/rpc.js';
+import { recordFromHashes, tokenResolverFor } from './sources/rpc.js';
+import { ingestSimulation } from './sources/simulation.js';
+import { badInput } from './sources/errors.js';
 import { buildScenarios, renderReport, simulateCall } from './simulate.js';
 import { synthesize } from './synthesizer.js';
 import { DEFAULT_SYNTH_CONFIG, type Network, type RecordedTx, type SynthConfig } from './types.js';
@@ -26,7 +31,22 @@ Usage:
   npm run demo                          end-to-end demo + dry-run self-check
   npm run cli -- synth     [synth-flags] synthesize from the baked-in fixture
   npm run cli -- simulate  [synth-flags] dry-run scenarios against the spec
-  npm run record -- <txHash> [--network testnet|mainnet|futurenet] [--rpc-url <url>]
+  npm run record -- <txHash> [<txHash> ...] [record-flags]
+  npm run record -- --from-simulation <file.json> [record-flags]
+
+Record flags:
+  --network <n>            testnet|mainnet|futurenet (testnet)
+  --rpc-url <url>          override the network's public RPC endpoint
+  --account <G...|C...>    account movements are attributed to; without it the
+                           first transaction's source account is assumed (a
+                           warning records the assumption — smart-account flows
+                           usually act through a C... address, not the source)
+  --from-simulation <file> ingest a saved simulateTransaction exchange instead
+                           of fetching hashes (source: "simulation")
+
+A multi-step flow (e.g. Blend claim then Soroswap swap) is several hashes —
+Soroban allows one InvokeHostFunction per transaction. Passing every hash
+merges them into ONE RecordedTx ordered by ledger close time.
 
 Synthesis flags (defaults in parentheses):
   --lifetime <secs>          context-rule lifetime (${D.lifetimeSecs})
@@ -106,11 +126,27 @@ function parseNetwork(value: string | undefined): Network {
   return value;
 }
 
-/** Serialise a RecordedTx to JSON with bigints rendered as decimal strings. */
+/**
+ * Serialise a RecordedTx to JSON: bigints as decimal strings, byte arguments
+ * as `hex:<...>` strings (JSON.stringify would otherwise explode a Uint8Array
+ * into an index-keyed object).
+ */
 function recordedTxToJson(tx: RecordedTx): string {
   return JSON.stringify(
     tx,
-    (_key: string, value: unknown) => (typeof value === 'bigint' ? value.toString() : value),
+    // Must be a `function` (not arrow) to reach `this[key]`: JSON.stringify
+    // applies Buffer.prototype.toJSON BEFORE the replacer sees the value, so
+    // byte arguments must be intercepted on the holder object.
+    function (this: Record<string, unknown>, key: string, value: unknown) {
+      const raw = this[key];
+      if (raw instanceof Uint8Array) {
+        return `hex:${Buffer.from(raw).toString('hex')}`;
+      }
+      if (typeof value === 'bigint') {
+        return value.toString();
+      }
+      return value;
+    },
     2,
   );
 }
@@ -131,16 +167,66 @@ function cmdSimulate(config: SynthConfig): void {
   process.stdout.write(`${renderReport(results)}\n`);
 }
 
-async function cmdRecord(rest: readonly string[]): Promise<void> {
-  const positional = rest.filter((a) => !a.startsWith('--'));
-  const hash = positional[0];
-  if (hash === undefined) {
-    throw new Error('record requires a transaction hash: npm run record -- <txHash>');
+/** Positional (non-flag) arguments, skipping each flag's value token. */
+function positionalArgs(rest: readonly string[]): string[] {
+  const positional: string[] = [];
+  for (let i = 0; i < rest.length; i += 1) {
+    const arg = rest[i];
+    if (arg === undefined) {
+      continue;
+    }
+    if (arg.startsWith('--')) {
+      // `--flag value` consumes the next token; `--flag=value` does not.
+      const next = rest[i + 1];
+      if (!arg.includes('=') && next !== undefined && !next.startsWith('--')) {
+        i += 1;
+      }
+      continue;
+    }
+    positional.push(arg);
   }
+  return positional;
+}
+
+async function cmdRecord(rest: readonly string[]): Promise<void> {
   const flags = parseFlags(rest);
+  const hashes = positionalArgs(rest);
   const network = parseNetwork(flags.get('network'));
   const rpcUrl = flags.get('rpc-url');
-  const tx = await recordFromHash(hash, rpcUrl !== undefined ? { network, rpcUrl } : { network });
+  const account = flags.get('account');
+  const simulationFile = flags.get('from-simulation');
+
+  let tx: RecordedTx;
+  if (simulationFile !== undefined) {
+    if (hashes.length > 0) {
+      throw badInput('--from-simulation cannot be combined with transaction hashes');
+    }
+    let doc: unknown;
+    try {
+      doc = JSON.parse(readFileSync(simulationFile, 'utf8'));
+    } catch (cause) {
+      throw badInput(
+        `could not read simulation file ${simulationFile}: ${(cause as Error).message}`,
+      );
+    }
+    tx = await ingestSimulation(doc, {
+      network,
+      ...(account === undefined ? {} : { account }),
+      resolveToken: tokenResolverFor(network, rpcUrl),
+    });
+  } else {
+    if (hashes.length === 0) {
+      throw badInput(
+        'record requires at least one transaction hash (or --from-simulation <file>): ' +
+          'npm run record -- <txHash> [<txHash> ...]',
+      );
+    }
+    tx = await recordFromHashes(hashes, {
+      network,
+      ...(rpcUrl === undefined ? {} : { rpcUrl }),
+      ...(account === undefined ? {} : { account }),
+    });
+  }
   process.stdout.write(`${recordedTxToJson(tx)}\n`);
 }
 

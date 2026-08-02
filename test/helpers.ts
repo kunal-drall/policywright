@@ -20,7 +20,7 @@ export function flow(
 }
 
 export function call(contract: string, fnName: string, args: ScopedCall['args'] = []): ScopedCall {
-  return { contract, fnName, args };
+  return { contract, fnName, args, sourceHash: 'a'.repeat(64), authorizations: [] };
 }
 
 export function makeTx(partial: Partial<RecordedTx> = {}): RecordedTx {
@@ -30,8 +30,10 @@ export function makeTx(partial: Partial<RecordedTx> = {}): RecordedTx {
     source: 'fixture',
     ledger: 1,
     timestamp: 1000,
+    subject: null,
     calls: [],
     flows: [],
+    warnings: [],
     ...partial,
   };
 }

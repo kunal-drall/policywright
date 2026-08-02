@@ -49,6 +49,22 @@ export interface TokenRef {
   readonly resolved: boolean;
 }
 
+/**
+ * One node of a transaction's authorization-entry tree: an authorized contract
+ * invocation together with the sub-invocations it was authorized to make.
+ * Decoded from `SorobanAuthorizationEntry.rootInvocation` (see FACTS.md §3.2).
+ */
+export interface InvocationNode {
+  /** Invoked contract address (`C...`). */
+  readonly contract: string;
+  /** Invoked function name (the Soroban symbol). */
+  readonly fnName: string;
+  /** Native-decoded arguments, in positional order. */
+  readonly args: readonly CallArg[];
+  /** Nested invocations authorized under this node, in tree order. */
+  readonly subInvocations: readonly InvocationNode[];
+}
+
 /** A single observed contract invocation, scoped to a contract + function. */
 export interface ScopedCall {
   /** Invoked contract address (`C...`). */
@@ -57,6 +73,20 @@ export interface ScopedCall {
   readonly fnName: string;
   /** Native-decoded arguments, in positional order. */
   readonly args: readonly CallArg[];
+  /**
+   * Hash of the transaction this invocation came from. In a multi-hash
+   * recording each call keeps its own source hash; `null` for simulated
+   * invocations, which have no on-chain transaction.
+   */
+  readonly sourceHash: string | null;
+  /**
+   * Authorization-entry trees attached to this invocation, when present.
+   * These record what the signers *authorized* (including nested calls, e.g.
+   * a router swap authorizing a token `transfer`), which the top-level
+   * invocation alone cannot show. Empty when the source carries no
+   * authorization entries (e.g. the offline fixture).
+   */
+  readonly authorizations: readonly InvocationNode[];
 }
 
 /** Direction of value movement relative to the smart account. */
@@ -71,25 +101,50 @@ export interface AssetFlow {
 }
 
 /** Where a {@link RecordedTx} came from. */
-export type RecordedTxSource = 'fixture' | 'rpc';
+export type RecordedTxSource = 'fixture' | 'rpc' | 'simulation';
 
 /**
- * A normalised record of a transaction the user already performed (or simulated).
- * This is the synthesizer's only input about what happened on-chain.
+ * A normalised record of a transaction sequence the user already performed (or
+ * simulated). This is the synthesizer's only input about what happened
+ * on-chain.
+ *
+ * A recording may merge several transactions (Soroban allows one
+ * `InvokeHostFunction` per transaction, so a claim→swap flow is multiple
+ * hashes): calls are concatenated in ledger-close-time order, each keeping its
+ * own {@link ScopedCall.sourceHash}, and flows are aggregated across the
+ * sequence.
  */
 export interface RecordedTx {
-  /** Transaction hash (hex). */
-  readonly hash: string;
+  /**
+   * Primary transaction hash (hex): the earliest transaction in the sequence.
+   * `null` for simulated recordings, which never touched the chain.
+   */
+  readonly hash: string | null;
   readonly network: Network;
   readonly source: RecordedTxSource;
-  /** Ledger sequence the tx was applied in, when known. */
+  /** Ledger sequence the (first) tx was applied in, when known. */
   readonly ledger: number | null;
-  /** Unix seconds the tx was applied, when known. */
+  /** Unix seconds the (first) tx was applied, when known. */
   readonly timestamp: number | null;
+  /**
+   * The account token movements are attributed to (`G...` or `C...`), when
+   * known. Flows are directional relative to this account.
+   */
+  readonly subject: string | null;
   /** Distinct contract calls observed, in invocation order. */
   readonly calls: readonly ScopedCall[];
-  /** Token movements observed, derived from contract (transfer) events. */
+  /**
+   * Token movements observed, derived from token movement events (`transfer`,
+   * SAC `mint`/`burn`/`clawback`), aggregated per (token, direction) across
+   * the sequence.
+   */
   readonly flows: readonly AssetFlow[];
+  /**
+   * Non-fatal recording caveats (defaulted subject, unresolved token
+   * metadata, skipped undecodable events). Never silently empty: anything the
+   * recorder could not decode or had to assume is surfaced here.
+   */
+  readonly warnings: readonly string[];
 }
 
 /**

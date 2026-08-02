@@ -90,7 +90,7 @@ export function renderSummary(tx: RecordedTx, spec: SmartAccountSpec): string {
   lines.push('policywright — synthesized smart-account authorization');
   lines.push('='.repeat(54));
   lines.push('');
-  lines.push(`Source tx : ${tx.hash}`);
+  lines.push(`Source tx : ${tx.hash ?? '(simulation — no on-chain transaction)'}`);
   lines.push(`Network   : ${tx.network} (recorded from ${tx.source})`);
   lines.push('');
   lines.push('Observed flow');
