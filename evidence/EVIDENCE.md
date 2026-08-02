@@ -158,6 +158,21 @@ This cross-check is **committed as a CI-run test**, not just asserted here:
 `test/oz-context-rules.test.ts` → _"committed examples/live/context-rule.json
 satisfies the OZ install signature"_ validates the artifact file itself.
 
+**CI run for this deliverable:**
+[run 30765581963](https://github.com/kunal-drall/policywright/actions/runs/30765581963)
+— all jobs green (`build`: lint → format → typecheck → 86 tests → demo;
+`site`: docs build) on commit `e30c468`.
+
+**Honest limit (CI trigger).** This repository is a GitHub fork, and GitHub
+does not fire push-triggered workflows on forks until workflows are enabled
+from the repo's Actions tab — which is why no CI runs existed before D1.2
+despite the workflow being configured. `workflow_dispatch` was added to
+[ci.yml](../.github/workflows/ci.yml) and the runs above were dispatched
+manually; enabling workflows in the Actions tab UI makes every future push
+run automatically. (This session also fixed the docs-site lockfile, which
+was missing the wasm-runtime chain npm drops from macOS-generated locks —
+the first real CI runs caught it immediately.)
+
 **Why a token rule exists at all** (the load-bearing verified fact):
 `__check_auth` receives one `Context` per `require_auth` call, so the nested
 XLM `transfer` the subject authorized inside the router swap needs its own
