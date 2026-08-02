@@ -52,9 +52,12 @@ policywright's spec models `(contract, fnName)` pairs on the rule itself
 - a generated policy that checks `context.fn_name` against the observed set.
 
 That generated policy is also the natural home for argument-level constraints,
-which is why the two are grouped here. **The T1 decision about §4.2 is still
-open** — see the gap report; if T1 chooses to fix the emitted shape rather than
-document it, only the _policy codegen_ half moves to T2.
+which is why the two are grouped here. **The T1 decision was made in D1.2
+(2026-08-03): the emitted shape is fixed** — `context-rule.json` emits one
+`CallContract` rule per contract with observed function names carried as
+advisory `observedFns` ([schema](context-rule-schema.md)). What remains here
+for T2 is exactly the _policy codegen_ half: a generated policy whose
+`enforce` checks `context.fn_name` against the observed set.
 
 ### Net-new policy codegen with storage segregation
 

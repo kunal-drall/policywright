@@ -48,6 +48,23 @@ venue assumptions the spike baked in.
 | 15  | `valid_until` is a **Unix timestamp** (spec emits `now + lifetimeSecs`; summary prints "(unix)")                                     | ✗ `valid_until: Option<u32>` is a **ledger sequence**, compared `valid_until < e.ledger().sequence()`                                                                                 | A Unix value (~1.75e9) installed verbatim ≈ never expires — the opposite of the intended bound. Synthesizer must fetch/estimate the current ledger and convert (≈5 s/ledger), and the simulator's lifetime scenario must model ledgers. | `storage.rs:66, 173, 282, 651, 786`; `mod.rs:21, 203`               |
 | 16  | Rule-name cap "20 chars" (`MAX_NAME_SIZE` comment in `src/types.ts`)                                                                 | ✓/nuance: cap is 20 **bytes** (`MAX_NAME_SIZE: u32 = 20`, checked on `String.len()`); `MAX_POLICIES = 5` and `MAX_SIGNERS = 15` confirmed                                             | JS `.length` truncation coincides for the ASCII names generated today; note byte semantics in docs.                                                                                                                                     | `mod.rs:522-530`; `storage.rs:423-427`                              |
 
+**D1.2 status (2026-08-03).** The synthesizer consequences of rows 11–15 are
+implemented in the emitted `context-rule.json`
+([schema](context-rule-schema.md); committed for the real sequence at
+`examples/live/context-rule.json`): one `CallContract` rule per contract with
+function names carried only as advisory `observedFns` (rows 13–14);
+`valid_until` emitted as a ledger sequence converted at a documented
+~5 s/ledger, null + compute-at-install note when the recording has no ledger
+(row 15); spend windows converted to `period_ledgers` (row 11); and the stock
+`spending_limit` is composed ONLY onto token rules backed by a
+subject-authorized direct `transfer` in the recorded authorization tree — the
+only context it can meter — with caps it cannot express recorded as `DELTA`
+notes instead of emitted as rejectable params (row 12). The token-rule
+derivation rests on the verified fact that `__check_auth` receives one
+`Context` per `require_auth` call (FACTS §2.5). Regression-locked in
+[test/oz-context-rules.test.ts](../test/oz-context-rules.test.ts)
+(network-free, including the committed real sequence).
+
 ## Recording-layer assumptions (verified against protocol-27 captures)
 
 | #   | Spike assumption                                                                                                              | Actual reality (from committed raw captures)                                                                                                                                                                                                                                                                                                       | Impact                                                                                                                                                                                              | Source                                                       |
@@ -91,11 +108,18 @@ Derived from the ✗ rows, in dependency order:
    `CallContract` rule per contract; move fn-name scope into the generated
    policy; emit `valid_until` as a ledger sequence (seconds → ledgers
    conversion with a documented ~5 s/ledger estimate or a live
-   `getLatestLedger` read).
+   `getLatestLedger` read). — **DONE in D1.2** (2026-08-03; see the status
+   note under the context-rules table). Fn-name scope is emitted as advisory
+   `observedFns`; enforcing it in generated policy code is T2.
 2. **Policy synthesis** (rows 11–12): convert spend windows to
    `period_ledgers`; stop presenting the stock `spending_limit` as composable
    over the swap flow — the swap spend cap must live in generated Rust (the
-   stock module still fits a plain-`transfer` rule).
+   stock module still fits a plain-`transfer` rule). — **DONE in D1.2**,
+   refined by FACTS §2.5: the recorded swap's authorization tree contains a
+   subject-authorized direct `transfer` leg, and since every `require_auth`
+   is its own context, that leg gets its own `CallContract(token)` rule where
+   the stock `spending_limit` composes and meters the actual outflow. Caps
+   without such a leg are emitted as `DELTA` notes, not installable params.
 3. **Generated Rust** (rows 5, 7): add the `AlreadyInstalled` install guard,
    panic-if-not-installed `uninstall`, and TTL extension constants to match
    the stock pattern.
