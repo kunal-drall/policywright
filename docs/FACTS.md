@@ -229,6 +229,53 @@ persistent storage, with TTL constants (`DAY_IN_LEDGERS = 17280`,
 There is **no** stock policy for call frequency, function-name scoping, or
 argument-value scoping.
 
+### 2.5 Install surface and authorization matching (verified 2026-08-03)
+
+Re-verified against a fresh shallow clone of tag `v0.7.2` (HEAD confirmed
+`a9c42169000638da937577f592ebf61a7a3c94ca`); the earlier local clone was gone.
+
+- **`add_context_rule` — the install entry point a synthesized rule must
+  satisfy** (`packages/accounts/src/smart_account/mod.rs:238-248`):
+
+  ```rust
+  fn add_context_rule(
+      e: &Env,
+      context_type: ContextRuleType,
+      name: String,
+      valid_until: Option<u32>,
+      signers: Vec<Signer>,
+      policies: Map<Address, Val>,   // policy contract address -> install params
+  ) -> ContextRule;
+  ```
+
+  Requires `e.current_contract_address().require_auth()`. Policy install
+  params travel as the `Val` in the `policies` map (decoded via the policy's
+  `AccountParams: FromVal<Env, Val>`).
+
+- **Every `require_auth` call produces its own `Context` at `__check_auth`**
+  (`mod.rs:25-33`): _"`__check_auth` receives `auth_contexts: Vec<Context>` —
+  one entry per `require_auth` call."_ A nested token `transfer` inside a
+  router swap therefore arrives as its own `Contract` context and needs its
+  own matching rule — a least-privilege account authorizing the recorded
+  swap needs a `CallContract(token)` rule for the token as well as the
+  `CallContract(router)` rule. That token rule is exactly where the stock
+  `spending_limit` composes (it meters direct `transfer` calls, §2.4).
+- **No rule auto-discovery** (`mod.rs:43-46, 69-73`;
+  `storage.rs:435-475`): the caller supplies exactly one `ContextRule` id per
+  context via `AuthPayload.context_rule_ids`, aligned by index with
+  `auth_contexts`; mismatched lengths reject.
+- **Each rule must contain at least one signer or one policy** (`mod.rs:20-21`).
+- **`spending_limit` install guards** (`spending_limit.rs:367-405`): panics
+  `OnlyCallContractAllowed` (3227) unless the rule's type is
+  `CallContract(_)` (`:376-378`); `InvalidLimitOrPeriod` unless
+  `spending_limit > 0 && period_ledgers > 0` (`:380-382`); `AlreadyInstalled`
+  on key collision (`:385-387`). The exact params struct is
+  `SpendingLimitAccountParams { spending_limit: i128, period_ledgers: u32 }`
+  (`:88-94`).
+- **`spending_limit::enforce` additionally requires non-empty
+  `authenticated_signers`** (`spending_limit.rs:232-234`) — a policy-only
+  rule with zero authenticated signers is rejected `NotAllowed`.
+
 ---
 
 ## GATE 3 — Live-chain truth (Stellar testnet)
@@ -527,4 +574,5 @@ working tree); it remains a synthetic placeholder, not a real tx.
 | Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 2026-08-03 | File created (toolchain, OZ trait/ContextRule/limits/stock policies, fixture audit). Restructured same day around the four pre-flight gates; added stellar-cli 26.0.0→27.1.0 upgrade, `--verifiable` finding, `wasm32v1-none`, live-chain captures (protocol 27 event shapes, fee-bump, Blend claim, Soroswap swap), swap-venue verification (Comet + Soroswap with on-chain liquidity), and version pins.                                                                              |
+| 2026-08-03 | D1.2 session: added §2.5 — `add_context_rule` install surface, one-`Context`-per-`require_auth` at `__check_auth` (nested transfers need their own rule; that is where `spending_limit` composes), no rule auto-discovery, ≥1 signer-or-policy per rule, `spending_limit` install guards (`OnlyCallContractAllowed`/`InvalidLimitOrPeriod`/`AlreadyInstalled`) and the non-empty-signers requirement in `enforce`. Verified against a fresh v0.7.2 clone (same commit `a9c4216…`).      |
 | 2026-08-03 | D1.1 session: pinned `@stellar/stellar-sdk` exact `15.1.0`; verified `createdAt` is a JSON string the SDK passes through untyped-correctly; verified SDK parses the protocol-27 `events` field; recorded the complete CAP-67 unified SAC event schemas (mint has NO admin topic; sep0011 string is never a strkey); captured and documented the raw `simulateTransaction` result shape (§3.6, committed fixture); retention re-check for the two flow hashes (still live, ≈4–6 h left). |
