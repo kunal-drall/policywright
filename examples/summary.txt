@@ -1,7 +1,7 @@
 policywright — synthesized smart-account authorization
 ======================================================
 
-Source tx : 3389e9f0f1a32b9c7c1cf3b8a2e5d4c6b7a8901234567890abcdef1234567890a
+Source tx : 3389e9f0f1a32b9c7c1cf3b8a2e5d4c6b7a8901234567890abcdef123456789a
 Network   : testnet (recorded from fixture)
 
 Observed flow
