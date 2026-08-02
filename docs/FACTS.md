@@ -28,7 +28,7 @@ in [RECONCILIATION.md](RECONCILIATION.md).
 | stellar-cli install method              | Homebrew (`/opt/homebrew/Cellar/stellar-cli`)                                           | `which -a stellar; brew list --versions stellar-cli`                            | 2026-08-03 |
 | `soroban-sdk` latest stable (crates.io) | `27.0.4` (2026-07-31)                                                                   | `GET https://crates.io/api/v1/crates/soroban-sdk`                               | 2026-08-03 |
 | `@stellar/stellar-sdk` latest (npm)     | `16.2.0` (2026-07-29)                                                                   | `npm view @stellar/stellar-sdk version`                                         | 2026-08-03 |
-| `@stellar/stellar-sdk` installed here   | `15.1.0` (package.json pins `^15.1.0`)                                                  | `node -p "require('./node_modules/@stellar/stellar-sdk/package.json').version"` | 2026-08-03 |
+| `@stellar/stellar-sdk` installed here   | `15.1.0` (package.json pins exact `15.1.0` since D1.1; was `^15.1.0`)                   | `node -p "require('./node_modules/@stellar/stellar-sdk/package.json').version"` | 2026-08-03 |
 | rustc / cargo                           | `1.90.0` / `1.90.0` (Homebrew)                                                          | `rustc --version; cargo --version`                                              | 2026-08-03 |
 | rustup targets installed                | `aarch64-apple-darwin`, `wasm32-unknown-unknown`, `wasm32v1-none`                       | `rustup target list --installed`                                                | 2026-08-03 |
 
@@ -250,6 +250,14 @@ findings below were derived from the committed raw captures with
 | `acf256a0688e7f9c36520f4fc20cfa924d1b2e593033d85b0e443ce770b2d452` | A real **Blend TestnetV2 pool claim** (the only tx emitting the pool's `claim` event in the whole retention window) | SUCCESS, ledger 3818886 |
 | `2dcff6618ff12fb629700cab627b3870afa3f0dd000becf88b2eb7826d0b2c1b` | A real **Soroswap router `swap_exact_tokens_for_tokens`**                                                           | SUCCESS, ledger 3817770 |
 
+Also committed under `examples/live/` (both 2026-08-03):
+
+- `simulated-soroswap-swap.json` — a raw `simulateTransaction` exchange
+  (§3.6), the fixture for the simulated-path recorder.
+- `recorded-claim-swap.json` — the RecordedTx the D1.1 recorder produced LIVE
+  from the two real flow hashes above (this is recorder **output**, not a raw
+  capture; evidence trail in [EVIDENCE.md](../evidence/EVIDENCE.md)).
+
 The user's own claim/swap flow has not been executed yet. When those hashes
 exist, capture them with:
 
@@ -273,6 +281,20 @@ npx tsx scripts/capture.ts <claimTxHash> <swapTxHash> --network testnet
   `resultMetaXdr`, `diagnosticEventsXdr` (deprecated shape, still present),
   **`events`** (new structured field: `{ transactionEventsXdr: [...],
 contractEventsXdr: [[...per-op...]] }`), `ledger`, `createdAt`.
+- **`createdAt` is a JSON _string_** (`"createdAt": "1785107316"` in capture
+  `2dcff6…`), and `@stellar/stellar-sdk` 15.1.0 passes it through verbatim
+  despite typing it `number` (`lib/rpc/parsers.js:43`:
+  `createdAt: raw.createdAt`). Callers must `Number()` it. Verified
+  2026-08-03 against the raw capture and the installed SDK source.
+- SDK 15.1.0 DOES parse the new `events` field into
+  `xdr.TransactionEvent[]` / `xdr.ContractEvent[][]` (`lib/rpc/parsers.js:50,
+55`; `lib/rpc/api.d.ts:153-154`). Verified 2026-08-03.
+- **Retention re-check 2026-08-03 (~19:45 UTC):** both flow hashes were still
+  fetchable (node oldest ledger 3814839 vs tx ledgers 3817770/3818886) but
+  only ~3,000–4,000 ledgers (≈4–6 h) from falling out of the ~7-day window.
+  After expiry the committed captures under `examples/live/` are the only
+  reproduction path for these exact transactions; explorer links keep working
+  (explorers run archival stores).
 
 ### 3.3 Contract-event shapes actually present at protocol 27
 
@@ -295,6 +317,24 @@ Additionally per CAP-67 (verified in
 `{ amount: i128, to_muxed_id: u64|bytes|string }` instead of a bare `i128`.
 Not observed in these captures, but a decoder must not assume `data` is always
 `i128`.
+
+**Complete CAP-67 unified SAC event schemas** (verified 2026-08-03 from the
+same cap-0067.md; the `burn` shape is additionally confirmed by capture
+`c857…` ev[1]):
+
+| Event      | Topics                                                      | Data                        |
+| ---------- | ----------------------------------------------------------- | --------------------------- |
+| `transfer` | 4: `[transfer, from: Addr, to: Addr, sep0011: String]`      | `i128` or muxed map (above) |
+| `mint`     | 3: `[mint, to: Addr, sep0011: String]` — **no admin topic** | `i128` or muxed map         |
+| `burn`     | 3: `[burn, from: Addr, sep0011: String]`                    | `i128`                      |
+| `clawback` | 3: `[clawback, from: Addr, sep0011: String]`                | `i128`                      |
+| `fee`      | 2: `[fee, from: Addr]` (transaction-level)                  | `i128` (refunds negative)   |
+
+The SEP-0011 asset string (`"native"`, `"CODE:G..."`) is never itself a valid
+strkey, which is how the recorder tells the SAC 3-topic `mint`/`burn` forms
+apart from hypothetical non-SAC layouts with an address in that position —
+non-SAC `mint`/`burn` layouts are NOT assumed and are surfaced as warnings
+instead of decoded by guesswork (src/sources/decode.ts).
 
 Other real shapes observed (capture `c857…`):
 
@@ -348,6 +388,26 @@ arg[4] scvU64   1785107613          (deadline, unix seconds)
 Events: the two token `transfer`s (§3.3), plus pair `sync`/`swap` and router
 `swap` events whose topic[0] is the **contract-name string** (`"SoroswapPair"`,
 `"SoroswapRouter"`) with map data — another shape a decoder must tolerate.
+
+### 3.6 `simulateTransaction` — raw result shape as actually captured
+
+Captured 2026-08-03 with [scripts/capture-simulation.ts](../scripts/capture-simulation.ts)
+(raw-preservation, same discipline as capture.ts) and committed as
+[`examples/live/simulated-soroswap-swap.json`](../examples/live/simulated-soroswap-swap.json):
+an UNSIGNED Soroswap-router `swap_exact_tokens_for_tokens` envelope (1 XLM →
+token over the §3.5 path, friendbot-funded throwaway source
+`GABJUTWU2LMN…`, no secret retained) simulated against
+`https://soroban-testnet.stellar.org` at ledger 3935941.
+
+Raw JSON-RPC `result` fields observed: `latestLedger`, `minResourceFee`,
+`transactionData` (base64 `SorobanTransactionData`), **`events`** (flat array
+of base64 **`DiagnosticEvent`**, 19 observed — NOT the per-op `ContractEvent`
+structure `getTransaction` uses; each wraps
+`{inSuccessfulContractCall: bool, event: ContractEvent}`), **`results`**
+(single-element array `{auth: [base64 SorobanAuthorizationEntry], xdr}` —
+simulation DISCOVERS the auth tree an unsigned envelope does not carry,
+including the nested token `transfer`), `stateChanges`. Request must pass
+`xdrFormat: "base64"`. Signatures are not required for simulation.
 
 ---
 
@@ -464,6 +524,7 @@ working tree); it remains a synthetic placeholder, not a real tx.
 
 ## Changelog
 
-| Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                     |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-08-03 | File created (toolchain, OZ trait/ContextRule/limits/stock policies, fixture audit). Restructured same day around the four pre-flight gates; added stellar-cli 26.0.0→27.1.0 upgrade, `--verifiable` finding, `wasm32v1-none`, live-chain captures (protocol 27 event shapes, fee-bump, Blend claim, Soroswap swap), swap-venue verification (Comet + Soroswap with on-chain liquidity), and version pins. |
+| Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-08-03 | File created (toolchain, OZ trait/ContextRule/limits/stock policies, fixture audit). Restructured same day around the four pre-flight gates; added stellar-cli 26.0.0→27.1.0 upgrade, `--verifiable` finding, `wasm32v1-none`, live-chain captures (protocol 27 event shapes, fee-bump, Blend claim, Soroswap swap), swap-venue verification (Comet + Soroswap with on-chain liquidity), and version pins.                                                                              |
+| 2026-08-03 | D1.1 session: pinned `@stellar/stellar-sdk` exact `15.1.0`; verified `createdAt` is a JSON string the SDK passes through untyped-correctly; verified SDK parses the protocol-27 `events` field; recorded the complete CAP-67 unified SAC event schemas (mint has NO admin topic; sep0011 string is never a strkey); captured and documented the raw `simulateTransaction` result shape (§3.6, committed fixture); retention re-check for the two flow hashes (still live, ≈4–6 h left). |
