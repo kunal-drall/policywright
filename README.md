@@ -86,6 +86,9 @@ npm run cli -- simulate --constrain-arguments
 
 ## Argument-level scope (`--constrain-arguments`)
 
+> Argument-level scope is **Tranche 2** scope that landed early. It is off by default and
+> the Tranche 1 pipeline does not depend on it. See [docs/T2-NOTES.md](docs/T2-NOTES.md).
+
 The synthesizer always records the set of token addresses a swap `path` touched (surfaced
 as `argumentScopes` in the spec). What that observation does depends on the flag:
 
@@ -172,14 +175,31 @@ CI builds the site on every push and pull request (the `site` job in
 
 ## Deliverables
 
-This project is built for Stellar SCF #43 ("OZ accounts policy builder"). The table tracks
-deliverables against tranches and their status in this repository.
+This project is built for Stellar SCF #43 ("OZ accounts policy builder") against a
+three-tranche plan. All dates are targets. The table tracks the funded deliverables and
+what is actually verifiable in this repository today — see
+[the roadmap](https://policywright.lemmalabs.space/roadmap/) for the full plan.
 
-| Tranche                        | Deliverable                                                                                                                                      | Status     |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
-| 1 — Spike / PoC                | Recording model, synthesizer (scope + spend caps + frequency), emitter (spec JSON, summary, illustrative Rust), offline dry-run + demo           | ✅ Done    |
-| 2 — Production-grade           | Lint/format gates, Vitest suite + coverage, hardened live RPC adapter (SAC metadata), argument-level scope, configurable synthesis, CI, examples | ✅ Done    |
-| 3 — Future (out of scope here) | Professional audit of the generated Rust policy, on-chain install/sign flow, broader argument constraints, a UI                                  | ⏳ Planned |
+| Tranche                    | Target      | Deliverables                                                                                                                          | Status          |
+| -------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| **T1 — MVP (testnet)**     | 31 Aug 2026 | Recording layer (live + simulated); least-privilege synthesizer; generated-policy compile + testnet deploy; open-source CLI + CI      | 🚧 In progress  |
+| **T2 — Testnet expansion** | 15 Oct 2026 | MCP server; Claude skill; dry-run harness + argument-level scope; net-new policy codegen with storage segregation; wallet integration | ⏳ Not started¹ |
+| **T3 — Mainnet launch**    | 30 Nov 2026 | Three end-to-end walkthroughs; OpenZeppelin validation; production release; mainnet demonstration; audit readiness (SCF Audit Bank)   | ⏳ Not started  |
+
+**Shipped and verifiable today** (all inside T1 scope): the recording layer from the
+offline fixture and from a live Soroban RPC node; the synthesizer (exact scope binding,
+gross-outflow spend caps, minimal-permission inflows, frequency limits); the emitter
+(`spec.json`, `summary.txt`, stamped illustrative Rust); the offline dry-run harness; the
+CLI; the Vitest suite with coverage thresholds; and CI.
+
+**Not yet done in T1:** the simulated-transaction recording path, and compiling and
+deploying a generated policy to testnet. Two verified gaps between the emitted spec and
+the OpenZeppelin shapes it targets are recorded in
+[docs/FACTS.md §4](docs/FACTS.md) and are open.
+
+¹ One T2 item landed early: config-gated argument-level scope (`--constrain-arguments`,
+off by default). The rest of T2 — MCP server, Claude skill, storage-segregated codegen,
+wallet integration — has not been started. See [docs/T2-NOTES.md](docs/T2-NOTES.md).
 
 ## Acknowledgements
 
