@@ -1,7 +1,7 @@
 # policywright
 
-[![CI](https://github.com/kunaldrall29/policywright/actions/workflows/ci.yml/badge.svg)](https://github.com/kunaldrall29/policywright/actions/workflows/ci.yml)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
+[![CI](https://github.com/kunal-drall/policywright/actions/workflows/ci.yml/badge.svg)](https://github.com/kunal-drall/policywright/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
 Policywright turns a transaction a user already performed (or simulated) into the
 least-privilege [OpenZeppelin smart-account](https://docs.openzeppelin.com/stellar-contracts/accounts/smart-account)
@@ -58,19 +58,23 @@ any scenario deviates, so it doubles as a smoke test. It needs no network access
 
 ## Commands
 
-| Command                                                                                | What it does                                                                                                                                              |
-| -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run demo`                                                                         | End-to-end pipeline + dry-run self-check (offline).                                                                                                       |
-| `npm run cli -- synth [--input <recorded.json>]`                                       | Synthesize from the fixture (or a saved record output, e.g. `examples/live/recorded-claim-swap.json`) and print the summary, spec, and context-rule JSON. |
-| `npm run cli -- simulate`                                                              | Run the dry-run scenarios against the fixture's spec.                                                                                                     |
-| `npm run record -- <txHash> [--network testnet\|mainnet\|futurenet] [--rpc-url <url>]` | Fetch a live transaction by hash and print the recording.                                                                                                 |
+| Command                                                                                                      | What it does                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run demo`                                                                                               | End-to-end pipeline + dry-run self-check (offline).                                                                                                       |
+| `npm run cli -- synth [--input <recorded.json>]`                                                             | Synthesize from the fixture (or a saved record output, e.g. `examples/live/recorded-claim-swap.json`) and print the summary, spec, and context-rule JSON. |
+| `npm run cli -- simulate`                                                                                    | Run the dry-run scenarios against the fixture's spec.                                                                                                     |
+| `npm run record -- <txHash>... [--account <G\|C>] [--network testnet\|mainnet\|futurenet] [--rpc-url <url>]` | Fetch live transaction(s) by hash and print one merged recording. `record --from-simulation <file>` ingests a saved simulation instead.                   |
 
-The live `record` path is optional and not exercised by the demo or tests. Given a valid
-transaction hash within the RPC node's retention window, it decodes the `InvokeContract`
-calls and SEP-41 transfer events into a `RecordedTx`, resolving each token's symbol/
+The live `record` path is optional: the network fetch itself is not exercised by the demo
+or tests, but its decoders and multi-hash merge logic run network-free in
+[test/recorder.test.ts](test/recorder.test.ts) against the committed raw captures of real
+testnet transactions in [examples/live/](examples/live/). Given valid transaction hashes
+within the RPC node's retention window, it decodes the `InvokeContract` calls and
+CAP-67/SEP-41 token events into one merged `RecordedTx`, resolving each token's symbol/
 decimals from its SAC metadata (with an explicit `resolved: false` fallback when that is
-not possible). Not-found, failed, wrong-network, and decode failures return clear,
-actionable errors.
+not possible). `--account <G…|C…>` names the subject whose authorizations are scoped;
+`--from-simulation <file>` ingests a saved `simulateTransaction` exchange instead.
+Not-found, failed, wrong-network, and decode failures return clear, actionable errors.
 
 ## Configuration
 
@@ -102,7 +106,7 @@ as `argumentScopes` in the spec). What that observation does depends on the flag
 - **Off (default):** the prior behaviour is preserved — a candidate swap routing through a
   token never observed is **flagged** (advisory), not denied.
 - **On:** the observation becomes an enforced policy — the same swap is **denied** (the
-  `BLND -> XLM` case in the demo).
+  route-through-an-unobserved-token scenario in the demo).
 
 **Limits.** This constrains the _set of tokens the path may touch_, not the ordering,
 intermediate-hop count, or amounts. A multi-hop route through only-observed tokens is
@@ -118,7 +122,8 @@ byte-identical to the compiled-and-tested crate at
 against `stellar-accounts` v0.7.2; equality locked by
 [test/rust-policy.test.ts](test/rust-policy.test.ts)). **It is not audited; deployment is
 TESTNET-only and it must never be deployed to mainnet or used to guard real value** —
-every generated file is stamped with that warning.
+every generated Rust file is stamped with that warning, and the emitted summary carries
+the same note.
 
 ## Development
 
@@ -131,8 +136,14 @@ every generated file is stamped with that warning.
 | `npm run typecheck`                       | `tsc --noEmit`.                                              |
 | `npm run build`                           | Emit `dist/` (`tsconfig.build.json`).                        |
 
-CI runs `npm ci` then lint → format:check → typecheck → test → demo on every push to
-`main` and on pull requests ([ci.yml](.github/workflows/ci.yml)).
+CI ([ci.yml](.github/workflows/ci.yml)) is configured for pushes to `main` and pull
+requests, with three jobs: **build** (npm ci → lint → format:check → typecheck → test →
+demo), **site** (docs-site build), and **contracts** (pinned Rust 1.97.1: `cargo fmt
+--check` → `clippy -D warnings` → `cargo test`, then a `stellar contract build` of the
+policy crate with the same pinned stellar-cli 27.1.0 used for the testnet deploy). Both
+toolchains are cached. Because this repository is a GitHub fork, runs are currently
+dispatched manually and cited per deliverable in
+[evidence/EVIDENCE.md](evidence/EVIDENCE.md) (see the CI-trigger note there).
 
 ## Project layout
 
@@ -188,8 +199,9 @@ CI builds the site on every push and pull request (the `site` job in
 
 ## Deliverables
 
-This project is built for Stellar SCF #43 ("OZ accounts policy builder") against a
-three-tranche plan. All dates are targets. The table tracks the funded deliverables and
+This project is built for Stellar SCF #44 — the awarded submission
+["Record-to-Policy MCP + Agent skill"](https://communityfund.stellar.org/project/policywright-j8x)
+— against a three-tranche plan. All dates are targets. The table tracks the funded deliverables and
 what is actually verifiable in this repository today — see
 [the roadmap](https://policywright.lemmalabs.space/roadmap/) for the full plan.
 
@@ -199,7 +211,7 @@ what is actually verifiable in this repository today — see
 | **T2 — Testnet expansion** | 15 Oct 2026 | MCP server; Claude skill; dry-run harness + argument-level scope; net-new policy codegen with storage segregation; wallet integration | ⏳ Not started¹ |
 | **T3 — Mainnet launch**    | 30 Nov 2026 | Three end-to-end walkthroughs; OpenZeppelin validation; production release; mainnet demonstration; audit readiness (SCF Audit Bank)   | ⏳ Not started  |
 
-**Shipped and verifiable today** (all inside T1 scope): the recording layer from the
+**Shipped and verifiable today**: the recording layer from the
 offline fixture, from a live Soroban RPC node (multi-hash sequences with authorization
 trees), and from a saved `simulateTransaction` exchange; the synthesizer (exact scope
 binding, gross-outflow spend caps, minimal-permission inflows, frequency limits, and
@@ -217,9 +229,11 @@ is deployed to testnet — contract ID and hash-verification trail in the deploy
 [evidence/EVIDENCE.md](evidence/EVIDENCE.md). The deployed instance is testnet-only and
 unaudited.
 
-¹ One T2 item landed early: config-gated argument-level scope (`--constrain-arguments`,
-off by default). The rest of T2 — MCP server, Claude skill, storage-segregated codegen,
-wallet integration — has not been started. See [docs/T2-NOTES.md](docs/T2-NOTES.md).
+¹ One T2 deliverable pair landed early: the offline dry-run harness and its
+config-gated argument-level scope (`--constrain-arguments`, off by default) — the T2 row
+lists "dry-run harness + argument-level scope". The rest of T2 — MCP server, Claude
+skill, storage-segregated codegen, wallet integration — has not been started. See
+[docs/T2-NOTES.md](docs/T2-NOTES.md).
 
 ## Acknowledgements
 

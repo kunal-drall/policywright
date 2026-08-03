@@ -27,7 +27,8 @@ builds a context rule with:
   pairs and no third
   ([scope-binding tests](https://github.com/kunal-drall/policywright/blob/main/test/synthesizer.test.ts)).
 - **Name** — a short deterministic rule name derived from the called function
-  verbs (e.g. `pw:claim+swap`), truncated to 20 characters because OpenZeppelin
+  verbs (e.g. `pw:claim+swap`), truncated to 20 bytes (multibyte symbols count
+  per byte) because OpenZeppelin
   caps rule names at that length.
 - **Lifetime** — `validUntil` is the synthesis time plus the configured
   lifetime (`--lifetime`, default 30 days). Synthesis takes the current time as

@@ -333,7 +333,7 @@ export interface OzContextRule {
 
 /** The scope of the context rule: which (contract, fn) pairs are permitted. */
 export interface ContextRule {
-  /** Short human-readable rule name (OZ caps names at 20 chars). */
+  /** Short human-readable rule name (OZ caps names at 20 bytes, `MAX_NAME_SIZE`). */
   readonly name: string;
   /** Exact (contract, fn) pairs the rule authorises. */
   readonly scopedCalls: readonly { readonly contract: string; readonly fnName: string }[];

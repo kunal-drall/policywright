@@ -46,7 +46,9 @@ Function-level narrowing has to live in a policy's `enforce`, which does receive
 `ContractContext { contract, fn_name, args }`.
 
 policywright's spec models `(contract, fnName)` pairs on the rule itself
-([FACTS.md §4.2](FACTS.md)). Making that installable needs:
+([RECONCILIATION.md rows 13–14](RECONCILIATION.md);
+[src/types.ts](../src/types.ts) `ContextRule.scopedCalls`). Making that
+installable needs:
 
 - one context rule per contract, and
 - a generated policy that checks `context.fn_name` against the observed set.
@@ -86,16 +88,23 @@ conversion needs a ledger-sequence estimate from the network.
 
 ### Simulated-transaction recording path
 
-Listed under T1 in the funded plan and not yet built; noted here only because it
-is adjacent to the RPC adapter work. **It stays T1.**
+~~Listed under T1 in the funded plan and not yet built; noted here only because
+it is adjacent to the RPC adapter work. **It stays T1.**~~ Resolved by D1.1
+(2026-08-03): built as [src/sources/simulation.ts](../src/sources/simulation.ts)
+behind `record --from-simulation`, fixture-tested against the committed real
+`simulateTransaction` capture
+([examples/live/simulated-soroswap-swap.json](../examples/live/simulated-soroswap-swap.json)).
 
 ---
 
 ## Observations parked, not scheduled
 
-- `deriveRuleName` truncates on JS string length; OZ's `MAX_NAME_SIZE` is 20
+- ~~`deriveRuleName` truncates on JS string length; OZ's `MAX_NAME_SIZE` is 20
   **bytes**. Equivalent for the ASCII Soroban symbols in play today
-  ([FACTS.md §2.3](FACTS.md)). Only matters if a non-ASCII name source appears.
+  ([FACTS.md §2.3](FACTS.md)). Only matters if a non-ASCII name source
+  appears.~~ Resolved by D1.2 (`f64e472`): `deriveRuleName` truncates via
+  `truncateToBytes` in [src/synthesizer.ts](../src/synthesizer.ts), with a
+  multibyte-symbol test.
 - ~~`use soroban_sdk::panic_with_error;` emitted at the bottom of the generated
   Rust~~ Resolved by the D1.3 template (2026-08-03): the import sits in the
   top-of-file `use soroban_sdk::{…}` block of

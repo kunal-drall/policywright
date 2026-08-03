@@ -58,15 +58,22 @@ Everything below is in the repository today and runs offline:
   cases —
   [src/simulate.ts](https://github.com/kunal-drall/policywright/blob/main/src/simulate.ts)
 - **CLI, tests, and CI** — `demo`, `synth`, `simulate`, and `record` commands;
-  a Vitest suite with coverage thresholds; lint → format → typecheck → test →
-  demo on every push to `main` and every pull request —
+  a Vitest suite with coverage thresholds; CI configured for pushes to `main`
+  and pull requests, running lint → format → typecheck → test → demo plus a
+  docs-site build and the Rust contracts job (on this fork runs are currently
+  dispatched manually — the cited runs are in
+  [evidence/EVIDENCE.md](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md)) —
   [src/cli.ts](https://github.com/kunal-drall/policywright/blob/main/src/cli.ts),
   [test/](https://github.com/kunal-drall/policywright/tree/main/test),
   [CI workflow](https://github.com/kunal-drall/policywright/actions/workflows/ci.yml)
 
-v0 does **not** sign, deploy, or relay transactions, and it has no MCP server,
-Claude skill, or wallet integration. Those are planned — see the
-[Roadmap](/roadmap/).
+The pipeline in `src/` never signs, deploys, or relays transactions, and v0 has
+no MCP server, Claude skill, or wallet integration — those are planned (see the
+[Roadmap](/roadmap/)). The one exception outside the pipeline is the opt-in,
+testnet-only deploy script for the generated policy contract itself
+([scripts/deploy-testnet.sh](https://github.com/kunal-drall/policywright/blob/main/scripts/deploy-testnet.sh),
+evidenced in the deployment log in
+[evidence/EVIDENCE.md](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md)).
 
 ## The worked example and its assets
 
@@ -95,4 +102,4 @@ plus an offline dry-run to verify it before installing. See the
 for the full adopt/extend/replace breakdown.
 
 Policywright is open source under the
-[Apache-2.0 license](https://github.com/kunal-drall/policywright/blob/main/LICENSE).
+[MIT license](https://github.com/kunal-drall/policywright/blob/main/LICENSE).
