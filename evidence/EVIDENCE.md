@@ -7,9 +7,10 @@ Every row is checkable without trusting this document. Where a claim cannot be
 verified from the repository, it says so instead of claiming completion.
 
 **Scope note.** This is Tranche 1. T1 is **in progress**, not complete — see
-[Not yet delivered](#not-yet-delivered). Nothing here has been deployed on-chain;
-no contract IDs in this repository are real deployments
-([FACTS.md §3](../docs/FACTS.md)).
+[Not yet delivered](#not-yet-delivered). Since D1.3 exactly one real testnet
+deployment exists — the generated frequency-limit policy contract (see
+[Deployment log](#deployment-log)). Every address inside the committed fixture
+remains synthetic ([FACTS.md §5](../docs/FACTS.md)).
 
 Last updated 2026-08-03.
 
@@ -21,6 +22,7 @@ Last updated 2026-08-03.
 git clone https://github.com/kunal-drall/policywright && cd policywright
 npm ci
 npm run lint && npm run format:check && npm run typecheck && npm test && npm run demo
+(cd contracts && cargo test --locked)   # Rust policy crate; toolchain per contracts/rust-toolchain.toml
 ```
 
 `npm run demo` is a self-checking smoke test: it asserts each dry-run scenario
@@ -52,7 +54,7 @@ transactions, and the simulated path is built and fixture-tested.
 
 The fixture's addresses are well-formed but synthetic; its `hash` is a synthetic
 64-hex-character placeholder. Both facts are recorded in
-[FACTS.md §3](../docs/FACTS.md) and stated in the fixture's own `note` field.
+[FACTS.md §5](../docs/FACTS.md) and stated in the fixture's own `note` field.
 
 ### D1.1 — Hardened recording layer (multi-hash, simulated path, typed errors)
 
@@ -201,6 +203,48 @@ and the committed-artifact install-signature validation above. The
 gross-vs-net, inflow-only, exact-scope, and >5-policy warning regressions also
 remain in [test/synthesizer.test.ts](../test/synthesizer.test.ts).
 
+### D1.3 — Generated policy compiled, tested, and deployed to testnet
+
+**Delivered 2026-08-03.** The generated `FrequencyLimitPolicy` exists as a
+compiled Rust crate implementing the real OpenZeppelin `Policy` trait, its
+wasm builds reproducibly, and one instance is deployed on testnet with the
+on-chain wasm hash verified equal to the local build.
+
+| Item                   | Value                                                                                                                                                                                                                                                                          |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Crate                  | [contracts/frequency-limit-policy](../contracts/frequency-limit-policy) — `stellar-accounts = "=0.7.2"`, `soroban-sdk = "=26.1.0"`, toolchain pinned in [rust-toolchain.toml](../contracts/rust-toolchain.toml)                                                                |
+| Rust tests             | 25 (`cd contracts && cargo test --locked`): window rollover both sides of the boundary, count limit, per-(account, rule) isolation in both directions, uninstall lifecycle + fresh reinstall, install/uninstall/enforce auth guards, install-param guards, genesis-edge window |
+| Emitter equality       | `renderFrequencyLimitPolicy` output is byte-identical to the crate source — locked in CI by [test/rust-policy.test.ts](../test/rust-policy.test.ts)                                                                                                                            |
+| Reproducible build     | Two clean builds → identical SHA-256 `42227f2b6150c95a7084bb7c5ff2e7a40793eae39bf0c5dc95bd752d18ee6eed` (12,639 bytes; exact command in [FACTS.md §1.5](../docs/FACTS.md))                                                                                                     |
+| **Contract ID**        | [`CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP`](https://stellar.expert/explorer/testnet/contract/CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP)                                                                                                        |
+| Wasm upload tx         | [`5ac3320d…c082e2c`](https://stellar.expert/explorer/testnet/tx/5ac3320d84e3b2952d641f159e497a76b76c0aca74162dbcf901ecb39c082e2c) (submitted by the first script run — see the honest limits below)                                                                            |
+| Deploy tx              | [`35ddaeaa…236af0`](https://stellar.expert/explorer/testnet/tx/35ddaeaa935af7233dbee577942edfcea2abda1ab12c1cd37d51b4c432236af0)                                                                                                                                               |
+| Deployer               | `GATUKCIM…KS3W` (testnet-only identity from the gitignored `.env`)                                                                                                                                                                                                             |
+| On-chain == local wasm | [scripts/deploy-testnet.sh](../scripts/deploy-testnet.sh) fetches the on-chain wasm back (`stellar contract fetch --id … --network testnet`) and hard-fails on any SHA-256 mismatch; full record in the [Deployment log](#deployment-log)                                      |
+
+**How a reviewer verifies it end to end:**
+
+```bash
+cd contracts && cargo test --locked && cd ..                        # 25 Rust tests
+npm test                                                            # incl. the byte-equality lock
+(cd contracts && rm -rf target && stellar contract build --package frequency-limit-policy)
+shasum -a 256 contracts/target/wasm32v1-none/release/frequency_limit_policy.wasm
+# → 42227f2b6150c95a7084bb7c5ff2e7a40793eae39bf0c5dc95bd752d18ee6eed
+stellar contract fetch --id CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP \
+  --network testnet -o /tmp/onchain.wasm && shasum -a 256 /tmp/onchain.wasm   # → same hash
+```
+
+**Honest limits.** (1) The contract is **unaudited** — the banner stays on
+every generated file and the audit is a Tranche 3 deliverable. (2) A second
+instance `CBZHVZJF…4BHS` (same wasm hash) exists from an interrupted first run
+of the deploy script — it died between deploying and hash-verifying because
+it grepped for a stderr line stellar-cli 27.1.0 does not print
+([FACTS.md §5](../docs/FACTS.md) records both instances; the evidence cites
+the fully verified one). (3) The deployed policy has not been **installed
+into a smart account on-chain** — `enforce` has run only in the unit tests;
+installing rules + policies on a live smart account is wallet-integration
+work, deferred with T2 ([T2-NOTES.md](../docs/T2-NOTES.md)).
+
 ### D2 — Least-privilege synthesizer
 
 **Delivered.** [src/synthesizer.ts](../src/synthesizer.ts) turns a `RecordedTx`
@@ -223,15 +267,15 @@ D1.2), `summary.txt`, and an illustrative Rust policy. A committed example run
 is checked in under [examples/](../examples/) so a reviewer can read the output
 without running anything.
 
-SHA-256 of the committed artefacts as of 2026-08-03 (post-D1.2):
+SHA-256 of the committed artefacts as of 2026-08-03 (post-D1.3):
 
 ```
-95f5b616de3229edfd4927bbd068faddbdffeba63c87be2170dc411881133147  examples/FrequencyLimitPolicy.rs
+8f91c68ef1fd16aba90f9a76b9491ed702e5bef7ab9e8ec892ef79888351db5e  examples/FrequencyLimitPolicy.rs
 f3e2121fbd567242d99bee6f7dcca392cd14adeaacd07f7e17c6ef4b0ad67c41  examples/spec.json
 be2853607fe692cf87c30780f7de857bf8a44f0146ef2a1ed0b409e91c76416f  examples/summary.txt
 77740e716cde4432c73a3e00d70e86ef2647344cca156bfd25d7e0f7fced5947  examples/simulation-report.md
-886bb8f2a36a638682910b328998c7534dada1d8620eb498fef8989f366ca152  examples/context-rule.json
-28668739232a57a22b2440a96604480b0fa64652a449aa41d87bc3c0650e14f0  examples/live/context-rule.json
+7cf76cfd50596a3c399f714a7ae0d6e25ea395221ef5b7f8718503a1f99a86c6  examples/context-rule.json
+0fd2c0e25845552cd35fb7de73e14001421bc33624b64ecaa7ed660431604bfb  examples/live/context-rule.json
 0dd46d1d48664534f0324c4a606f1f2ba5e8ce0da0ec2c5723424372f85131aa  fixtures/recorded-tx.json
 ```
 
@@ -252,8 +296,14 @@ definition, not from memory.
 | What policywright emits    | [examples/FrequencyLimitPolicy.rs](../examples/FrequencyLimitPolicy.rs)                             |
 | Why it is generated at all | OZ ships no stock frequency policy ([FACTS.md §2.4](../docs/FACTS.md)) — compose-first is satisfied |
 
-**Honest limit.** The generated Rust has **never been compiled**, tested
-on-chain, or audited. It carries this banner verbatim, on every generated file:
+**Honest limit, updated by D1.3.** The generated Rust now compiles and passes
+25 unit tests against the real trait as the crate
+[contracts/frequency-limit-policy](../contracts/frequency-limit-policy)
+(emitter output byte-identical — [test/rust-policy.test.ts](../test/rust-policy.test.ts);
+reproducible wasm build — [FACTS.md §1.5](../docs/FACTS.md)), and one instance
+is deployed to testnet ([Deployment log](#deployment-log)). It has still
+**never been audited**. It carries this banner verbatim, on every generated
+file:
 
 > Generated contracts are illustrative and unaudited — not for production
 > deployment until the Audit Bank audit.
@@ -289,12 +339,12 @@ conversion basis stated; the offline simulator still reasons in seconds.
 
 **Delivered.**
 
-| Item                | Evidence                                                                                                                                              |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CLI                 | [src/cli.ts](../src/cli.ts) — `synth`, `simulate`, `record`, with synthesis knobs as flags                                                            |
-| Test suite          | 86 tests across 4 files — `npm test` (22 run every decoder against the committed raw captures; 28 cover the D1.2 OZ context rules — all network-free) |
-| Coverage thresholds | `synthesizer.ts` 97.38% lines, `simulate.ts` 90.47% lines; both gated ≥90 in [vitest.config.ts](../vitest.config.ts) — `npm run test:coverage`        |
-| CI                  | lint → format:check → typecheck → test → demo, plus a docs-site build ([ci.yml](../.github/workflows/ci.yml))                                         |
+| Item                | Evidence                                                                                                                                                                                                                                                                                               |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| CLI                 | [src/cli.ts](../src/cli.ts) — `synth`, `simulate`, `record`, with synthesis knobs as flags                                                                                                                                                                                                             |
+| Test suite          | 90 Vitest tests across 5 files — `npm test` (22 run every decoder against the committed raw captures; 28 cover the D1.2 OZ context rules; 4 lock the emitted Rust byte-identical to the compiled crate — all network-free) — plus 25 Rust tests in [contracts/](../contracts/) (`cargo test --locked`) |
+| Coverage thresholds | `synthesizer.ts` 97.38% lines, `simulate.ts` 90.47% lines; both gated ≥90 in [vitest.config.ts](../vitest.config.ts) — `npm run test:coverage`                                                                                                                                                         |
+| CI                  | lint → format:check → typecheck → test → demo, plus a docs-site build ([ci.yml](../.github/workflows/ci.yml))                                                                                                                                                                                          |
 
 ### D7 — Documentation site
 
@@ -319,17 +369,17 @@ delivered status with test references.
 
 Stated plainly so no reviewer has to infer it.
 
-| Item                                                  | Tranche | Status                                           |
-| ----------------------------------------------------- | ------- | ------------------------------------------------ |
-| Simulated-transaction recording path                  | T1      | **Delivered** (D1.1, 2026-08-03)                 |
-| Compile the generated policy                          | T1      | Not started — the Rust has never been built      |
-| Deploy a generated policy to testnet                  | T1      | Not started — no contract IDs exist              |
-| Resolve `valid_until` ledger-sequence mismatch (§4.1) | T1      | **Delivered** (D1.2, 2026-08-03)                 |
-| Resolve context-rule scope granularity (§4.2)         | T1      | **Delivered** (D1.2, 2026-08-03)                 |
-| MCP server, Claude skill, wallet integration          | T2      | Not started ([T2-NOTES.md](../docs/T2-NOTES.md)) |
-| Net-new policy codegen with storage segregation       | T2      | Not started                                      |
-| Argument-level scope                                  | T2      | Landed early, off by default                     |
-| Audit, mainnet, OZ validation, walkthroughs           | T3      | Not started                                      |
+| Item                                            | Tranche | Status                                           |
+| ----------------------------------------------- | ------- | ------------------------------------------------ |
+| Simulated-transaction recording path            | T1      | **Delivered** (D1.1, 2026-08-03)                 |
+| Compile the generated policy                    | T1      | **Delivered** (D1.3, 2026-08-03)                 |
+| Deploy a generated policy to testnet            | T1      | **Delivered** (D1.3, 2026-08-03)                 |
+| Resolve `valid_until` ledger-sequence mismatch  | T1      | **Delivered** (D1.2, 2026-08-03)                 |
+| Resolve context-rule scope granularity          | T1      | **Delivered** (D1.2, 2026-08-03)                 |
+| MCP server, Claude skill, wallet integration    | T2      | Not started ([T2-NOTES.md](../docs/T2-NOTES.md)) |
+| Net-new policy codegen with storage segregation | T2      | Not started                                      |
+| Argument-level scope                            | T2      | Landed early, off by default                     |
+| Audit, mainnet, OZ validation, walkthroughs     | T3      | Not started                                      |
 
 ---
 
@@ -351,8 +401,24 @@ with no credentials at all.
 
 ## Changelog
 
-| Date       | Change                                                                                                                                                                                                                                                                                                                                      |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-08-03 | File created. Recorded D1–D8 with reproduction steps and artefact hashes. Added the "Not yet delivered" table after correcting the README's Tranche 2 completion claim.                                                                                                                                                                     |
-| 2026-08-03 | D1.1 delivered: multi-hash recording of the real claim→swap sequence (committed output + reconciliation table above), simulated-path ingestion with a committed real `simulateTransaction` exchange, typed error taxonomy, capture-driven decoder tests (58 total). Superseded D1's "live path untested / simulated path not built" limits. |
-| 2026-08-03 | D1.2 delivered: versioned `context-rule.json` (schema v1) with installable OZ rules and real stock `spending_limit` params, emitted and committed for the real recorded sequence; field-by-field install-signature cross-check kept as a CI test; 28 new network-free tests (86 total). Closed the §4.1/§4.2 divergences.                   |
+| Date       | Change                                                                                                                                                                                                                                                                                                                                                   |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-08-03 | File created. Recorded D1–D8 with reproduction steps and artefact hashes. Added the "Not yet delivered" table after correcting the README's Tranche 2 completion claim.                                                                                                                                                                                  |
+| 2026-08-03 | D1.1 delivered: multi-hash recording of the real claim→swap sequence (committed output + reconciliation table above), simulated-path ingestion with a committed real `simulateTransaction` exchange, typed error taxonomy, capture-driven decoder tests (58 total). Superseded D1's "live path untested / simulated path not built" limits.              |
+| 2026-08-03 | D1.3 delivered: the generated policy as a compiled crate against the real OZ `Policy` trait (25 Rust tests; emitter byte-equality locked in CI), reproducible wasm build, and a hash-verified testnet deployment (`CDSVPSTS…2ZPP`); deploy script + deployment log added; FACTS §1.4–1.6 and §5 record the toolchain, CLI-surface, and deployment facts. |
+| 2026-08-03 | D1.2 delivered: versioned `context-rule.json` (schema v1) with installable OZ rules and real stock `spending_limit` params, emitted and committed for the real recorded sequence; field-by-field install-signature cross-check kept as a CI test; 28 new network-free tests (86 total). Closed the §4.1/§4.2 divergences.                                |
+
+## Deployment log
+
+Auto-appended by [scripts/deploy-testnet.sh](../scripts/deploy-testnet.sh);
+every row is re-checkable against the testnet explorer links.
+
+### 2026-08-03T05:39:05Z — frequency-limit-policy
+
+| Item                                          | Value                                                                                                                                                                             |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Contract ID                                   | [`CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP`](https://stellar.expert/explorer/testnet/contract/CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP)           |
+| Wasm hash (= local sha256, = on-chain sha256) | `42227f2b6150c95a7084bb7c5ff2e7a40793eae39bf0c5dc95bd752d18ee6eed`                                                                                                                |
+| Upload tx                                     | (wasm already on-chain; no upload tx)                                                                                                                                             |
+| Deploy tx                                     | [`35ddaeaa935af7233dbee577942edfcea2abda1ab12c1cd37d51b4c432236af0`](https://stellar.expert/explorer/testnet/tx/35ddaeaa935af7233dbee577942edfcea2abda1ab12c1cd37d51b4c432236af0) |
+| Deployer                                      | `GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W`                                                                                                                        |
