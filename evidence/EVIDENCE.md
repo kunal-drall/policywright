@@ -234,6 +234,14 @@ stellar contract fetch --id CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG
   --network testnet -o /tmp/onchain.wasm && shasum -a 256 /tmp/onchain.wasm   # → same hash
 ```
 
+**CI run for this deliverable:**
+[run 30787953610](https://github.com/kunal-drall/policywright/actions/runs/30787953610)
+— dispatched manually (fork; see the D1.2 CI-trigger note) on commit
+`b669d06`, all three jobs green: `build` (lint → format → typecheck → 90
+Vitest tests → demo), `site` (docs build), and the new `contracts` job
+(`cargo fmt --check` → `clippy -D warnings` → 25 tests, on the pinned
+1.97.1 toolchain).
+
 **Honest limits.** (1) The contract is **unaudited** — the banner stays on
 every generated file and the audit is a Tranche 3 deliverable. (2) A second
 instance `CBZHVZJF…4BHS` (same wasm hash) exists from an interrupted first run
