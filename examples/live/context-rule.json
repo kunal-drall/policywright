@@ -41,7 +41,7 @@
             "window_secs": 86400,
             "max_calls": 5
           },
-          "paramsSource": "policywright-generated FrequencyLimitPolicy (src/rust-policy.ts) — FrequencyLimitParams { window_secs: u64, max_calls: u32 }"
+          "paramsSource": "policywright-generated FrequencyLimitPolicy (contracts/frequency-limit-policy, emitted by src/rust-policy.ts) — FrequencyLimitParams { window_secs: u64, max_calls: u32 }"
         }
       ]
     },
@@ -64,7 +64,7 @@
             "window_secs": 86400,
             "max_calls": 5
           },
-          "paramsSource": "policywright-generated FrequencyLimitPolicy (src/rust-policy.ts) — FrequencyLimitParams { window_secs: u64, max_calls: u32 }"
+          "paramsSource": "policywright-generated FrequencyLimitPolicy (contracts/frequency-limit-policy, emitted by src/rust-policy.ts) — FrequencyLimitParams { window_secs: u64, max_calls: u32 }"
         }
       ]
     },

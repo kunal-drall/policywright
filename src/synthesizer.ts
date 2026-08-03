@@ -40,7 +40,7 @@ const SPENDING_LIMIT_PARAMS_SOURCE =
 
 /** Citation for the generated custom policy's install shape. */
 const FREQUENCY_PARAMS_SOURCE =
-  'policywright-generated FrequencyLimitPolicy (src/rust-policy.ts) — FrequencyLimitParams { window_secs: u64, max_calls: u32 }';
+  'policywright-generated FrequencyLimitPolicy (contracts/frequency-limit-policy, emitted by src/rust-policy.ts) — FrequencyLimitParams { window_secs: u64, max_calls: u32 }';
 
 /** Raised when synthesis input or configuration is invalid. */
 export class SynthError extends Error {

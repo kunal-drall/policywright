@@ -15,7 +15,7 @@ npm run demo   # writes the same artefacts to out/
 | `spec.json` | Machine-readable `SmartAccountSpec` (amounts as decimal strings). |
 | `context-rule.json` | Installable OZ context rules + policy install params ([schema](../docs/context-rule-schema.md)). |
 | `simulation-report.md` | Dry-run report for the standard scenarios. |
-| `FrequencyLimitPolicy.rs` | The generated **illustrative, unaudited** Rust policy. |
+| `FrequencyLimitPolicy.rs` | The generated **illustrative, unaudited** Rust policy — byte-identical to the compiled-and-tested crate at [`contracts/frequency-limit-policy`](../contracts/frequency-limit-policy) at the demo defaults. |
 
 The fixture carries no authorization trees, so its `context-rule.json` records the
 BLND spend cap as a **delta note** (the stock spending-limit policy cannot fire

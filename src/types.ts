@@ -190,7 +190,9 @@ export const CONTEXT_RULE_SCHEMA_VERSION = 1;
 
 /**
  * The OpenZeppelin release every emitted install shape is verified against.
- * File:line citations in emitted artifacts are relative to this commit.
+ * File:line citations to OZ sources in emitted artifacts are relative to this
+ * commit; the custom frequency policy's `paramsSource` cites the in-repo
+ * compiled crate (contracts/frequency-limit-policy) instead.
  */
 export const OZ_TARGET = {
   package: 'stellar-accounts (OpenZeppelin/stellar-contracts)',
