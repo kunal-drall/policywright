@@ -303,8 +303,15 @@ npm run demo && ls out/                               # 5 artifacts, exit 0
 (cd contracts && cargo test --locked)                 # 25 Rust tests
 ```
 
-**CI run for this deliverable:** _to be dispatched and cited after these
-commits are pushed (fork; see the D1.2 CI-trigger note)._
+**CI run for this deliverable:**
+[run 30839117017](https://github.com/kunal-drall/policywright/actions/runs/30839117017)
+— dispatched manually (fork; see the D1.2 CI-trigger note) on commit
+`99fc1b2`, all three jobs green: `build` (lint → format → typecheck → 90
+Vitest tests → demo), `site` (docs build), and `contracts` (fmt → clippy `-D
+warnings` → 25 Rust tests → `stellar contract build`, whose Linux-built wasm
+hashed **identically** to the macOS-recorded reproducible hash
+`42227f2b…6eed` — cross-platform reproducibility now recorded in
+[FACTS.md §1.5](../docs/FACTS.md) and asserted by CI since).
 
 **Corrections this deliverable made while removing unprovable claims:** the
 README claimed the project was "Stellar SCF #43 ('OZ accounts policy
@@ -316,11 +323,11 @@ instead of this one, where CI actually runs.
 
 **Honest limits.** (1) Push-triggered CI still does not fire on this fork
 until workflows are enabled from the Actions tab (D1.2 note); every cited run
-is a manual dispatch of exactly the committed workflow. (2) The CI wasm-hash
-step _reports_ the Linux-built hash against the macOS-recorded reproducible
-hash rather than asserting equality — FACTS §1.5 only establishes same-machine
-reproducibility. (3) GitHub's license auto-detection may lag the LICENSE file
-change briefly.
+is a manual dispatch of exactly the committed workflow. (2) The cited run
+executed the wasm-hash step in its original _report_ form; the hash matched,
+so the step was tightened to a hard assert immediately after — the assert
+form is exercised by every subsequent dispatched run. (3) GitHub's license
+auto-detection may lag the LICENSE file change briefly.
 
 ### D2 — Least-privilege synthesizer
 

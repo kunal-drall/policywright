@@ -126,6 +126,15 @@ fixes — install-time `max_calls` cap, removal of the then-unreachable
 remapping above. macOS note: `cargo clean` can fail on this volume's
 AppleDouble `._*` sidecar files — `rm -rf target` instead.)
 
+**Cross-platform reproducibility (verified 2026-08-03, D1.4):** the CI
+`contracts` job on `ubuntu-latest` (x86_64 Linux, same pinned 1.97.1
+toolchain + committed Cargo.lock, stellar-cli 27.1.0 via the official
+action) produced the **identical** SHA-256
+`42227f2b6150c95a7084bb7c5ff2e7a40793eae39bf0c5dc95bd752d18ee6eed` as the
+macOS arm64 builds — see the "wasm hash" step of
+[run 30839117017](https://github.com/kunal-drall/policywright/actions/runs/30839117017).
+CI asserts this equality on every run since.
+
 ### 1.6 stellar-cli 27.1.0 upload/deploy/fetch surface (verified 2026-08-03; corrected against the real D1.3 deploy run)
 
 - `stellar contract upload --wasm <path> --network testnet` prints the
