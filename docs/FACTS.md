@@ -158,6 +158,16 @@ both`); scripts must unset `STELLAR_RPC_URL` when passing `--network`.
   also outputs the SHA-256 of a contract's wasm; there is no `info wasm`
   subcommand.)
 
+### 1.7 Installing stellar-cli in CI (verified 2026-08-03)
+
+The `stellar/stellar-cli` repository doubles as an **official composite
+GitHub Action**: `uses: stellar/stellar-cli@v27.1.0` downloads the release
+binary matching the action ref (`stellar-cli-27.1.0-x86_64-unknown-linux-gnu.tar.gz`
+on `ubuntu-latest`) into `$HOME/.local/bin` and adds it to `PATH`. Verified by
+reading `action.yml` at tag `v27.1.0`
+(`gh api "repos/stellar/stellar-cli/contents/action.yml?ref=v27.1.0"`) and
+the release asset list for v27.1.0. Used by the `contracts` CI job since D1.4.
+
 ---
 
 ## GATE 2 — OpenZeppelin Stellar contracts
@@ -425,6 +435,12 @@ contractEventsXdr: [[...per-op...]] }`), `ledger`, `createdAt`.
   After expiry the committed captures under `examples/live/` are the only
   reproduction path for these exact transactions; explorer links keep working
   (explorers run archival stores).
+- **Retention EXPIRED (verified 2026-08-03, D1.4 session):** the same `npm
+run record` command now returns `[TX_NOT_FOUND]` for both hashes — the node's
+  oldest retained ledger is 3830508, past tx ledgers 3817770/3818886. The
+  typed error names the retention window exactly as designed. The committed
+  captures and `recorded-claim-swap.json` are now the reproduction path
+  (docs/demo-script.md Beat 1 states this in the demo).
 
 ### 3.3 Contract-event shapes actually present at protocol 27
 
@@ -668,6 +684,32 @@ exists from an interrupted first run of the deploy script — the script died
 after deployment but before hash verification because it grepped for a
 `Transaction hash is` stderr line 27.1.0 does not actually print (§1.6). The
 evidence trail cites the fully-verified `CDSVPSTS…` instance.
+
+**On-chain hash re-verified 2026-08-03 (D1.4 session):** `stellar contract
+fetch --id CDSVPSTS… --network testnet` + `shasum -a 256` again produced
+`42227f2b6150c95a7084bb7c5ff2e7a40793eae39bf0c5dc95bd752d18ee6eed`.
+
+---
+
+## 6. The funded SCF submission — public facts
+
+Verified 2026-08-03 against
+<https://communityfund.stellar.org/project/policywright-j8x>:
+
+| Fact             | Value                                                  |
+| ---------------- | ------------------------------------------------------ |
+| SCF round        | **SCF #44** (NOT #43 as the README claimed until D1.4) |
+| Submission title | "Record-to-Policy MCP + Agent skill"                   |
+| Award            | $55.0K Build Award; status "Build phase, Awarded"      |
+| Team size        | 2                                                      |
+| Category         | Developer Tooling                                      |
+
+"OZ accounts policy builder" is a **different** SCF #44 project (by
+Gateway.fm, `/project/oz-accounts-policy-builder-by-gatewayfm-mqp`) — likely
+the RFP policywright responded to, but the portal page does not say so; do
+not conflate the two. The public page does not expose per-deliverable
+completion criteria; the criteria quoted in evidence/EVIDENCE.md come from
+the tranche plan as recorded in this repository.
 
 ---
 

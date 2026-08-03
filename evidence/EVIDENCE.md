@@ -6,11 +6,22 @@ links, paths, and hashes.
 Every row is checkable without trusting this document. Where a claim cannot be
 verified from the repository, it says so instead of claiming completion.
 
-**Scope note.** This is Tranche 1. T1 is **in progress**, not complete — see
+**Scope note.** This is Tranche 1. All four T1 deliverables (D1.1–D1.4 below)
+are delivered as of 2026-08-03; formal tranche review by SCF delegates is
+pending, and later-tranche items are listed under
 [Not yet delivered](#not-yet-delivered). Since D1.3 exactly one real testnet
 deployment exists — the generated frequency-limit policy contract (see
 [Deployment log](#deployment-log)). Every address inside the committed fixture
 remains synthetic ([FACTS.md §5](../docs/FACTS.md)).
+
+**Where the completion criteria come from.** The public SCF project page
+([SCF #44 — "Record-to-Policy MCP + Agent skill"](https://communityfund.stellar.org/project/policywright-j8x),
+checked 2026-08-03) shows the award but does not expose per-deliverable
+completion criteria. The "Criterion" line under each D1.x below therefore
+quotes the funded tranche plan as recorded in this repository (the T1
+deliverable list in the [README](../README.md#deliverables) and
+[roadmap](https://policywright.lemmalabs.space/roadmap/)) — it is not a quote
+of hidden portal text.
 
 Last updated 2026-08-03.
 
@@ -27,9 +38,11 @@ npm run lint && npm run format:check && npm run typecheck && npm test && npm run
 
 `npm run demo` is a self-checking smoke test: it asserts each dry-run scenario
 matches its expected decision and exits non-zero on any deviation. It requires no
-network access and no secrets. CI runs exactly this sequence on every push and
-pull request ([ci.yml](../.github/workflows/ci.yml),
-[runs](https://github.com/kunal-drall/policywright/actions/workflows/ci.yml)).
+network access and no secrets. CI runs exactly this sequence
+([ci.yml](../.github/workflows/ci.yml),
+[runs](https://github.com/kunal-drall/policywright/actions/workflows/ci.yml));
+because this repository is a GitHub fork, runs are dispatched manually and one
+is cited per deliverable below (see the D1.2 CI-trigger note).
 
 ---
 
@@ -57,6 +70,8 @@ The fixture's addresses are well-formed but synthetic; its `hash` is a synthetic
 [FACTS.md §5](../docs/FACTS.md) and stated in the fixture's own `note` field.
 
 ### D1.1 — Hardened recording layer (multi-hash, simulated path, typed errors)
+
+**Criterion (T1 plan):** "Recording layer (live + simulated)."
 
 **Delivered 2026-08-03.** The CLI ingests a real testnet Blend-claim → swap
 transaction sequence by hash and outputs one structured, merged `RecordedTx`.
@@ -120,6 +135,9 @@ documented in RECONCILIATION row 20 as a T1 limitation. (3) Recording a
 FAILED transaction is rejected as `BAD_INPUT` by design.
 
 ### D1.2 — Installable OZ context rules with composed stock-policy params
+
+**Criterion (T1 plan):** "Least-privilege synthesizer (scope + composed
+policies + minimal permission)."
 
 **Delivered 2026-08-03.** The synthesizer consumes the merged multi-transaction
 `RecordedTx` sequence and emits `context-rule.json`: installable OpenZeppelin
@@ -205,6 +223,8 @@ remain in [test/synthesizer.test.ts](../test/synthesizer.test.ts).
 
 ### D1.3 — Generated policy compiled, tested, and deployed to testnet
 
+**Criterion (T1 plan):** "Generated-policy compile + testnet deploy."
+
 **Delivered 2026-08-03.** The generated `FrequencyLimitPolicy` exists as a
 compiled Rust crate implementing the real OpenZeppelin `Policy` trait, its
 wasm builds reproducibly, and one instance is deployed on testnet with the
@@ -252,6 +272,55 @@ the fully verified one). (3) The deployed policy has not been **installed
 into a smart account on-chain** — `enforce` has run only in the unit tests;
 installing rules + policies on a live smart account is wallet-integration
 work, deferred with T2 ([T2-NOTES.md](../docs/T2-NOTES.md)).
+
+### D1.4 — Public MIT repo, green CI, evidence pack
+
+**Criterion (T1 plan):** "Open-source CLI + CI" — specifically: public MIT
+repo, green CI, `npm run demo` produces artifacts, plus the tranche evidence
+pack that makes review trivial.
+
+**Delivered 2026-08-03.**
+
+| Item           | Value                                                                                                                                                                                                                                                                                                                                                                                                   |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Public repo    | <https://github.com/kunal-drall/policywright> (public; description + topics set — `gh repo view kunal-drall/policywright --json isPrivate,description,repositoryTopics`)                                                                                                                                                                                                                                |
+| License        | MIT — [LICENSE](../LICENSE), `license` field in [package.json](../package.json). The repo was Apache-2.0 until 2026-08-03 and was switched to MIT per the funded plan; every commit is by the project author (both git identities — `git shortlog -sne --all`), so no third-party consent was needed                                                                                                    |
+| CI             | [ci.yml](../.github/workflows/ci.yml): `build` (npm ci → lint → format:check → typecheck → 90 tests → demo), `site` (docs build), `contracts` (pinned Rust 1.97.1: fmt → clippy `-D warnings` → 25 tests → `stellar contract build` via the official `stellar/stellar-cli@v27.1.0` action, wasm hash reported against FACTS §1.5). Node toolchain cached by `setup-node`, Rust by `Swatinem/rust-cache` |
+| Demo artifacts | `npm run demo` writes `spec.json`, `context-rule.json`, `summary.txt`, `simulation-report.md`, `FrequencyLimitPolicy.rs` to `out/` and exits non-zero unless all 6 dry-run scenarios behave as expected (byte-identical committed copies under [examples/](../examples/) — hashes in D3)                                                                                                                |
+| Evidence pack  | This file — one section per deliverable with its criterion, what was delivered, and the exact reproduction commands                                                                                                                                                                                                                                                                                     |
+| Demo script    | [docs/demo-script.md](../docs/demo-script.md) — the exact command sequence for the recorded demo, every expected-output block produced by really running the command on 2026-08-03                                                                                                                                                                                                                      |
+| Housekeeping   | [.env.example](../.env.example) (no secrets; documents the `STELLAR_RPC_URL` pitfall from FACTS §1.6), [CONTRIBUTING.md](../CONTRIBUTING.md), `.gitignore` covers `.env` and `out/` (see [Secrets hygiene](#secrets-hygiene))                                                                                                                                                                           |
+| Recorded demo  | _Placeholder — to be recorded by the human following [docs/demo-script.md](../docs/demo-script.md); link/path goes here._                                                                                                                                                                                                                                                                               |
+
+**How a reviewer verifies it end to end (no secrets needed):**
+
+```bash
+git clone https://github.com/kunal-drall/policywright && cd policywright
+head -3 LICENSE                                       # MIT License
+npm ci
+npm run lint && npm run format:check && npm run typecheck && npm test   # 90 tests
+npm run demo && ls out/                               # 5 artifacts, exit 0
+(cd contracts && cargo test --locked)                 # 25 Rust tests
+```
+
+**CI run for this deliverable:** _to be dispatched and cited after these
+commits are pushed (fork; see the D1.2 CI-trigger note)._
+
+**Corrections this deliverable made while removing unprovable claims:** the
+README claimed the project was "Stellar SCF #43 ('OZ accounts policy
+builder')" — the public SCF portal (checked 2026-08-03) lists policywright
+under **SCF #44** with submission title **"Record-to-Policy MCP + Agent
+skill"** ("OZ accounts policy builder" is a different SCF #44 project, by
+Gateway.fm); the README CI badge pointed at the stale parent repository
+instead of this one, where CI actually runs.
+
+**Honest limits.** (1) Push-triggered CI still does not fire on this fork
+until workflows are enabled from the Actions tab (D1.2 note); every cited run
+is a manual dispatch of exactly the committed workflow. (2) The CI wasm-hash
+step _reports_ the Linux-built hash against the macOS-recorded reproducible
+hash rather than asserting equality — FACTS §1.5 only establishes same-machine
+reproducibility. (3) GitHub's license auto-detection may lag the LICENSE file
+change briefly.
 
 ### D2 — Least-privilege synthesizer
 
@@ -351,7 +420,7 @@ conversion basis stated; the offline simulator still reasons in seconds.
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | CLI                 | [src/cli.ts](../src/cli.ts) — `synth`, `simulate`, `record`, with synthesis knobs as flags                                                                                                                                                                                                             |
 | Test suite          | 90 Vitest tests across 5 files — `npm test` (22 run every decoder against the committed raw captures; 28 cover the D1.2 OZ context rules; 4 lock the emitted Rust byte-identical to the compiled crate — all network-free) — plus 25 Rust tests in [contracts/](../contracts/) (`cargo test --locked`) |
-| Coverage thresholds | `synthesizer.ts` 97.38% lines, `simulate.ts` 90.47% lines; both gated ≥90 in [vitest.config.ts](../vitest.config.ts) — `npm run test:coverage`                                                                                                                                                         |
+| Coverage thresholds | `synthesizer.ts` 97.21% lines, `simulate.ts` 90.47% lines (re-run 2026-08-03); both gated ≥90 in [vitest.config.ts](../vitest.config.ts) — `npm run test:coverage`                                                                                                                                     |
 | CI                  | lint → format:check → typecheck → test → demo, plus a docs-site build ([ci.yml](../.github/workflows/ci.yml))                                                                                                                                                                                          |
 
 ### D7 — Documentation site
@@ -409,12 +478,13 @@ with no credentials at all.
 
 ## Changelog
 
-| Date       | Change                                                                                                                                                                                                                                                                                                                                                   |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-08-03 | File created. Recorded D1–D8 with reproduction steps and artefact hashes. Added the "Not yet delivered" table after correcting the README's Tranche 2 completion claim.                                                                                                                                                                                  |
-| 2026-08-03 | D1.1 delivered: multi-hash recording of the real claim→swap sequence (committed output + reconciliation table above), simulated-path ingestion with a committed real `simulateTransaction` exchange, typed error taxonomy, capture-driven decoder tests (58 total). Superseded D1's "live path untested / simulated path not built" limits.              |
-| 2026-08-03 | D1.3 delivered: the generated policy as a compiled crate against the real OZ `Policy` trait (25 Rust tests; emitter byte-equality locked in CI), reproducible wasm build, and a hash-verified testnet deployment (`CDSVPSTS…2ZPP`); deploy script + deployment log added; FACTS §1.4–1.6 and §5 record the toolchain, CLI-surface, and deployment facts. |
-| 2026-08-03 | D1.2 delivered: versioned `context-rule.json` (schema v1) with installable OZ rules and real stock `spending_limit` params, emitted and committed for the real recorded sequence; field-by-field install-signature cross-check kept as a CI test; 28 new network-free tests (86 total). Closed the §4.1/§4.2 divergences.                                |
+| Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-08-03 | File created. Recorded D1–D8 with reproduction steps and artefact hashes. Added the "Not yet delivered" table after correcting the README's Tranche 2 completion claim.                                                                                                                                                                                                                                                                                                    |
+| 2026-08-03 | D1.1 delivered: multi-hash recording of the real claim→swap sequence (committed output + reconciliation table above), simulated-path ingestion with a committed real `simulateTransaction` exchange, typed error taxonomy, capture-driven decoder tests (58 total). Superseded D1's "live path untested / simulated path not built" limits.                                                                                                                                |
+| 2026-08-03 | D1.3 delivered: the generated policy as a compiled crate against the real OZ `Policy` trait (25 Rust tests; emitter byte-equality locked in CI), reproducible wasm build, and a hash-verified testnet deployment (`CDSVPSTS…2ZPP`); deploy script + deployment log added; FACTS §1.4–1.6 and §5 record the toolchain, CLI-surface, and deployment facts.                                                                                                                   |
+| 2026-08-03 | D1.2 delivered: versioned `context-rule.json` (schema v1) with installable OZ rules and real stock `spending_limit` params, emitted and committed for the real recorded sequence; field-by-field install-signature cross-check kept as a CI test; 28 new network-free tests (86 total). Closed the §4.1/§4.2 divergences.                                                                                                                                                  |
+| 2026-08-03 | D1.4 delivered: license switched Apache-2.0 → MIT per the funded plan; CI gains Rust caching and a pinned stellar-cli wasm build with hash reporting; README corrected (SCF #44 / "Record-to-Policy MCP + Agent skill" — the #43 / "OZ accounts policy builder" attribution was wrong — and the CI badge now points at this repo); completion criteria recorded per D1.x; demo script with really-executed expected outputs; `.env.example`, CONTRIBUTING.md, repo topics. |
 
 ## Deployment log
 
