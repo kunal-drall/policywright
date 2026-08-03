@@ -111,10 +111,14 @@ allowed; amount bounds are the spending-limit policy's job. It currently covers 
 
 ## The generated Rust policy is illustrative
 
-The emitted `FrequencyLimitPolicy.rs` models OpenZeppelin's real `Policy` trait shape
-(`install` / `enforce` / `uninstall`, with `enforce` rejecting by panicking) so a
-developer has a starting point. **It is not audited, not tested on-chain, and must not be
-deployed as-is** — every generated file is stamped with that warning.
+The emitted `FrequencyLimitPolicy.rs` implements OpenZeppelin's real `Policy` trait
+(`install` / `enforce` / `uninstall`, with `enforce` rejecting by panicking) and is
+byte-identical to the compiled-and-tested crate at
+[contracts/frequency-limit-policy](contracts/frequency-limit-policy) (25 Rust tests
+against `stellar-accounts` v0.7.2; equality locked by
+[test/rust-policy.test.ts](test/rust-policy.test.ts)). **It is not audited; deployment is
+TESTNET-only and it must never be deployed to mainnet or used to guard real value** —
+every generated file is stamped with that warning.
 
 ## Development
 
@@ -132,16 +136,18 @@ CI runs `npm ci` then lint → format:check → typecheck → test → demo on e
 
 ## Project layout
 
-| Path                                   | Purpose                                     |
-| -------------------------------------- | ------------------------------------------- |
-| `src/types.ts`                         | Core domain types (single source of truth). |
-| `src/sources/fixture.ts`               | Loads the baked-in offline recording.       |
-| `src/sources/rpc.ts`                   | Optional live Soroban RPC adapter.          |
-| `src/synthesizer.ts`                   | `RecordedTx` → `SmartAccountSpec`.          |
-| `src/emitter.ts`, `src/rust-policy.ts` | Render spec JSON, summary, and Rust.        |
-| `src/simulate.ts`                      | Dry-run evaluator + scenarios + report.     |
-| `src/demo.ts`, `src/cli.ts`            | Demo orchestration and CLI.                 |
-| `fixtures/recorded-tx.json`            | The committed offline recording.            |
+| Path                                   | Purpose                                                                                                          |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `src/types.ts`                         | Core domain types (single source of truth).                                                                      |
+| `src/sources/fixture.ts`               | Loads the baked-in offline recording.                                                                            |
+| `src/sources/rpc.ts`                   | Optional live Soroban RPC adapter.                                                                               |
+| `src/synthesizer.ts`                   | `RecordedTx` → `SmartAccountSpec`.                                                                               |
+| `src/emitter.ts`, `src/rust-policy.ts` | Render spec JSON, context-rule JSON, summary, and Rust.                                                          |
+| `src/simulate.ts`                      | Dry-run evaluator + scenarios + report.                                                                          |
+| `src/demo.ts`, `src/cli.ts`            | Demo orchestration and CLI.                                                                                      |
+| `fixtures/recorded-tx.json`            | The committed offline recording.                                                                                 |
+| `contracts/`                           | Rust workspace: the compiled-and-tested frequency-limit-policy crate (source of truth for the emitted template). |
+| `scripts/deploy-testnet.sh`            | Testnet-only build + upload + deploy + hash-verify; appends the deployment log to evidence/EVIDENCE.md.          |
 
 See [docs/architecture.md](docs/architecture.md) for the design in depth.
 
@@ -199,12 +205,17 @@ trees), and from a saved `simulateTransaction` exchange; the synthesizer (exact 
 binding, gross-outflow spend caps, minimal-permission inflows, frequency limits, and
 installable OZ context rules with real stock-policy install params —
 [docs/context-rule-schema.md](docs/context-rule-schema.md)); the emitter (`spec.json`,
-`context-rule.json`, `summary.txt`, stamped illustrative Rust); the offline dry-run
+`context-rule.json`, `summary.txt`, stamped illustrative Rust — the same source as the
+compiled-and-tested crate in [contracts/](contracts/), 25 Rust tests, reproducible wasm
+build per [docs/FACTS.md](docs/FACTS.md) §1.5); the offline dry-run
 harness; the CLI; the Vitest suite with coverage thresholds; and CI. The emitted
 artifacts for a real testnet claim+swap sequence are committed under
 [`examples/live/`](examples/live/).
 
-**Not yet done in T1:** compiling and deploying a generated policy to testnet.
+**Delivered late in T1:** the generated policy compiles, passes its Rust test suite, and
+is deployed to testnet — contract ID and hash-verification trail in the deployment log in
+[evidence/EVIDENCE.md](evidence/EVIDENCE.md). The deployed instance is testnet-only and
+unaudited.
 
 ¹ One T2 item landed early: config-gated argument-level scope (`--constrain-arguments`,
 off by default). The rest of T2 — MCP server, Claude skill, storage-segregated codegen,
@@ -226,4 +237,6 @@ Stated plainly:
   adds the missing step of _deriving the least-privilege authorization from a transaction
   the user already performed_, plus an offline dry-run to verify it before installing.
 - **Replaces** — nothing in pollywallet. This is a complementary authoring/verification
-  tool, not a wallet; it does not sign, deploy, or relay transactions.
+  tool, not a wallet; it does not sign, deploy, or relay user transactions — the only
+  on-chain action in the repo is the opt-in, testnet-only deployment of the generated
+  policy contract itself ([scripts/deploy-testnet.sh](scripts/deploy-testnet.sh)).

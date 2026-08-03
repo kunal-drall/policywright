@@ -73,8 +73,9 @@ The two shapes emitted today:
   decimal strings because JSON numbers cannot carry i128.
 - **`custom:FrequencyLimitPolicy`** — `{ "window_secs": <u64>, "max_calls":
 <u32> }`, matching the generated Rust's `FrequencyLimitParams`
-  (src/rust-policy.ts). The generated contract is illustrative and unaudited —
-  see the banner it carries.
+  (contracts/frequency-limit-policy/src/lib.rs, emitted by src/rust-policy.ts —
+  the compiled crate's tests exercise exactly this shape). The generated
+  contract is illustrative and unaudited — see the banner it carries.
 
 ## Why several rules, and why a token rule
 

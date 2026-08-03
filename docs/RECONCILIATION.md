@@ -29,6 +29,24 @@ venue assumptions the spike baked in.
 | --- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
 | 7   | Per-(smart account, context rule) storage segregation | ✓ Confirmed and uniform: every stock policy keys ALL state on `<Policy>StorageKey::AccountContext(Address, u32)` in **persistent** storage; `install` panics `AlreadyInstalled` on key collision; `enforce` begins with `smart_account.require_auth()` | The generated `FrequencyLimitPolicy`'s `DataKey::Params/Calls(Address, u32)` matches the pattern. Missing pieces to adopt: TTL management (`DAY_IN_LEDGERS = 17280`, extend 30 days, threshold 29) and the `AlreadyInstalled` guard. | `simple_threshold.rs:120-124`; `spending_limit.rs:144-149`; `weighted_threshold.rs:153-160` |
 
+**D1.3 status (2026-08-03).** The generated-Rust consequences of rows 5 and 7
+(and summary item 3) are implemented and compiled: the template now lives as a
+real crate at [contracts/frequency-limit-policy](../contracts/) implementing
+the v0.7.2 trait verbatim — `AlreadyInstalled` install guard,
+panic-if-not-installed `uninstall` (`FrequencyLimitError::SmartAccountNotInstalled`,
+error range 3230+ following the stock per-policy ranges), single
+`AccountContext(Address, u32)` persistent key holding a
+`SpendingLimitData`-style struct, stock TTL constants (extend 30 days /
+threshold 29, applied in the getter exactly like the stock policies), and
+`smart_account.require_auth()` opening install/enforce/uninstall. The emitter
+output IS that crate source (byte-equality locked in
+[test/rust-policy.test.ts](../test/rust-policy.test.ts)); 25 Rust tests cover
+window rollover, count limit, per-(account, rule) isolation both directions,
+and the uninstall lifecycle. Deliberate divergence from stock
+`spending_limit`, documented in the crate docs: `enforce` does not require
+non-empty `authenticated_signers` (frequency meters calls, not signers, and
+the synthesizer attaches this policy to otherwise-empty token rules).
+
 ## Stock policies and their params
 
 | #   | Spike assumption                                                                                             | Actual OZ reality                                                                                                                                                                                                                                                                                                                                                | Impact                                                                                                                                                                                                                                                                                                      | OZ source                                                                                        |

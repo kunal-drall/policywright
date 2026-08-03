@@ -11,7 +11,8 @@ every shape in the system.
                                    ├──▶│ synthesizer  │──▶│   emitter    │
   fixtures/ ──────▶ sources/      ─┘   └──────────────┘   └──────────────┘
                     fixture            SmartAccountSpec      spec.json
-                  RecordedTx                 │               summary.txt
+                  RecordedTx                 │               context-rule.json
+                                             │               summary.txt
                                              │               FrequencyLimitPolicy.rs
                                              ▼
                                        ┌──────────────┐
@@ -78,14 +79,19 @@ the above knobs are exposed as CLI flags on `synth`/`simulate`.
 
 ### 3. Emission (`src/emitter.ts`, `src/rust-policy.ts`)
 
-Renders the spec three ways:
+Renders the spec four ways:
 
 - **`spec.json`** — bigint-safe JSON (amounts as decimal strings).
+- **`context-rule.json`** — installable OZ context rules + policy install params
+  ([schema](context-rule-schema.md)).
 - **`summary.txt`** — a human-readable rundown of the observed flow, the context rule, the
   policies (with amounts formatted by token decimals), and any warnings.
-- **`FrequencyLimitPolicy.rs`** — an illustrative custom policy in Rust, modelled on OZ's
-  real `Policy` trait (associated `AccountParams`; `install` / `enforce` / `uninstall`;
-  `enforce` rejects by panicking — there is no `can_enforce` hook). Every generated file is
+- **`FrequencyLimitPolicy.rs`** — the custom policy in Rust, implementing OZ's real
+  `Policy` trait (associated `AccountParams`; `install` / `enforce` / `uninstall`;
+  `enforce` rejects by panicking — there is no `can_enforce` hook). The emitted source is
+  byte-identical to the compiled-and-tested crate at
+  [contracts/frequency-limit-policy](../contracts/frequency-limit-policy) (equality locked
+  by [test/rust-policy.test.ts](../test/rust-policy.test.ts)). Every generated file is
   stamped **ILLUSTRATIVE / UNAUDITED — NOT DEPLOY-READY**.
 
 ### 4. Simulation (`src/simulate.ts`)

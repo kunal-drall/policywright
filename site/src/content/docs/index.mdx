@@ -27,8 +27,10 @@ an offline-first pipeline you can run today, and the roadmap for what comes next
    scoped to the exact `(contract, function)` pairs observed, a gross-outflow
    spending cap per asset that left the account, no cap for assets that only
    flowed in, and an always-on frequency limit.
-3. **Emit** — render the spec as machine-readable JSON, a human-readable
-   summary, and an _illustrative_ custom Rust policy.
+3. **Emit** — render the spec as machine-readable JSON (`spec.json` plus
+   installable `context-rule.json`), a human-readable summary, and an
+   _illustrative_ custom Rust policy — the same source as the compiled-and-tested
+   crate in `contracts/`.
 4. **Simulate** — dry-run candidate calls against the spec and report whether
    each would be permitted, denied, or flagged — and why — before anything is
    installed.
@@ -48,8 +50,8 @@ Everything below is in the repository today and runs offline:
   minimal-permission inflow handling, frequency limits, and config-gated
   argument-level scope —
   [src/synthesizer.ts](https://github.com/kunal-drall/policywright/blob/main/src/synthesizer.ts)
-- **Emitter** — `spec.json`, `summary.txt`, and a clearly-stamped illustrative
-  Rust policy —
+- **Emitter** — `spec.json`, `context-rule.json`, `summary.txt`, and a
+  clearly-stamped illustrative Rust policy —
   [src/emitter.ts](https://github.com/kunal-drall/policywright/blob/main/src/emitter.ts),
   [src/rust-policy.ts](https://github.com/kunal-drall/policywright/blob/main/src/rust-policy.ts)
 - **Dry-run simulator** — permit/deny/flag evaluation with auto-generated deny

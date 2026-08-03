@@ -75,6 +75,89 @@ Selection logic, verified in v27.1.0 `build.rs:209-210, 718-740`:
 
 Local rustc is 1.90.0 → `wasm32v1-none` (target already installed).
 
+### 1.4 Compiling against soroban-sdk 26.1.0 — rustc and dependency pins (D1.3, verified 2026-08-03)
+
+All empirical, from building `contracts/` on this machine:
+
+- **`soroban-sdk` 26.1.0 declares `rust-version` 1.91.0** — cargo refuses to
+  build it on the Homebrew rustc 1.90.0 (`error: rustc 1.90.0 is not supported
+by ... soroban-sdk@26.1.0 requires rustc 1.91.0`). Combined with stellar-cli
+  rejecting exactly 1.91.0 (§1.3), the working range is **rustc ≥ 1.92**.
+  [contracts/rust-toolchain.toml](../contracts/rust-toolchain.toml) pins
+  **1.97.1** (latest stable at verification) with the `wasm32v1-none` target.
+  The pin is honored by rustup's shims (`~/.cargo/bin`), NOT by the Homebrew
+  cargo — builds must run with `PATH="$HOME/.cargo/bin:$PATH"` (the deploy
+  script does this).
+- **Fresh lockfile resolution is broken upstream**: `soroban-env-host` 26.1.3
+  declares `ed25519-dalek = ">=2.0.0"` (unbounded), which now resolves to
+  3.0.0 — and its changed `rand_core`/`CryptoRng` API fails to compile
+  env-host's own testutils (`SigningKey::generate(chacha)`, E0277). Fixed by
+  `cargo update ed25519-dalek@3.0.0 --precise 2.2.0`; the pin lives in the
+  committed [contracts/Cargo.lock](../contracts/Cargo.lock).
+- **`stellar-accounts` IS published on crates.io**: versions 0.5.0 (2025-10-28),
+  0.6.0, 0.7.0, 0.7.1, 0.7.2 (2026-06-09); `max_stable_version` 0.7.2, none
+  yanked. `contracts/` depends on `stellar-accounts = "=0.7.2"` +
+  `soroban-sdk = "=26.1.0"`. The `experimental_spec_shaking_v2` sdk feature OZ
+  enables arrives transitively via stellar-accounts' own dependency, and
+  stellar-cli exports `SOROBAN_SDK_BUILD_SYSTEM_SUPPORTS_SPEC_SHAKING_V2=1`
+  during builds regardless.
+
+### 1.5 The D1.3 build command and its reproducibility (verified 2026-08-03)
+
+`stellar contract build --package frequency-limit-policy` (cwd `contracts/`,
+stellar-cli 27.1.0) executes exactly (per `--print-commands-only`):
+
+```
+CARGO_BUILD_RUSTFLAGS=--remap-path-prefix=/Users/kunal/.cargo/registry/src= \
+SOROBAN_SDK_BUILD_SYSTEM_SUPPORTS_SPEC_SHAKING_V2=1 \
+cargo rustc --manifest-path=frequency-limit-policy/Cargo.toml \
+  --crate-type=cdylib --target=wasm32v1-none --release
+```
+
+Output: `contracts/target/wasm32v1-none/release/frequency_limit_policy.wasm`,
+12,639 bytes, exports `enforce` / `get_frequency_limit_data` / `install` /
+`uninstall`. **Reproducibility check: two builds from clean (`rm -rf target`)
+produced the identical SHA-256**
+`42227f2b6150c95a7084bb7c5ff2e7a40793eae39bf0c5dc95bd752d18ee6eed`.
+(An earlier pre-review build hashed `ae7f960a…9547`; the adversarial-review
+fixes — install-time `max_calls` cap, removal of the then-unreachable
+`HistoryCapacityExceeded` runtime check — changed the wasm.)
+(No `--verifiable` flag exists — §1.2; reproducibility rests on the path
+remapping above. macOS note: `cargo clean` can fail on this volume's
+AppleDouble `._*` sidecar files — `rm -rf target` instead.)
+
+### 1.6 stellar-cli 27.1.0 upload/deploy/fetch surface (verified 2026-08-03; corrected against the real D1.3 deploy run)
+
+- `stellar contract upload --wasm <path> --network testnet` prints the
+  **64-hex wasm hash to stdout**. The submitted transaction appears on stderr
+  as `Signing transaction: <hex>` plus an explorer link
+  (`🔗 https://stellar.expert/explorer/testnet/tx/<hex>`) — NOT as the
+  `Transaction hash is <hex>` string found in the binary; scripts must parse
+  the explorer-link line (and must not pass `-q`, which silences stderr).
+  Verified empirically during the D1.3 deploy. Re-upload of
+  existing wasm is idempotent (`Skipping install because wasm already
+installed`, hash still printed, no new tx). `stellar contract install` is
+  deprecated in favor of `upload`.
+- `stellar contract deploy --wasm-hash <hex> --network testnet` prints the
+  **`C...` contract id to stdout** (tx hash again on stderr). `--alias <name>`
+  writes `.stellar/contract-ids/<name>.json` under the cwd, overwriting
+  without prompting (gitignored here).
+- `--source-account` is backed by env **`STELLAR_ACCOUNT`** and explicitly
+  accepts a raw secret key (`--source SC36…` per help), which then also signs.
+  No confirmation prompts anywhere in upload/deploy; inclusion fee defaults to
+  100 stroops; resource fee is auto-simulated.
+- A named `--network` and `--rpc-url` are **mutually exclusive** (`cannot use
+both`); scripts must unset `STELLAR_RPC_URL` when passing `--network`.
+  **stellar-cli also dotenv-loads `./.env` from the cwd**: a `STELLAR_RPC_URL`
+  line there without `STELLAR_NETWORK_PASSPHRASE` makes every `--network`
+  invocation from that directory fail (`rpc-url is used but network passphrase
+  is missing`) — so the repo's `.env` must NOT set `STELLAR_RPC_URL`. Found
+  and verified empirically during the D1.3 deploy.
+- On-chain wasm retrieval for hash verification: `stellar contract fetch
+--id <C...> --network testnet -o <file>`. (`stellar contract info hash`
+  also outputs the SHA-256 of a contract's wasm; there is no `info wasm`
+  subcommand.)
+
 ---
 
 ## GATE 2 — OpenZeppelin Stellar contracts
@@ -555,7 +638,7 @@ amount_out_min, [BLND, USDC], your_address, now+300)`, sign with the .env
 
 ---
 
-## 5. Contract IDs and the committed fixture
+## 5. Contract IDs, the committed fixture, and the D1.3 deployment
 
 **The committed fixture contains no real deployments.** Every address in
 [fixtures/recorded-tx.json](../fixtures/recorded-tx.json) is a well-formed but
@@ -567,12 +650,32 @@ GATE 4 above; the fixture predates their verification.
 The fixture's hash was **65** hex chars until 2026-08-03 (now corrected in the
 working tree); it remains a synthetic placeholder, not a real tx.
 
+**The one real deployment (D1.3, 2026-08-03).** The generated
+frequency-limit policy is deployed on testnet, from the `.env` identity
+`GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W`:
+
+| Fact                       | Value                                                                                                      |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Contract ID                | `CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP`                                                 |
+| Wasm hash (local=on-chain) | `42227f2b6150c95a7084bb7c5ff2e7a40793eae39bf0c5dc95bd752d18ee6eed`                                         |
+| Wasm upload tx             | `5ac3320d84e3b2952d641f159e497a76b76c0aca74162dbcf901ecb39c082e2c`                                         |
+| Deploy tx                  | `35ddaeaa935af7233dbee577942edfcea2abda1ab12c1cd37d51b4c432236af0`                                         |
+| Verified by                | `scripts/deploy-testnet.sh`: `stellar contract fetch --id <ID> --network testnet` → SHA-256 == local build |
+
+An additional instance `CBZHVZJFMYKRM7U27IWG6AEYS3GMXB2N3IMDDGW74SC6UK5NHAN54BHS`
+(same wasm hash, deploy tx `2b42587f3011119f64b480d1642179944321fe07c35c70e78ea20d9482da321e`)
+exists from an interrupted first run of the deploy script — the script died
+after deployment but before hash verification because it grepped for a
+`Transaction hash is` stderr line 27.1.0 does not actually print (§1.6). The
+evidence trail cites the fully-verified `CDSVPSTS…` instance.
+
 ---
 
 ## Changelog
 
-| Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-08-03 | File created (toolchain, OZ trait/ContextRule/limits/stock policies, fixture audit). Restructured same day around the four pre-flight gates; added stellar-cli 26.0.0→27.1.0 upgrade, `--verifiable` finding, `wasm32v1-none`, live-chain captures (protocol 27 event shapes, fee-bump, Blend claim, Soroswap swap), swap-venue verification (Comet + Soroswap with on-chain liquidity), and version pins.                                                                              |
-| 2026-08-03 | D1.2 session: added §2.5 — `add_context_rule` install surface, one-`Context`-per-`require_auth` at `__check_auth` (nested transfers need their own rule; that is where `spending_limit` composes), no rule auto-discovery, ≥1 signer-or-policy per rule, `spending_limit` install guards (`OnlyCallContractAllowed`/`InvalidLimitOrPeriod`/`AlreadyInstalled`) and the non-empty-signers requirement in `enforce`. Verified against a fresh v0.7.2 clone (same commit `a9c4216…`).      |
-| 2026-08-03 | D1.1 session: pinned `@stellar/stellar-sdk` exact `15.1.0`; verified `createdAt` is a JSON string the SDK passes through untyped-correctly; verified SDK parses the protocol-27 `events` field; recorded the complete CAP-67 unified SAC event schemas (mint has NO admin topic; sep0011 string is never a strkey); captured and documented the raw `simulateTransaction` result shape (§3.6, committed fixture); retention re-check for the two flow hashes (still live, ≈4–6 h left). |
+| Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-08-03 | File created (toolchain, OZ trait/ContextRule/limits/stock policies, fixture audit). Restructured same day around the four pre-flight gates; added stellar-cli 26.0.0→27.1.0 upgrade, `--verifiable` finding, `wasm32v1-none`, live-chain captures (protocol 27 event shapes, fee-bump, Blend claim, Soroswap swap), swap-venue verification (Comet + Soroswap with on-chain liquidity), and version pins.                                                                                                                                                                                                                                                                                                           |
+| 2026-08-03 | D1.2 session: added §2.5 — `add_context_rule` install surface, one-`Context`-per-`require_auth` at `__check_auth` (nested transfers need their own rule; that is where `spending_limit` composes), no rule auto-discovery, ≥1 signer-or-policy per rule, `spending_limit` install guards (`OnlyCallContractAllowed`/`InvalidLimitOrPeriod`/`AlreadyInstalled`) and the non-empty-signers requirement in `enforce`. Verified against a fresh v0.7.2 clone (same commit `a9c4216…`).                                                                                                                                                                                                                                   |
+| 2026-08-03 | D1.1 session: pinned `@stellar/stellar-sdk` exact `15.1.0`; verified `createdAt` is a JSON string the SDK passes through untyped-correctly; verified SDK parses the protocol-27 `events` field; recorded the complete CAP-67 unified SAC event schemas (mint has NO admin topic; sep0011 string is never a strkey); captured and documented the raw `simulateTransaction` result shape (§3.6, committed fixture); retention re-check for the two flow hashes (still live, ≈4–6 h left).                                                                                                                                                                                                                              |
+| 2026-08-03 | D1.3 session: added §1.4 (soroban-sdk 26.1.0 declares rust-version 1.91.0 → rustc ≥ 1.92 required alongside §1.3's ==1.91.0 rejection; toolchain pinned 1.97.1; upstream `ed25519-dalek >=2.0.0` range resolves to a 3.0.0 that breaks soroban-env-host 26.1.3 testutils — locked to 2.2.0; `stellar-accounts` published on crates.io through 0.7.2), §1.5 (exact build command; two clean builds reproduce SHA-256 `42227f2b…6eed`), §1.6 (upload/deploy/fetch CLI surface: wasm hash & contract id on stdout, submitted-tx explorer links on stderr, `STELLAR_ACCOUNT` accepts a raw secret, `--network` vs `STELLAR_RPC_URL` exclusivity plus the cwd-`.env` dotenv pitfall, `contract fetch` for on-chain wasm). |

@@ -80,7 +80,7 @@ Packaged agent skill over the MCP server. Not started.
 
 Installing a synthesized rule + policies on a real smart account and signing
 through it. Not started. This is the point at which
-[FACTS.md §4.1](FACTS.md) (`valid_until` is a ledger sequence, not a Unix
+[FACTS.md §2.2](FACTS.md) (`valid_until` is a ledger sequence, not a Unix
 timestamp) stops being a documentation issue and becomes a blocking bug — the
 conversion needs a ledger-sequence estimate from the network.
 
@@ -96,9 +96,9 @@ is adjacent to the RPC adapter work. **It stays T1.**
 - `deriveRuleName` truncates on JS string length; OZ's `MAX_NAME_SIZE` is 20
   **bytes**. Equivalent for the ASCII Soroban symbols in play today
   ([FACTS.md §2.3](FACTS.md)). Only matters if a non-ASCII name source appears.
-- `use soroban_sdk::panic_with_error;` is emitted at the _bottom_ of the
-  generated Rust ([src/rust-policy.ts](../src/rust-policy.ts)). Legal — `use` at
-  module scope is order-independent — but it reads badly in a file whose whole
-  job is to be a readable starting point. Cosmetic.
+- ~~`use soroban_sdk::panic_with_error;` emitted at the bottom of the generated
+  Rust~~ Resolved by the D1.3 template (2026-08-03): the import sits in the
+  top-of-file `use soroban_sdk::{…}` block of
+  [contracts/frequency-limit-policy/src/lib.rs](../contracts/frequency-limit-policy/src/lib.rs).
 - OZ `v0.8.0-rc.3` exists. FACTS.md pins `v0.7.2` (latest stable). Re-verify the
   trait and `ContextRule` shapes when 0.8.0 goes stable.

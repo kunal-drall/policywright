@@ -10,7 +10,9 @@ import StatusBadge from '../../components/StatusBadge.astro';
 Policywright is built against a three-tranche plan: **MVP → Testnet →
 Mainnet**. All dates are **targets**. Deliverables that involve on-chain
 behaviour will be evidenced by contract IDs and transaction links when they
-exist; none exist yet.
+exist; the first — the deployed generated frequency-limit policy — is evidenced
+in the deployment log in
+[evidence/EVIDENCE.md](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md).
 
 ## The three tranches
 
@@ -31,8 +33,9 @@ is verifiable today:
 - The least-privilege synthesizer: exact scope binding, gross-outflow spend
   caps, the minimal-permission inflow rule, and frequency limits —
   [src/synthesizer.ts](https://github.com/kunal-drall/policywright/blob/main/src/synthesizer.ts)
-- The emitter: `spec.json`, `summary.txt`, and the stamped illustrative Rust
-  policy —
+- The emitter: `spec.json`, `context-rule.json`, `summary.txt`, and the stamped
+  illustrative Rust policy — the same source as the compiled-and-tested crate at
+  [contracts/frequency-limit-policy](https://github.com/kunal-drall/policywright/tree/main/contracts/frequency-limit-policy) —
   [src/emitter.ts](https://github.com/kunal-drall/policywright/blob/main/src/emitter.ts)
 - The dry-run harness with auto-generated deny cases and config-gated
   argument-level scope —
@@ -43,10 +46,10 @@ is verifiable today:
   [CI workflow](https://github.com/kunal-drall/policywright/actions/workflows/ci.yml)
 
 The remaining items are planned and have not been started in this repository:
-the simulated-transaction recording path, compiling and deploying a generated
-policy to testnet, the MCP server, the Claude skill, wallet integration, the
-walkthroughs, the OpenZeppelin validation pass, the mainnet demonstration, and
-the Audit Bank submission.
+the MCP server, the Claude skill, wallet integration, the walkthroughs, the
+OpenZeppelin validation pass, the mainnet demonstration, and the Audit Bank
+submission. (The simulated-transaction recording path shipped with D1.1; the
+generated policy compiles, tests, and deploys to testnet since D1.3.)
 
 ## Proof policy
 

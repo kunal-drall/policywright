@@ -17,16 +17,21 @@ linked to its source) from what is **planned**.
 
 ## Protections in v0
 
-- **No key custody.** Policywright is an authoring and verification tool: it
-  never asks for, holds, or uses a secret key, and it does not sign, deploy, or
-  relay transactions
+- **No key custody in the pipeline.** The synthesis and verification pipeline
+  never asks for, holds, or uses a secret key
   ([README](https://github.com/kunal-drall/policywright#acknowledgements) states
   this plainly; the only network calls in
   [src/](https://github.com/kunal-drall/policywright/tree/main/src) are
-  read-only RPC reads and read-only metadata simulations).
+  read-only RPC reads and read-only metadata simulations). The one deliberate
+  exception lives outside `src/`: the opt-in testnet deploy script
+  ([scripts/deploy-testnet.sh](https://github.com/kunal-drall/policywright/blob/main/scripts/deploy-testnet.sh))
+  reads the operator's own testnet secret from the gitignored `.env`, deploys
+  the generated policy contract to TESTNET only (it refuses any other
+  network), and never prints the key.
 - **Code-first, deploy-second.** Every output is a file written locally for
-  review — `spec.json`, `summary.txt`, the generated Rust, and the dry-run
-  report. No code path submits anything on-chain
+  review — `spec.json`, `context-rule.json`, `summary.txt`, the generated
+  Rust, and the dry-run report. No code path in `src/` submits anything
+  on-chain
   ([src/demo.ts](https://github.com/kunal-drall/policywright/blob/main/src/demo.ts)).
 - **Deny-case verification.** The dry-run harness auto-generates adjacent
   scenarios that must fail — over the spend cap, an unseen function, after
@@ -44,14 +49,18 @@ linked to its source) from what is **planned**.
   bleed across accounts or rules:
 
   ```rust title="Generated FrequencyLimitPolicy.rs — storage keying (excerpt)"
+  /// Storage key for the frequency limit policy, segregated per
+  /// (smart account, context rule id) exactly like the stock policies.
   #[contracttype]
-  enum DataKey {
-      /// Per (smart account, context rule) install parameters.
-      Params(Address, u32),
-      /// Per (smart account, context rule) timestamps of recent enforcements.
-      Calls(Address, u32),
+  pub enum FrequencyLimitStorageKey {
+      /// Storage key for frequency limit data of a smart account context rule.
+      AccountContext(Address, u32),
   }
   ```
+
+  All state (params and call history) lives in one `FrequencyLimitData` struct
+  under that key; the crate's tests pin the isolation in both directions
+  ([contracts/frequency-limit-policy](https://github.com/kunal-drall/policywright/tree/main/contracts/frequency-limit-policy)).
 
 - **Defensive input handling.** The fixture loader validates every field and
   fails with a precise `FixtureError`; the RPC adapter narrows every decoded
@@ -79,7 +88,7 @@ repository today; the audit work is planned.
 | Over-broad scope inference                | Exact `(contract, fn)` binding; gross-outflow caps; no cap only for inflow-only assets; advisory flags for gaps | Systematic review of every inference rule            |
 | Storage collisions across accounts/rules  | Generated template keys state by `(smart_account, context_rule_id)`                                             | Verification of the generated storage patterns       |
 | Policy bypass                             | Fixed-order dry-run checks with auto-generated deny cases asserted by the demo and tests                        | Bypass hunting on synthesizer output and templates   |
-| Incorrect lifecycle handling              | Generated code models the OZ `Policy` trait (`install` / `enforce` / `uninstall`; `enforce` rejects by panic)   | Conformance review against the OZ accounts lifecycle |
+| Incorrect lifecycle handling              | Generated code implements the real OZ `Policy` trait, compiled + unit-tested against `stellar-accounts` v0.7.2 (`install` / `enforce` / `uninstall`; `enforce` rejects by panic) | Conformance review against the OZ accounts lifecycle |
 
 ## Audit commitment
 
