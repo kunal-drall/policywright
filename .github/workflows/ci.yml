@@ -89,16 +89,13 @@ jobs:
       - name: Build contract wasm with stellar-cli
         run: stellar contract build --package frequency-limit-policy
 
-      # FACTS.md §1.5 records same-machine reproducibility of this hash;
-      # cross-platform equality is reported, not asserted, until verified.
-      - name: Report built wasm hash vs the recorded reproducible build
+      # Cross-platform reproducibility verified in run 30839117017 (Linux
+      # x86_64 == macOS arm64 hash; FACTS.md §1.5) — asserted since then.
+      - name: Assert built wasm hash equals the recorded reproducible build
         run: |
           built=$(sha256sum target/wasm32v1-none/release/frequency_limit_policy.wasm | cut -d' ' -f1)
           expected=42227f2b6150c95a7084bb7c5ff2e7a40793eae39bf0c5dc95bd752d18ee6eed
           echo "built:    $built"
           echo "expected: $expected (FACTS.md §1.5; equals the deployed on-chain wasm)"
-          if [ "$built" = "$expected" ]; then
-            echo "hash matches the recorded reproducible build"
-          else
-            echo "::warning::built wasm sha256 differs from the macOS-recorded hash — cross-platform reproducibility not yet established"
-          fi
+          [ "$built" = "$expected" ] || { echo "::error::built wasm sha256 differs from the recorded reproducible hash"; exit 1; }
+          echo "hash matches the recorded reproducible build and the deployed on-chain wasm"
