@@ -31,7 +31,7 @@ which is the single source of truth for every shape in the system.
   synthesizer --> spec["SmartAccountSpec"]
   spec --> emitter["emitter"]
   emitter --> specjson["spec.json"]
-  emitter --> contextrule["context-rule.json"]
+  emitter --> ctxrule["context-rule.json"]
   emitter --> summary["summary.txt"]
   emitter --> rust["FrequencyLimitPolicy.rs"]
   spec --> simulate["simulate"]
@@ -81,8 +81,8 @@ Produces a `RecordedTx`: the transaction hash/network, the ordered `ScopedCall`s
   Failure modes (not found, failed on-chain, wrong network, no contract calls, malformed
   envelope) return a typed `RecorderError` — `BAD_INPUT` / `TX_NOT_FOUND` / `NETWORK` /
   `DECODE_FAILED`
-  ([src/sources/errors.ts](https://github.com/kunal-drall/policywright/blob/main/src/sources/errors.ts))
-  — rather than a silent empty result.
+  ([src/sources/errors.ts](https://github.com/kunal-drall/policywright/blob/main/src/sources/errors.ts)) —
+  rather than a silent empty result.
 
 ### 2. Synthesis (`src/synthesizer.ts`)
 
@@ -92,7 +92,8 @@ quantitative limits.
 
 - **Scope** — the distinct `(contract, fn)` pairs observed, in first-seen order, plus a
   short derived rule name (OZ caps rule names at 20 **bytes** — multibyte symbols count
-  per byte).
+  per byte;
+  [FACTS.md §2.3](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md)).
 - **Spending limits** — per asset, sum the **gross outflow** (ignoring inflows) and cap it
   at `gross × capMultiplier` (rounded up so the cap never sits below what was observed).
   - _Gross, not net:_ an asset received then sent within the same flow (BLND: claimed in,
@@ -118,14 +119,17 @@ the above knobs are exposed as CLI flags on `synth`/`simulate`.
 Renders the spec four ways:
 
 - **`spec.json`** — bigint-safe JSON (amounts as decimal strings).
-- **`context-rule.json`** — installable OZ context rules + policy install params.
+- **`context-rule.json`** — installable OZ context rules + policy install params
+  ([schema](https://github.com/kunal-drall/policywright/blob/main/docs/context-rule-schema.md)).
 - **`summary.txt`** — a human-readable rundown of the observed flow, the context rule, the
   policies (with amounts formatted by token decimals), and any warnings.
 - **`FrequencyLimitPolicy.rs`** — the custom policy in Rust, implementing OZ's real
   `Policy` trait (associated `AccountParams`; `install` / `enforce` / `uninstall`;
   `enforce` rejects by panicking — there is no `can_enforce` hook). At the default
   config the emitted source is byte-identical to the compiled-and-tested crate at
-  `contracts/frequency-limit-policy` (equality locked by `test/rust-policy.test.ts`;
+  [contracts/frequency-limit-policy](https://github.com/kunal-drall/policywright/tree/main/contracts/frequency-limit-policy)
+  (equality locked by
+  [test/rust-policy.test.ts](https://github.com/kunal-drall/policywright/blob/main/test/rust-policy.test.ts);
   non-default `--frequency-window`/`--frequency-max` values are substituted into the
   template). Every generated Rust file is stamped
   **ILLUSTRATIVE / UNAUDITED — NOT DEPLOY-READY**; the summary carries the same note.

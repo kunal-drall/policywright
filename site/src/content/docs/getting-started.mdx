@@ -1,6 +1,6 @@
 ---
 title: Getting Started
-description: Install Policywright, run the offline demo, and record a live Soroban transaction.
+description: Install Policywright, run the offline demo, and record a live Soroban flow.
 ---
 
 import StatusBadge from '../../components/StatusBadge.astro';
@@ -10,7 +10,7 @@ import UnauditedBanner from '../../components/UnauditedBanner.astro';
 
 Everything on this page runs today against
 [the repository](https://github.com/kunal-drall/policywright) and — except for
-`record` — needs no network access.
+the live `record` fetch — needs no network access.
 
 ## Prerequisites
 
@@ -33,9 +33,11 @@ npm run demo
 ```
 
 The demo records the committed fixture, synthesizes the spec, emits the
-artefacts to `out/`, and runs the dry-run scenarios — asserting each behaves as
-expected. It exits non-zero if any scenario deviates, so it doubles as a smoke
-test ([src/demo.ts](https://github.com/kunal-drall/policywright/blob/main/src/demo.ts)).
+artefacts to `out/` (`spec.json`, `context-rule.json`, `summary.txt`,
+`FrequencyLimitPolicy.rs`, `simulation-report.md`), and runs the dry-run
+scenarios — asserting each behaves as expected. It exits non-zero if any
+scenario deviates, so it doubles as a smoke test
+([src/demo.ts](https://github.com/kunal-drall/policywright/blob/main/src/demo.ts)).
 
 This is the real output (v0.1.0, default config; the final line, which prints
 the machine-specific absolute path of `out/`, is omitted):
@@ -105,22 +107,28 @@ All 6 dry-run scenarios behaved as expected.
 
 The same artefacts are committed under
 [examples/](https://github.com/kunal-drall/policywright/tree/main/examples) so
-you can inspect them without running anything.
+you can inspect them without running anything — including, under
+[examples/live/](https://github.com/kunal-drall/policywright/tree/main/examples/live),
+the recording and emitted `context-rule.json` for a **real testnet**
+claim + swap sequence, alongside the raw transaction captures they were
+decoded from.
 
-The addresses and symbols above come from the deterministic fixture, which uses
-labelled synthetic assets — well-formed but synthetic contract addresses
-carrying the symbols BLND, XLM, and USDC (see the
+The fixture's addresses and symbols are labelled synthetic assets — well-formed
+but synthetic contract addresses carrying the symbols BLND, XLM, and USDC (see
+the
 [fixture's own note](https://github.com/kunal-drall/policywright/blob/main/fixtures/recorded-tx.json)) —
-and is never presented as real USDC. Live demos are planned and not yet published;
-when they are published, they will use the Circle-issued USDC asset on Stellar,
-with the issuer pinned in config and verified against Circle's official
-documentation.
+never presented as real USDC. The live-capture assets are the Blend/Soroswap
+_testnet_ mints, pinned and source-cited in
+[docs/FACTS.md](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md).
 
 ## Synthesize and simulate directly
 
 ```bash
-# Synthesize a spec from the fixture; print the summary + spec.json
+# Synthesize a spec from the fixture; print the summary, spec.json, and context-rule.json
 npm run cli -- synth
+
+# Synthesize from a saved recording instead of the fixture
+npm run cli -- synth --input examples/live/recorded-claim-swap.json
 
 # Run the dry-run scenarios against the fixture's spec
 npm run cli -- simulate
@@ -134,36 +142,48 @@ With `--constrain-arguments`, the unobserved-route scenario (a swap routed
 through a token the recording never touched) is **denied** instead of flagged.
 All flags and defaults are listed in the [CLI reference](/reference/cli/).
 
-## Record a live transaction
+## Record a live flow
 
 ```bash
-npm run record -- <txHash> [--network testnet|mainnet|futurenet] [--rpc-url <url>]
+npm run record -- <txHash> [<txHash> ...] [--account <G...|C...>] \
+  [--network testnet|mainnet|futurenet] [--rpc-url <url>]
+
+# Or ingest a saved simulateTransaction exchange instead of fetching hashes
+npm run record -- --from-simulation <file.json>
 ```
 
-Given a transaction hash within the RPC node's retention window, `record`
-fetches it via Soroban RPC `getTransaction`, decodes the `InvokeContract` calls
-and SEP-41 transfer events into a `RecordedTx`, resolves each token's
-symbol/decimals from its SAC metadata (with an explicit `resolved: false`
-fallback when that is not possible), and prints the recording as JSON
+A multi-step flow (like the Blend claim followed by the Soroswap swap) is
+several transaction hashes — Soroban allows one `InvokeHostFunction` per
+transaction. Passing every hash merges them into **one** `RecordedTx`, ordered
+by ledger close time. `record` decodes the `InvokeContract` calls and
+CAP-67/SEP-41 token events, resolves each token's symbol/decimals from its SAC
+metadata (with an explicit `resolved: false` fallback when that is not
+possible), and prints the merged recording as JSON
 ([src/sources/rpc.ts](https://github.com/kunal-drall/policywright/blob/main/src/sources/rpc.ts)).
 
-- `--network` defaults to `testnet`; each network has a default public RPC
-  endpoint.
-- `--rpc-url` overrides the endpoint, including a node you run yourself.
-- Not-found, failed-on-chain, wrong-network, and decode failures return clear,
-  actionable errors instead of empty output.
+- `--account` names the subject the movements are attributed to. Without it,
+  the first transaction's source account is assumed and a warning records the
+  assumption — smart-account flows usually act through a `C...` address, not
+  the envelope source.
+- `--from-simulation` ingests a saved `simulateTransaction` exchange
+  (`source: "simulation"`) — simulation discovers the authorization tree an
+  unsigned envelope does not carry.
+- `--network` defaults to `testnet`; `--rpc-url` overrides the endpoint,
+  including a node you run yourself.
+- Failures return a typed error — `BAD_INPUT` / `TX_NOT_FOUND` / `NETWORK` /
+  `DECODE_FAILED` — instead of empty output.
 
-The live `record` path is optional: the demo and the test suite never use the
-network.
+The live fetch itself is not exercised by the demo or tests, but its decoders
+and multi-hash merge logic run network-free in
+[test/recorder.test.ts](https://github.com/kunal-drall/policywright/blob/main/test/recorder.test.ts)
+against the committed raw captures of real testnet transactions.
 
 ## The generated Rust policy
 
-The demo also writes `out/FrequencyLimitPolicy.rs`, an illustrative custom
-policy implementing OpenZeppelin's real `Policy` trait — the same source as the
-compiled-and-tested crate at
-[contracts/frequency-limit-policy](https://github.com/kunal-drall/policywright/tree/main/contracts/frequency-limit-policy)
-(25 Rust tests against `stellar-accounts` v0.7.2). Every generated Rust file is
-stamped with this header
+The demo also writes `out/FrequencyLimitPolicy.rs`. Its source is
+byte-identical (at the default config) to the compiled-and-tested crate at
+[contracts/frequency-limit-policy](https://github.com/kunal-drall/policywright/tree/main/contracts/frequency-limit-policy),
+and every generated file is stamped with this header
 ([src/rust-policy.ts](https://github.com/kunal-drall/policywright/blob/main/src/rust-policy.ts)):
 
 ```rust title="out/FrequencyLimitPolicy.rs (generated — header excerpt)"

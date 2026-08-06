@@ -1,31 +1,30 @@
 ---
 title: Policies
-description: The three policy kinds Policywright synthesizes in v0, and the OZ five-policy budget.
+description: The policy kinds Policywright synthesizes in v0, how they map to stock OZ policies, and the five-policy budget.
 ---
 
 import StatusBadge from '../../../components/StatusBadge.astro';
 
 <StatusBadge status="shipped" />
 
-Policies are the enforcement half of the synthesized spec: quantitative
-constraints bound to the [context rule](/concepts/context-rules/). v0
-synthesizes three policy kinds, defined in
+Policies are the enforcement half of the synthesized output: quantitative
+constraints bound to the [context rules](/concepts/context-rules/). v0
+synthesizes three policy kinds in the offline spec, defined in
 [src/types.ts](https://github.com/kunal-drall/policywright/blob/main/src/types.ts)
 and derived in
-[src/synthesizer.ts](https://github.com/kunal-drall/policywright/blob/main/src/synthesizer.ts).
+[src/synthesizer.ts](https://github.com/kunal-drall/policywright/blob/main/src/synthesizer.ts) —
+and then maps them onto **real OpenZeppelin install shapes** in
+`context-rule.json`
+([schema](https://github.com/kunal-drall/policywright/blob/main/docs/context-rule-schema.md)).
 
 ## `spending-limit`
 
-Bounds the **gross outflow** of a single asset over a rolling window. It mirrors
-OpenZeppelin's stock `spending_limit` building block: the spec carries the
-asset, the cap, the window, and — for transparency — the observed gross outflow
-the cap was derived from.
-
-- The cap is `observed gross outflow × capMultiplier`, rounded up so it never
-  sits below what was observed (default multiplier 1.1).
-- One policy is emitted per asset that left the account. Assets that only
-  flowed in get no policy at all — see the
-  [least-privilege model](/concepts/least-privilege/).
+In the offline spec: a **gross-outflow** cap per asset over a rolling window —
+`observed gross outflow × capMultiplier`, rounded up, with the observed amount
+carried for transparency. One policy per asset that left the account; assets
+that only flowed in get no policy at all (see the
+[least-privilege model](/concepts/least-privilege/)). The dry-run simulator
+enforces this cap over any outflow of the asset.
 
 ```json title="examples/spec.json — the BLND spending limit"
 {
@@ -42,14 +41,41 @@ the cap was derived from.
 }
 ```
 
+In the installable `context-rule.json`, the cap becomes OpenZeppelin's **stock
+`spending_limit`** — with its real install params,
+`{ spending_limit: i128, period_ledgers: u32 }` — wherever the recording
+supports it. The stock policy's verified semantics
+([docs/FACTS.md §2.4](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md))
+constrain where that is:
+
+- Its `enforce` only meters **direct `transfer` calls** (reading the amount
+  from the third argument); any other function — including a router swap —
+  panics `NotAllowed`.
+- Its window is measured in **ledgers**, not seconds; Policywright converts
+  (at OZ's own 5 s/ledger basis) and records the conversion in a note.
+
+So the binding attaches on a token rule the subject actually authorized a
+`transfer` on (the committed
+[live example](https://github.com/kunal-drall/policywright/blob/main/examples/live/context-rule.json)
+carries one: `stock:spending_limit` on the native-token rule). When the
+recording shows no subject-authorized direct transfer of a capped asset — as
+in the offline fixture, where the BLND moves inside the pool and router — the
+cap is recorded as an explicit **composition-delta note** rather than emitted
+in a shape the real contract would reject. See
+[compose-first](/concepts/compose-first/).
+
 ## `frequency-limit`
 
 Bounds how often the scoped calls may run within a rolling window (default: at
 most 5 calls per 24 hours, both configurable). One frequency-limit policy is
-always emitted. It is also the policy rendered as the illustrative generated
-Rust starting point — see
-[compose-first](/concepts/compose-first/) for why that one is generated rather
-than composed.
+always emitted. OpenZeppelin ships **no stock policy for call frequency**
+([docs/FACTS.md §2.4](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md)),
+so this is the one policy rendered as generated Rust — implementing the real
+OZ `Policy` trait, byte-identical at the default config to the
+compiled-and-tested crate at
+[contracts/frequency-limit-policy](https://github.com/kunal-drall/policywright/tree/main/contracts/frequency-limit-policy)
+(25 Rust tests; a hash-verified instance is deployed on testnet — see
+[Security](/security/)).
 
 ## `argument-constraint`
 
@@ -65,6 +91,10 @@ observed route touched. The observation is **always** recorded on the spec (as
 It constrains the token _set_, not the ordering, hop count, or amounts — amount
 bounds are the spending limit's job
 ([README: argument-level scope](https://github.com/kunal-drall/policywright#argument-level-scope---constrain-arguments)).
+This enforcement exists in the **offline dry run only**: no stock OZ policy can
+express argument-value scoping, so `context-rule.json` records it as a delta
+note. The repository presents it as Tranche 2 scope that landed early
+([docs/T2-NOTES.md](https://github.com/kunal-drall/policywright/blob/main/docs/T2-NOTES.md)).
 
 ## The five-policy budget
 

@@ -70,3 +70,7 @@ explicitly — surfaced as a gap, not silently permitted
 Unresolvable token metadata is labelled `resolved: false` — never a silent
 guess
 ([src/sources/rpc.ts](https://github.com/kunal-drall/policywright/blob/main/src/sources/rpc.ts)).
+And when a constraint cannot be expressed by the stock on-chain policies, the
+installable `context-rule.json` records it as a named composition-delta note
+instead of dropping it silently — see
+[compose-first](/concepts/compose-first/).

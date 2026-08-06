@@ -1,6 +1,6 @@
 ---
 title: Context rules
-description: How Policywright derives a scoped, time-bounded context rule from a recorded transaction.
+description: How Policywright derives a scoped, time-bounded context rule — and emits it in OZ's installable shape.
 ---
 
 import StatusBadge from '../../../components/StatusBadge.astro';
@@ -17,7 +17,7 @@ plus a minimal policy set
 
 ## What v0 derives
 
-From a recorded transaction, the synthesizer
+From a recorded flow, the synthesizer
 ([src/synthesizer.ts](https://github.com/kunal-drall/policywright/blob/main/src/synthesizer.ts))
 builds a context rule with:
 
@@ -27,9 +27,9 @@ builds a context rule with:
   pairs and no third
   ([scope-binding tests](https://github.com/kunal-drall/policywright/blob/main/test/synthesizer.test.ts)).
 - **Name** — a short deterministic rule name derived from the called function
-  verbs (e.g. `pw:claim+swap`), truncated to 20 bytes (multibyte symbols count
-  per byte) because OpenZeppelin
-  caps rule names at that length.
+  verbs (e.g. `pw:claim+swap`), truncated to 20 **bytes** (multibyte symbols
+  count per byte) because OpenZeppelin caps rule names at that length
+  ([docs/FACTS.md §2.3](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md)).
 - **Lifetime** — `validUntil` is the synthesis time plus the configured
   lifetime (`--lifetime`, default 30 days). Synthesis takes the current time as
   an explicit parameter, so the result is deterministic and testable.
@@ -62,3 +62,30 @@ The dry-run simulator enforces the rule in the same order the checks are
 documented: a call outside the scoped pairs is denied with reason `scope`; a
 call after `validUntil` is denied with reason `lifetime`
 ([src/simulate.ts](https://github.com/kunal-drall/policywright/blob/main/src/simulate.ts)).
+
+## From spec to installable rules
+
+The spec above is the offline, function-level view. The emitter also produces
+`context-rule.json`: the same authorization expressed in the shape
+OpenZeppelin's `add_context_rule` actually takes, verified against the pinned
+`stellar-accounts` v0.7.2 source
+([docs/context-rule-schema.md](https://github.com/kunal-drall/policywright/blob/main/docs/context-rule-schema.md)).
+The mapping is honest about what the on-chain model can and cannot carry:
+
+- **One `CallContract` rule per contract.** An OZ context rule binds exactly
+  one contract, so the claim+swap flow emits two rules (`pw:claim`, `pw:swap`);
+  the `Default` rule type is never emitted — it would authorize everything.
+- **On-chain matching is contract-level.** OZ context rules cannot carry
+  function names. The observed functions are included as advisory
+  `observedFns`, function-level narrowing stays the offline dry run's job, and
+  the gap is recorded as a composition-delta note.
+- **`valid_until` is a ledger sequence on-chain,** not a Unix time. The spec's
+  Unix `validUntil` is converted at OZ's own estimated 5 s/ledger basis, and
+  the conversion is recorded in a note.
+- **Rules are emitted without signers** — the smart account's signers are
+  attached at install, and `add_context_rule` requires at least one signer or
+  policy per rule.
+
+Read the `notes` array before installing: it lists every unit conversion,
+every constraint the stock policies cannot express, and every install-time
+obligation.

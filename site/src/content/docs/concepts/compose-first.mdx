@@ -38,13 +38,29 @@ generation stays the fallback.
 
 ## What v0 does today
 
-- The synthesized **spending limit mirrors OZ's stock `spending_limit`
-  building block**: the spec carries parameters (asset, cap, window), not
-  generated enforcement code
-  ([src/types.ts](https://github.com/kunal-drall/policywright/blob/main/src/types.ts)).
-- The **frequency limit** has no stock counterpart in v0's model, so it is the
-  one policy emitted as fresh Rust — a starting point stamped
-  `ILLUSTRATIVE / UNAUDITED — NOT DEPLOY-READY` on every generated file
+- **Composes the stock `spending_limit` under its real install shape.** The
+  emitted `context-rule.json` attaches `stock:spending_limit` with the
+  parameters the real module takes — `{ spending_limit: i128, period_ledgers:
+  u32 }`, seconds converted to ledgers — on a token rule the subject actually
+  authorized a `transfer` on. Every binding carries its OZ `file:line` source
+  citation
+  ([docs/context-rule-schema.md](https://github.com/kunal-drall/policywright/blob/main/docs/context-rule-schema.md);
+  a real binding is committed in the
+  [live example](https://github.com/kunal-drall/policywright/blob/main/examples/live/context-rule.json)).
+- **Records what stock policies cannot express as explicit delta notes —
+  never as a shape the real contract would reject.** The stock
+  `spending_limit` only meters direct `transfer` calls, verified against OZ
+  source ([docs/FACTS.md §2.4](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md)),
+  so a cap on an asset the subject never directly transferred (the fixture's
+  BLND, which moves inside the pool and router) becomes a named
+  composition-delta note in `context-rule.json`, enforced meanwhile by the
+  offline dry run.
+- **Generates fresh Rust only where no stock policy exists.** OpenZeppelin
+  ships no call-frequency policy, so the frequency limit is the one generated
+  contract — implementing the real OZ `Policy` trait, byte-identical at the
+  default config to the compiled-and-tested crate at
+  [contracts/frequency-limit-policy](https://github.com/kunal-drall/policywright/tree/main/contracts/frequency-limit-policy),
+  stamped `ILLUSTRATIVE / UNAUDITED — NOT DEPLOY-READY` on every emitted file
   ([src/rust-policy.ts](https://github.com/kunal-drall/policywright/blob/main/src/rust-policy.ts)).
 
 ## Planned
