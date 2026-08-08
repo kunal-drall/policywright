@@ -1,0 +1,112 @@
+{
+  "hash": "9fff676c46c5b00afb124cd4f59f63d76177c7b4585bde31a518acf923f0a0b6",
+  "network": "testnet",
+  "source": "rpc",
+  "ledger": 4029100,
+  "timestamp": 1786166112,
+  "subject": "GBMWJIADBWN6FJUQPSVKWZE7ZFEPHEN2YBINQ7UVPHJ2WJW2SWI6WD4Q",
+  "calls": [
+    {
+      "contract": "CAPBMXIQTICKWFPWFDJWMAKBXBPJZUKLNONQH3MLPLLBKQ643CYN5PRW",
+      "fnName": "claim",
+      "args": [
+        "GBMWJIADBWN6FJUQPSVKWZE7ZFEPHEN2YBINQ7UVPHJ2WJW2SWI6WD4Q",
+        [
+          3
+        ],
+        "GBMWJIADBWN6FJUQPSVKWZE7ZFEPHEN2YBINQ7UVPHJ2WJW2SWI6WD4Q"
+      ],
+      "sourceHash": "9fff676c46c5b00afb124cd4f59f63d76177c7b4585bde31a518acf923f0a0b6",
+      "authorizations": [
+        {
+          "contract": "CAPBMXIQTICKWFPWFDJWMAKBXBPJZUKLNONQH3MLPLLBKQ643CYN5PRW",
+          "fnName": "claim",
+          "args": [
+            "GBMWJIADBWN6FJUQPSVKWZE7ZFEPHEN2YBINQ7UVPHJ2WJW2SWI6WD4Q",
+            [
+              3
+            ],
+            "GBMWJIADBWN6FJUQPSVKWZE7ZFEPHEN2YBINQ7UVPHJ2WJW2SWI6WD4Q"
+          ],
+          "subInvocations": []
+        }
+      ]
+    },
+    {
+      "contract": "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD",
+      "fnName": "swap_exact_tokens_for_tokens",
+      "args": [
+        "21394095",
+        "10410850",
+        [
+          "CB22KRA3YZVCNCQI64JQ5WE7UY2VAV7WFLK6A2JN3HEX56T2EDAFO7QF",
+          "CAQCFVLOBK5GIULPNZRGATJJMIZL5BSP7X5YJVMGCPTUEPFM4AVSRCJU"
+        ],
+        "GBMWJIADBWN6FJUQPSVKWZE7ZFEPHEN2YBINQ7UVPHJ2WJW2SWI6WD4Q",
+        "1786174935"
+      ],
+      "sourceHash": "ae943f998fd07dfd17536d8c25b714146f467ea222a6314f23cf7032cdc67c46",
+      "authorizations": [
+        {
+          "contract": "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD",
+          "fnName": "swap_exact_tokens_for_tokens",
+          "args": [
+            "21394095",
+            "10410850",
+            [
+              "CB22KRA3YZVCNCQI64JQ5WE7UY2VAV7WFLK6A2JN3HEX56T2EDAFO7QF",
+              "CAQCFVLOBK5GIULPNZRGATJJMIZL5BSP7X5YJVMGCPTUEPFM4AVSRCJU"
+            ],
+            "GBMWJIADBWN6FJUQPSVKWZE7ZFEPHEN2YBINQ7UVPHJ2WJW2SWI6WD4Q",
+            "1786174935"
+          ],
+          "subInvocations": [
+            {
+              "contract": "CB22KRA3YZVCNCQI64JQ5WE7UY2VAV7WFLK6A2JN3HEX56T2EDAFO7QF",
+              "fnName": "transfer",
+              "args": [
+                "GBMWJIADBWN6FJUQPSVKWZE7ZFEPHEN2YBINQ7UVPHJ2WJW2SWI6WD4Q",
+                "CCLDDDTH2CWR32CMZVFNVW5W5CKDI3M5VN4XRF7IEQZUSMQOS7CA3Q2K",
+                "21394095"
+              ],
+              "subInvocations": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "asset": {
+        "contractId": "CB22KRA3YZVCNCQI64JQ5WE7UY2VAV7WFLK6A2JN3HEX56T2EDAFO7QF",
+        "symbol": "BLND",
+        "decimals": 7,
+        "resolved": true
+      },
+      "direction": "in",
+      "amount": "21394095"
+    },
+    {
+      "asset": {
+        "contractId": "CB22KRA3YZVCNCQI64JQ5WE7UY2VAV7WFLK6A2JN3HEX56T2EDAFO7QF",
+        "symbol": "BLND",
+        "decimals": 7,
+        "resolved": true
+      },
+      "direction": "out",
+      "amount": "21394095"
+    },
+    {
+      "asset": {
+        "contractId": "CAQCFVLOBK5GIULPNZRGATJJMIZL5BSP7X5YJVMGCPTUEPFM4AVSRCJU",
+        "symbol": "USDC",
+        "decimals": 7,
+        "resolved": true
+      },
+      "direction": "in",
+      "amount": "10516011"
+    }
+  ],
+  "warnings": []
+}

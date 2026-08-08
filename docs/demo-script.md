@@ -1,159 +1,204 @@
-# Demo script — the short recorded demo (Tranche 1)
+# Demo script — the recordable Tranche 1 demo (final)
 
-The exact command sequence for the recorded demo: real recorded transactions →
-synthesized least-privilege authorization → the emitted installable rule with
-its real OpenZeppelin parameters → the deployed generated policy contract,
-hash-verified against testnet.
+Five beats, ≤5:00 total. Every `[EXPECT]` block below is real output produced
+by running the command shown, against the freshly executed on-chain flow of
+2026-08-08: a Blend pool `claim` moving 2.1394095 BLND
+(`9fff676c46c5b00afb124cd4f59f63d76177c7b4585bde31a518acf923f0a0b6`) and a
+Soroswap router swap of that BLND into 1.0516011 USDC
+(`ae943f998fd07dfd17536d8c25b714146f467ea222a6314f23cf7032cdc67c46`), both
+verified SUCCESS on the public testnet RPC. Raw captures and the merged
+recording are committed under [examples/live/](../examples/live/).
 
-Total run time: ~3 minutes of terminal work. Every expected-output block below
-was produced by actually running the command on 2026-08-03; blocks marked
-_deterministic_ reproduce byte-for-byte on any machine.
+**Record within a few days:** the two hashes leave the RPC's ~7-day
+retention window around 2026-08-15; after that Beat 2 returns the typed
+`TX_NOT_FOUND` and the committed captures are the reproduction path.
 
-## Prep (off camera)
-
-```bash
-git clone https://github.com/kunal-drall/policywright && cd policywright
-npm ci
-```
-
-Also needed on the machine: `jq`, and `stellar` (stellar-cli, v27.1.0 used
-here) for the final on-chain beat. No secrets and no `.env` are needed for any
-step of this demo.
+Prep (off camera): `git clone https://github.com/kunal-drall/policywright &&
+cd policywright && npm ci`. Also on the machine: `jq` and `stellar`
+(stellar-cli v27.1.0). No secrets and no `.env` are needed for any beat.
 
 ---
 
-## Beat 1 — the real recorded flow
+## Beat 1 — what this is (0:00–0:40)
 
-Say: _"We start from two real testnet transactions a user performed — a Blend
-rewards claim and a Soroswap swap of 1 XLM into USDC."_
+**[SAY]** "This is Policywright — Tranche 1 of our SCF #44 Build Award. It
+turns a transaction you've already performed into the least-privilege
+OpenZeppelin smart-account authorization that permits exactly that flow.
+Public repo, MIT, CI green: lint, typecheck, the full test suite, the offline
+demo, and a reproducible Rust build."
 
-The committed recording was produced by this exact command while the hashes
-were inside the public RPC's ~7-day retention window (D1.1, 2026-08-03):
+> Production note: the approved narration says "CI green on push" — do not
+> say "on push" until push-triggered CI works
+> ([TRANCHE1-FORM.md BLOCKERS #2](../evidence/TRANCHE1-FORM.md#blockers));
+> today every green run is a manual dispatch, as the repo discloses.
+
+**[DO]** Browser: <https://github.com/kunal-drall/policywright> → Actions tab
+→ open the latest green run
+(<https://github.com/kunal-drall/policywright/actions/runs/30839470749>) —
+show the three green jobs: `build`, `site`, `contracts`.
+
+**[EXPECT]** All three jobs green; the `contracts` job's final step reads
+"hash matches the recorded reproducible build and the deployed on-chain
+wasm".
+
+## Beat 2 — recording (0:40–1:40)
+
+**[SAY]** "Recording first. These are two real testnet transactions from
+today — a Blend emissions claim, and a Soroswap swap of that BLND into USDC.
+Soroban allows one contract invocation per transaction, so the recorder takes
+both hashes and merges them into a single recorded sequence: the exact
+contracts and functions called, decoded arguments, and every token movement."
+
+**[DO]** (`npx tsx src/cli.ts` is the same entry point as `npm run record --`
+with stdout kept clean of npm's script banner):
 
 ```bash
-npm run record -- \
-  acf256a0688e7f9c36520f4fc20cfa924d1b2e593033d85b0e443ce770b2d452 \
-  2dcff6618ff12fb629700cab627b3870afa3f0dd000becf88b2eb7826d0b2c1b \
+npx tsx src/cli.ts record \
+  9fff676c46c5b00afb124cd4f59f63d76177c7b4585bde31a518acf923f0a0b6 \
+  ae943f998fd07dfd17536d8c25b714146f467ea222a6314f23cf7032cdc67c46 \
   --network testnet \
-  --account CCW6R5ZKEIJJ75YT54TEHMRUYTP4XQGUI6H63EE3W65H4P4FAUICXP3Q \
-  > examples/live/recorded-claim-swap.json
+  --account GBMWJIADBWN6FJUQPSVKWZE7ZFEPHEN2YBINQ7UVPHJ2WJW2SWI6WD4Q \
+  > /tmp/recording.json
+jq -r '.calls[] | "\(.fnName) @ \(.contract)  (tx \(.sourceHash[0:8])…)"' /tmp/recording.json
+jq -r '.flows[] | "\(.direction)  \(.amount)  \(.asset.symbol)"' /tmp/recording.json
 ```
 
-**Honesty note:** those two hashes have since left the retention window
-(verified 2026-08-03 — the command now returns a typed `TX_NOT_FOUND` error
-that explains exactly that). On camera, show the committed recording instead
-— both transactions remain independently verifiable on the explorer:
-[claim `acf256…`](https://stellar.expert/explorer/testnet/tx/acf256a0688e7f9c36520f4fc20cfa924d1b2e593033d85b0e443ce770b2d452),
-[swap `2dcff6…`](https://stellar.expert/explorer/testnet/tx/2dcff6618ff12fb629700cab627b3870afa3f0dd000becf88b2eb7826d0b2c1b).
-To record truly live on camera instead, see the appendix.
+**[EXPECT]** (real output, run live 2026-08-08; committed copy:
+[examples/live/recorded-claim-swap-fresh.json](../examples/live/recorded-claim-swap-fresh.json)):
+
+```
+claim @ CAPBMXIQTICKWFPWFDJWMAKBXBPJZUKLNONQH3MLPLLBKQ643CYN5PRW  (tx 9fff676c…)
+swap_exact_tokens_for_tokens @ CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD  (tx ae943f99…)
+in  21394095  BLND
+out  21394095  BLND
+in  10516011  USDC
+```
+
+Say over it: "2.1394095 BLND in from the claim, the same 2.1394095 back out
+through the swap, 1.05 USDC in — one merged recording."
+
+## Beat 3 — synthesis (1:40–3:00)
+
+**[SAY]** "Synthesis. The context rule is scoped to exactly the
+contract-function pairs observed — nothing else. BLND is capped on its gross
+outflow: it netted to zero, but the delegate still moved it out, so gross is
+what we cap. USDC only flowed in, so it gets no cap — minimal permission. A
+frequency limit bounds repetition, and the stock OpenZeppelin spending_limit
+is emitted with its real install parameters, converted to ledger units, with
+the source citation."
+
+**[DO]** (synth prints the summary, then the full `spec.json` and
+`context-rule.json` to stdout; the second command slices out the emitted
+rules with their install params):
 
 ```bash
-jq -r '.calls[] | "\(.fnName) @ \(.contract)  (tx \(.sourceHash[0:8])…)"' \
-  examples/live/recorded-claim-swap.json
-jq -r '.flows[] | "\(.direction)  \(.amount)  \(.asset.symbol)"' \
-  examples/live/recorded-claim-swap.json
+npx tsx src/cli.ts synth --input /tmp/recording.json
+npx tsx src/cli.ts synth --input /tmp/recording.json 2>/dev/null \
+  | sed -n '/^--- context-rule.json ---$/,$p' | tail -n +2 \
+  | jq '.contextRules[] | {name, contract: .contextType.contract,
+        policies: [.policies[] | {policy, installParams}]}'
 ```
 
-Expected output (_deterministic_):
-
-```
-swap_exact_tokens_for_tokens @ CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD  (tx 2dcff661…)
-harvest @ CCSLYYVQ575EAPCDOEYGVOI4NVYD2V7RP3F5HRP4LVDUWEJ4HOLVL357  (tx acf256a0…)
-out  10000000  native
-in  308600  USDC
-```
-
-Say: _"One merged recording: the exact contract calls the user authorized,
-and the exact token movements — 1 XLM out, 0.03 USDC in."_
-
-## Beat 2 — synthesize the least-privilege authorization
-
-```bash
-npm run cli -- synth --input examples/live/recorded-claim-swap.json
-```
-
-Expected output (_deterministic_; the summary section — spec.json and
-context-rule.json follow it on screen):
+**[EXPECT]** (real output from the fresh recording, run 2026-08-08; the
+"valid until" unix/ledger values are computed from the clock and ledger at
+synth time, so those two numbers will differ on camera — everything else
+reproduces):
 
 ```
 policywright — synthesized smart-account authorization
 ======================================================
 
-Source tx : 2dcff6618ff12fb629700cab627b3870afa3f0dd000becf88b2eb7826d0b2c1b
+Source tx : 9fff676c46c5b00afb124cd4f59f63d76177c7b4585bde31a518acf923f0a0b6
 Network   : testnet (recorded from rpc)
 
 Observed flow
 -------------
+  call claim @ CAPBMXIQTICKWFPWFDJWMAKBXBPJZUKLNONQH3MLPLLBKQ643CYN5PRW
   call swap_exact_tokens_for_tokens @ CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD
-  call harvest @ CCSLYYVQ575EAPCDOEYGVOI4NVYD2V7RP3F5HRP4LVDUWEJ4HOLVL357
-  out  1 native
-  in   0.03086 USDC
+  in   2.1394095 BLND
+  out  2.1394095 BLND
+  in   1.0516011 USDC
+...
+Policies (2)
+--------
+  - spending-limit: BLND <= 2.3533505 per 86400s (observed gross out 2.1394095)
+  - frequency-limit: <= 5 call(s) per 86400s
 ...
 Installable OZ context rules (3) — see context-rule.json
 ----------------------------
+  pw:claim  CallContract(CAPBMXIQTICKWFPWFDJWMAKBXBPJZUKLNONQH3MLPLLBKQ643CYN5PRW)
+    valid until ledger 4547500; observed fns: claim
+    - custom:FrequencyLimitPolicy { window_secs: 86400, max_calls: 5 }
   pw:swap  CallContract(CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD)
-    valid until ledger 4336170; observed fns: swap_exact_tokens_for_tokens
+    valid until ledger 4547500; observed fns: swap_exact_tokens_for_tokens
     - custom:FrequencyLimitPolicy { window_secs: 86400, max_calls: 5 }
-  pw:harvest  CallContract(CCSLYYVQ575EAPCDOEYGVOI4NVYD2V7RP3F5HRP4LVDUWEJ4HOLVL357)
-    valid until ledger 4336170; observed fns: harvest
-    - custom:FrequencyLimitPolicy { window_secs: 86400, max_calls: 5 }
-  pw:xfer:native  CallContract(CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC)
-    valid until ledger 4336170; observed fns: transfer
-    - stock:spending_limit { spending_limit: 11000000, period_ledgers: 17280 } (caps native transfers)
+  pw:xfer:BLND  CallContract(CB22KRA3YZVCNCQI64JQ5WE7UY2VAV7WFLK6A2JN3HEX56T2EDAFO7QF)
+    valid until ledger 4547500; observed fns: transfer
+    - stock:spending_limit { spending_limit: 23533505, period_ledgers: 17280 } (caps BLND transfers)
 
   6 composition note(s) in context-rule.json (unit conversions,
   deltas the stock policies cannot express).
-
-Note: the generated FrequencyLimitPolicy Rust is ILLUSTRATIVE and
-UNAUDITED — a starting point, not deploy-ready code.
 ```
 
-Say: _"Three context rules, scoped to exactly the contracts the user touched.
-The XLM that left the account gets the stock OpenZeppelin spending-limit with
-its real install parameters — capped at 1.1× what was observed. The USDC that
-only came IN gets no cap at all: least privilege."_
-
-## Beat 3 — the emitted installable rule + params
-
-```bash
-jq '.contextRules[] | {name, contract: .contextType.contract,
-    policies: [.policies[] | {policy, installParams}]}' \
-  examples/live/context-rule.json
-```
-
-Expected output (_deterministic_; committed artifact from the same recording):
+and from the jq slice, the load-bearing rule:
 
 ```json
 {
-  "name": "pw:swap",
-  "contract": "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD",
+  "name": "pw:xfer:BLND",
+  "contract": "CB22KRA3YZVCNCQI64JQ5WE7UY2VAV7WFLK6A2JN3HEX56T2EDAFO7QF",
   "policies": [
-    { "policy": "custom:FrequencyLimitPolicy", "installParams": { "window_secs": 86400, "max_calls": 5 } }
-  ]
-}
-{
-  "name": "pw:harvest",
-  "contract": "CCSLYYVQ575EAPCDOEYGVOI4NVYD2V7RP3F5HRP4LVDUWEJ4HOLVL357",
-  "policies": [
-    { "policy": "custom:FrequencyLimitPolicy", "installParams": { "window_secs": 86400, "max_calls": 5 } }
-  ]
-}
-{
-  "name": "pw:xfer:native",
-  "contract": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
-  "policies": [
-    { "policy": "stock:spending_limit", "installParams": { "spending_limit": "11000000", "period_ledgers": 17280 } }
+    {
+      "policy": "stock:spending_limit",
+      "installParams": { "spending_limit": "23533505", "period_ledgers": 17280 }
+    }
   ]
 }
 ```
 
-Say: _"These are the real OpenZeppelin v0.7.2 install shapes —
-`spending_limit: i128, period_ledgers: u32` — 11000000 stroops is the observed
-1 XLM outflow times 1.1, and 17280 ledgers is one day at 5 seconds per ledger,
-OpenZeppelin's own DAY_IN_LEDGERS. A CI test validates this committed file
-against the OZ install signature."_
+Say over it: "23533505 stroops is the observed 2.1394095 BLND gross outflow
+times 1.1, and 17280 ledgers is one day at 5 seconds per ledger —
+OpenZeppelin's own DAY_IN_LEDGERS. A CI test validates this shape against the
+OZ v0.7.2 install signature."
 
-## Beat 4 — the deployed generated policy, hash-verified live
+## Beat 4 — the dry-run (3:00–3:50)
+
+**[SAY]** "Before anything is installed, the dry-run: the original flow is
+permitted; an over-cap spend is denied; an out-of-scope call is denied — each
+with the reason."
+
+**[DO]**
+
+```bash
+npm run cli -- simulate
+```
+
+**[EXPECT]** (real output, run 2026-08-06; deterministic — the scenarios run
+against the committed offline fixture):
+
+```
+# policywright dry-run report
+
+| Scenario | Decision | Reason |
+| --- | --- | --- |
+| replay recorded flow | ✅ permit (permit) | within scope, lifetime, argument, spend cap, and frequency limits |
+| over the spend cap | ⛔ deny (spending-limit) | outflow of 1357.9500001 BLND exceeds the 1357.95 cap per 86400s |
+| call to an unseen function | ⛔ deny (scope) | set_admin @ CBGAPUV74GVQYQYBHMIN4LF5ZEHYIMM4L5VBGUBB4IJXM5D4RQ7275J7 is outside the context rule's scope |
+| call after rule expiry | ⛔ deny (lifetime) | call at 1751414401 is after the rule expires at 1751414400 |
+| over the frequency limit | ⛔ deny (frequency-limit) | this would be call 6 within 86400s, over the cap of 5 |
+| route through an unobserved token | ⚠️ flag (argument-constraint) | swap_exact_tokens_for_tokens path routes through unobserved token(s) CZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ; not enforced (constrainArguments is off) |
+```
+
+## Beat 5 — the deployed policy, hash-verified (3:50–4:40)
+
+**[SAY]** "The generated policy is real: compiled with pinned stellar-cli, 25
+Rust tests, deployed to testnet — here's the contract, and the on-chain wasm
+hash equals the reproducible local build, asserted in CI. All four Tranche 1
+criteria met, about three weeks ahead of target. Unaudited and testnet-only
+until the Tranche 3 Audit Bank audit."
+
+**[DO]** Browser:
+<https://stellar.expert/explorer/testnet/contract/CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP>.
+Terminal:
 
 ```bash
 stellar contract fetch \
@@ -162,65 +207,25 @@ stellar contract fetch \
 shasum -a 256 /tmp/onchain.wasm
 ```
 
-Expected output (re-verified live 2026-08-03):
+Then show the deployment-log row in
+[evidence/EVIDENCE.md](../evidence/EVIDENCE.md#deployment-log): "Wasm hash
+(= local sha256, = on-chain sha256)".
+
+**[EXPECT]** (re-verified live 2026-08-06):
 
 ```
 42227f2b6150c95a7084bb7c5ff2e7a40793eae39bf0c5dc95bd752d18ee6eed  /tmp/onchain.wasm
 ```
 
-Say: _"The generated frequency-limit policy is a compiled Rust crate — 25 unit
-tests against the real OpenZeppelin Policy trait — and this instance is
-deployed on testnet. We just pulled its wasm back off-chain: the SHA-256
-matches the reproducible local build, recorded in FACTS.md §1.5 and in the
-deployment log in evidence/EVIDENCE.md. Unaudited, testnet-only — the audit is
-a Tranche 3 deliverable."_
-
-Contract on the explorer:
-[`CDSVPSTS…2ZPP`](https://stellar.expert/explorer/testnet/contract/CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP).
-
-## Beat 5 (optional close) — the offline dry-run harness
-
-```bash
-npm run demo
-```
-
-Expected output ends with (_deterministic_):
-
-```
-| replay recorded flow | ✅ permit (permit) | within scope, lifetime, argument, spend cap, and frequency limits |
-| over the spend cap | ⛔ deny (spending-limit) | outflow of 1357.9500001 BLND exceeds the 1357.95 cap per 86400s |
-| call to an unseen function | ⛔ deny (scope) | set_admin @ CBGAPUV74GVQYQYBHMIN4LF5ZEHYIMM4L5VBGUBB4IJXM5D4RQ7275J7 is outside the context rule's scope |
-| call after rule expiry | ⛔ deny (lifetime) | call at 1751414401 is after the rule expires at 1751414400 |
-| over the frequency limit | ⛔ deny (frequency-limit) | this would be call 6 within 86400s, over the cap of 5 |
-| route through an unobserved token | ⚠️ flag (argument-constraint) | ... |
-
-All 6 dry-run scenarios behaved as expected.
-Artefacts written to /Volumes/projects/policywright/out/
-```
-
-Say: _"And before anything is installed on-chain, the dry-run harness proves
-the authorization permits exactly the recorded flow and denies everything
-outside it."_
-
 ---
 
-## Appendix — recording truly live on camera
+## Recording notes
 
-The `record` beat can be performed against fresh hashes instead of the
-committed recording:
-
-1. Execute a small testnet Soroswap swap (XLM → USDC, tens of XLM at most —
-   the pair's liquidity is shallow) from any funded testnet account. Easiest:
-   <https://app.soroswap.finance> switched to Testnet. Details and contract
-   IDs: [FACTS.md §4](FACTS.md).
-2. Then, within the RPC retention window (~7 days):
-
-```bash
-npm run record -- <yourTxHash> --network testnet --account <yourG...address> \
-  > /tmp/my-recording.json
-npm run cli -- synth --input /tmp/my-recording.json
-```
-
-The output has the same shape as Beats 1–3, with your own hash in
-`sourceHashes`. (`--account` is the subject whose authorizations are being
-scoped; use the account that signed the swap.)
+- Terminal font ≥16pt, dark theme, 1080p or higher.
+- Clean shell: minimal prompt, no secrets in env output (`env` never shown;
+  no `.env` is needed for any beat).
+- One full dry run of all five beats before recording; single take preferred.
+- Record before ~2026-08-15, while the two fresh hashes are still inside the
+  RPC retention window.
+- Upload public (YouTube or Loom); test the link in a logged-out/incognito
+  window before pasting it into the form.
