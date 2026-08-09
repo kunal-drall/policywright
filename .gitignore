@@ -19,3 +19,7 @@ contracts/**/test_snapshots/
 *.log
 .DS_Store
 ._*
+
+# Internal team documents — kept local, not published
+docs/demo-script.md
+evidence/TRANCHE1-FORM.md

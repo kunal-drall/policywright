@@ -449,7 +449,7 @@ run record` command now returns `[TX_NOT_FOUND]` for both hashes — the node's
   oldest retained ledger is 3830508, past tx ledgers 3817770/3818886. The
   typed error names the retention window exactly as designed. The committed
   captures and `recorded-claim-swap.json` are now the reproduction path
-  (docs/demo-script.md Beat 1 states this in the demo).
+  (the internal demo script states this in the demo).
 
 ### 3.3 Contract-event shapes actually present at protocol 27
 
