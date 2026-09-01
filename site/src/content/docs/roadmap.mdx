@@ -24,10 +24,11 @@ log in
 | **T2 — Testnet expansion** | 15 Oct 2026 _(target)_   | Agent-usable tooling | MCP server (`record` / `synthesize` / `simulate` / `verify` tools); Claude skill; dry-run harness + argument-level scope; net-new policy codegen with storage segregation; wallet integration (testnet, end-to-end) |
 | **T3 — Mainnet launch**  | 30 Nov 2026 _(target)_     | Production         | Three documented end-to-end walkthroughs; OpenZeppelin validation of generated code; production release (versioned MCP server + packaged skill + docs); mainnet demonstration; test suite + audit readiness (audit scope submitted to the SCF Audit Bank) |
 
-## Where v0 stands
+## Where the project stands
 
-Parts of the T1 and T2 scope already exist in the repository. Each item below
-is verifiable today:
+Tranche 1 (D1.1–D1.4) is delivered; Tranche 2 is in progress, with D2.3 — the
+dry-run harness with supported argument-level scope — delivered on
+2026-09-02. Each item below is verifiable today:
 
 - Recording from the offline fixture and from a live Soroban RPC node by
   transaction hash —
@@ -39,9 +40,12 @@ is verifiable today:
   illustrative Rust policy — the same source as the compiled-and-tested crate at
   [contracts/frequency-limit-policy](https://github.com/kunal-drall/policywright/tree/main/contracts/frequency-limit-policy) —
   [src/emitter.ts](https://github.com/kunal-drall/policywright/blob/main/src/emitter.ts)
-- The dry-run harness with auto-generated deny cases and config-gated
-  argument-level scope —
-  [src/simulate.ts](https://github.com/kunal-drall/policywright/blob/main/src/simulate.ts)
+- The dry-run harness: permit / deny / flag reports with auto-generated deny
+  cases and argument-level scope (derived always, enforced with
+  `--constrain-arguments`), proven both ways on the real recorded claim→swap
+  sequence — BLND→XLM flagged by default, denied when enabled
+  ([committed reports](https://github.com/kunal-drall/policywright/tree/main/examples/live),
+  [src/simulate.ts](https://github.com/kunal-drall/policywright/blob/main/src/simulate.ts))
 - The open-source CLI, Vitest suite with coverage thresholds, and CI running
   lint → format → typecheck → test → demo —
   [src/cli.ts](https://github.com/kunal-drall/policywright/blob/main/src/cli.ts),
@@ -51,14 +55,14 @@ Beyond that list, the simulated-transaction recording path shipped with D1.1,
 and the generated policy compiles, passes its Rust test suite, and is deployed
 to testnet (hash-verified) since D1.3 — deployment log in
 [evidence/EVIDENCE.md](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md).
-One T2 deliverable pair landed early: the offline dry-run harness and its
-config-gated argument-level scope (`--constrain-arguments`, off by default) —
-see [docs/T2-NOTES.md](https://github.com/kunal-drall/policywright/blob/main/docs/T2-NOTES.md).
+The T2 harness deliverable (D2.3) is evidenced in
+[evidence/EVIDENCE.md](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md).
 
 The remaining items are planned and have not been started in this repository:
 the MCP server, the Claude skill, net-new policy codegen with storage
 segregation, wallet integration, the walkthroughs, the OpenZeppelin validation
-pass, the mainnet demonstration, and the Audit Bank submission.
+pass, the mainnet demonstration, and the Audit Bank submission
+([docs/T2-NOTES.md](https://github.com/kunal-drall/policywright/blob/main/docs/T2-NOTES.md)).
 
 ## Proof policy
 

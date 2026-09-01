@@ -11,28 +11,32 @@ codegen with storage segregation, wallet integration (testnet, end-to-end).
 
 ---
 
-## Already landed (early)
+## Delivered
 
-### Argument-level scope — `--constrain-arguments`
+### D2.3 — Dry-run harness + argument-level scope (2026-09-02)
 
-Shipped in commit `c076ff9`, before the tranche boundary was being tracked.
-Disposition (decided 2026-08-03): **keep the code, correct the claims.**
+Criterion: _"The harness outputs a permit/deny/flag report for a generated policy
+including an argument-constrained case (BLND→XLM denied when enabled); tests
+green."_ Delivered; evidence in
+[EVIDENCE.md § D2.3](../evidence/EVIDENCE.md#d23--dry-run-harness--argument-level-scope).
 
-- It is config-gated and **off by default** ([src/types.ts](../src/types.ts),
-  `DEFAULT_SYNTH_CONFIG.constrainArguments: false`), so the T1 pipeline does not
-  depend on it. With the flag off, an unobserved swap route is _flagged_
-  (advisory), not denied — the pre-existing behaviour.
-- It is tested ([test/synthesizer.test.ts](../test/synthesizer.test.ts),
-  [test/simulate.test.ts](../test/simulate.test.ts)) and documented.
-- Removing it would delete working, reviewed code and change demo output for no
-  correctness gain.
-- What was corrected instead: the README no longer presented it as a completed
-  Tranche 1/2 deliverable set. T2 is now marked _not started_ with this single
-  item called out as an early landing.
+What changed relative to the T1-era `--constrain-arguments` (commit `c076ff9`,
+which this deliverable promotes from "landed early" to supported):
 
-Remaining T2 work on this item: it covers the swap `path` argument only, and
-constrains the _set_ of tokens the path may touch — not ordering, hop count, or
-amounts. Generalising beyond `path` is T2.
+- the derivation is an explicit, documented rule table (`swap-path`, the only
+  rule) that reads contract-address-shaped vectors only;
+- `simulate` runs against a saved recording (`--input`) and probes the
+  unobserved route with the network's native XLM SAC (`--probe-token` to
+  override), so the criterion case runs on the REAL recorded claim→swap
+  sequence rather than a placeholder address;
+- deny reasons name the violated constraint (rule, call, argument, allow-set,
+  route); the flag reason says the call is permitted and how to close the gap;
+- reports carry their provenance (recording, policy set, mode, legend, token
+  addresses); both reports for the real sequence are committed and diffed in CI.
+
+Still true, and stated in the README: the constraint is a token **set** (no
+ordering, hop count, or amounts); `swap-path` is the only rule; enforcement is
+offline-only until the policy codegen below exists.
 
 ---
 
@@ -53,8 +57,9 @@ installable needs:
 - one context rule per contract, and
 - a generated policy that checks `context.fn_name` against the observed set.
 
-That generated policy is also the natural home for argument-level constraints,
-which is why the two are grouped here. **The T1 decision was made in D1.2
+That generated policy is also the natural home for argument-level constraints
+(the `swap-path` allow-set D2.3 enforces offline), which is why the two are
+grouped here; generalising derivation beyond `path` belongs with it. **The T1 decision was made in D1.2
 (2026-08-03): the emitted shape is fixed** — `context-rule.json` emits one
 `CallContract` rule per contract with observed function names carried as
 advisory `observedFns` ([schema](context-rule-schema.md)). What remains here

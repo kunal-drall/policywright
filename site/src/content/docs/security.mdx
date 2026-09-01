@@ -30,10 +30,11 @@ linked to its source) from what is **planned**.
   ([src/demo.ts](https://github.com/kunal-drall/policywright/blob/main/src/demo.ts)).
 - **Deny-case verification.** The dry-run harness auto-generates adjacent
   scenarios that must fail — over the spend cap, an unseen function, after
-  expiry, over the frequency cap — plus an unobserved swap route that is denied
+  expiry, over the frequency cap — plus the recorded swap re-routed through an
+  unobserved token (BLND→XLM on the real testnet recording), which is denied
   when argument constraints (`--constrain-arguments`) are enabled and
-  advisory-flagged otherwise. The demo asserts every scenario behaves as
-  expected, exiting non-zero otherwise
+  advisory-flagged (permitted, with the gap named) otherwise. The demo asserts
+  every scenario behaves as expected, exiting non-zero otherwise
   ([src/simulate.ts](https://github.com/kunal-drall/policywright/blob/main/src/simulate.ts)).
 - **Real shapes only, deltas declared.** The installable `context-rule.json`
   targets a pinned OZ release (`stellar-accounts` v0.7.2) using its real

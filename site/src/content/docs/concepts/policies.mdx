@@ -80,20 +80,32 @@ compiled-and-tested crate at
 ## `argument-constraint`
 
 Constrains a positional argument of a specific call to an observed allow-set.
-In v0 this covers the swap `path` argument: the set of token addresses the
-observed route touched. The observation is **always** recorded on the spec (as
-`argumentScopes`); whether it is enforced depends on config:
+Constraints come from an explicit derivation-rule table; the one rule today is
+`swap-path`: for any call whose name contains `swap`, the first
+contract-address vector argument (the Soroswap `path`) yields the **set** of
+token addresses the observed route touched. The observation is **always**
+recorded on the spec (as `argumentScopes`, tagged with its rule); whether it is
+enforced depends on config:
 
 - **`--constrain-arguments` off (default)** — advisory. A candidate swap
-  routing through an unobserved token is **flagged**, not denied.
-- **`--constrain-arguments` on** — enforced. The same candidate is **denied**.
+  routing through an unobserved token is **flagged**: permitted by every
+  enforced check, with the scope gap named in the report.
+- **`--constrain-arguments` on** — enforced. The same candidate is **denied**,
+  and the reason names the rule, the call, the argument, the allow-set, and
+  the offending token.
+
+Proven both ways on the real recorded claim→swap sequence: BLND→XLM (XLM being
+the network's native asset contract, never observed) is flagged by default and
+denied when enabled —
+[committed reports](https://github.com/kunal-drall/policywright/tree/main/examples/live).
 
 It constrains the token _set_, not the ordering, hop count, or amounts — amount
 bounds are the spending limit's job
 ([README: argument-level scope](https://github.com/kunal-drall/policywright#argument-level-scope---constrain-arguments)).
 This enforcement exists in the **offline dry run only**: no stock OZ policy can
 express argument-value scoping, so `context-rule.json` records it as a delta
-note. The repository presents it as Tranche 2 scope that landed early
+note; on-chain enforcement needs the generated policy codegen still ahead in
+Tranche 2
 ([docs/T2-NOTES.md](https://github.com/kunal-drall/policywright/blob/main/docs/T2-NOTES.md)).
 
 ## The five-policy budget

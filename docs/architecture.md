@@ -81,11 +81,14 @@ quantitative limits.
   - _Inflow-only assets get no cap_ — the USDC received from the swap moves nothing out, so
     no spending policy is emitted for it. This is the minimal-permission case.
 - **Frequency** — one frequency-limit policy is always emitted from config.
-- **Argument scope** — the set of token addresses a swap `path` touched is always recorded
-  on the spec as `argumentScopes`. When `config.constrainArguments` is enabled it is also
-  added to `policies` (and thus enforced as a denial); otherwise it is advisory and the
-  simulator only flags violations. It constrains the token _set_, not ordering/hops/amounts
-  (see the README for limits).
+- **Argument scope** — the exported `ARGUMENT_DERIVATION_RULES` table (one rule today,
+  `swap-path`: the first contract-address vector of any `*swap*` call, i.e. the Soroswap
+  `path`) is applied to every observed call; each match records the **set** of token
+  addresses observed there as an `argumentScopes` entry tagged with its rule. When
+  `config.constrainArguments` is enabled the entries are also added to `policies` (and thus
+  enforced as denials); otherwise they are advisory and the simulator flags violations as
+  permitted-with-a-scope-gap. Set semantics only — not ordering, hop count, or amounts
+  (limits in the README).
 - **Policy budget** — OZ allows at most `MAX_POLICIES` (5) policies per context rule;
   exceeding that adds a warning to the spec rather than failing.
 
@@ -119,15 +122,22 @@ failure decides the outcome:
 1. **scope** — is the `(contract, fn)` pair authorised? (deny: unseen function)
 2. **lifetime** — is the call within the rule's validity window? (deny: expired)
 3. **argument-constraint** (enforced) — does the swap route through an unobserved token?
-   (deny — only when `constrainArguments` is enabled)
+   (deny — only when `constrainArguments` is enabled; the reason names the rule, call,
+   argument index, allow-set, and offending token)
 4. **spending-limit** — does any outflow exceed its asset's cap? (deny: over-cap)
 5. **frequency-limit** — would this call exceed the rolling call cap? (deny: too frequent)
-6. **argument-constraint** (advisory) — when not enforced, an unobserved route is **flagged**
-   rather than permitted silently.
+6. **argument-constraint** (advisory) — when not enforced, an unobserved route is **flagged**:
+   the call is permitted by every enforced check, and the report says so and how to close
+   the gap.
 
 If every check passes the call is permitted. `buildScenarios` derives the standard
-permit/deny/flag set generically from a spec, and `renderReport` formats results as
-Markdown.
+permit/deny/flag set generically from a spec: the recorded replay, one deny per enforced
+check, and — when an argument constraint was derived — the REAL observed swap re-routed
+through a **probe token**: the recording network's native XLM Stellar Asset Contract
+(address derived from the network passphrase in `src/network.ts`; `--probe-token` to
+override; a synthetic placeholder only if XLM itself was observed). `renderReport` formats
+results as Markdown with a provenance header (recording, generated policy set, mode,
+decision legend) and a token legend, so a committed report is self-describing.
 
 ## Design choices
 
