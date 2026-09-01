@@ -1121,6 +1121,64 @@ Horizon testnet balance **9996.1093970 XLM**, sequence `13754327822761990`
 
 ---
 
+## GATE 12 — D2.3 dry-run harness facts (verified 2026-09-02)
+
+### 12.1 Native XLM Stellar Asset Contract addresses
+
+The native-asset SAC is not deployed; its address is a deterministic function
+of the network passphrase. Computed in-process with the pinned
+`@stellar/stellar-sdk` 15.1.0 (`Asset.native().contractId(passphrase)`):
+
+| Network                                  | Native XLM SAC                                             |
+| ---------------------------------------- | ---------------------------------------------------------- |
+| testnet (`Networks.TESTNET`)             | `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` |
+| mainnet (`Networks.PUBLIC`)              | `CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA` |
+| futurenet (`Networks.FUTURENET`, exists) | `CB64D3G7SM2RTH6JSGG34DDTFTQ5CFDKVDZJZSODMCX4NJ2HV2KN7OHT` |
+
+Cross-check: the D1.1 recorder resolved `CDLZFC3S…` LIVE on 2026-08-03 as
+symbol `native`, decimals 7, `resolved: true`
+(`examples/live/recorded-claim-swap.json` flow[0]; the `2dcff6…` swap's
+`path[0]` and its nested `transfer`). The harness therefore names XLM on any
+network without a network read (`src/network.ts`); `test/harness.test.ts`
+locks the testnet value against the recorded one.
+
+### 12.2 The fresh claim→swap recording re-assembles from its raw captures
+
+`examples/live/recorded-claim-swap-fresh.json` (recorded live 2026-08-08 for
+the D1.4 demo) is byte-identical to
+`assembleRecording([decodeTx(9fff676c…), decodeTx(ae943f99…)])` with token
+metadata replayed from the committed file — no network
+(`test/recorder.test.ts` "fresh claim → swap sequence from committed
+captures"). As decoded:
+
+| Fact                         | Value                                                                                                                                            |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Claim `9fff676c…`            | Blend pool `CAPBMXIQ…` `claim(G…, [3], G…)`, ledger 4029100, no token-movement event decoded into a flow                                         |
+| Swap `ae943f99…`             | Soroswap router `CCJUD55A…` `swap_exact_tokens_for_tokens(21394095, 10410850, [BLND CB22KRA3…, USDC CAQCFVLO…], G…, 1786174935)`, ledger 4029580 |
+| Flows                        | BLND in 21394095 (claim), BLND out 21394095 (swap), USDC in 10516011                                                                             |
+| Subject                      | `GBMWJIADBWN6FJUQPSVKWZE7ZFEPHEN2YBINQ7UVPHJ2WJW2SWI6WD4Q` (a G-account, not a smart wallet — the D2.5 install targets a fresh account)          |
+| XLM SAC `CDLZFC3S…` present? | **No** — nowhere in the file (`grep -c` = 0), so BLND→XLM is an unobserved route                                                                 |
+
+### 12.3 Argument derivation as implemented (`src/synthesizer.ts`)
+
+`ARGUMENT_DERIVATION_RULES = [SWAP_PATH_RULE]`. `swap-path` applies to every
+observed call whose `fnName` contains `swap` and selects the first positional
+argument that is a non-empty vector whose every element matches the StrKey
+contract shape `/^C[A-Z2-7]{55}$/` (shape, not checksum — `src/network.ts`).
+On the Soroswap signature (§4.3) that is `arg[2] path: Vec<Address>`; on the
+fresh recording it yields `{BLND, USDC}`. The Blend `claim`'s `Vec<u32>`
+reserve ids `[3]` and Comet's separate `token_in`/`token_out` addresses
+select nothing. Constraints are set-membership only.
+
+### 12.4 CLI stdout is diffable
+
+`npm run --silent cli -- simulate …` prints only the command's stdout (npm's
+`> policywright@0.1.0 cli` banner is suppressed), so CI diffs the output
+against the committed reports; `cmdSimulate` writes `renderReport(...) + "\n"`,
+and the committed files were produced by redirecting exactly that command.
+
+---
+
 ## Changelog
 
 | Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
@@ -1130,3 +1188,4 @@ Horizon testnet balance **9996.1093970 XLM**, sequence `13754327822761990`
 | 2026-08-03 | D1.1 session: pinned `@stellar/stellar-sdk` exact `15.1.0`; verified `createdAt` is a JSON string the SDK passes through untyped-correctly; verified SDK parses the protocol-27 `events` field; recorded the complete CAP-67 unified SAC event schemas (mint has NO admin topic; sep0011 string is never a strkey); captured and documented the raw `simulateTransaction` result shape (§3.6, committed fixture); retention re-check for the two flow hashes (still live, ≈4–6 h left).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | 2026-08-03 | D1.3 session: added §1.4 (soroban-sdk 26.1.0 declares rust-version 1.91.0 → rustc ≥ 1.92 required alongside §1.3's ==1.91.0 rejection; toolchain pinned 1.97.1; upstream `ed25519-dalek >=2.0.0` range resolves to a 3.0.0 that breaks soroban-env-host 26.1.3 testutils — locked to 2.2.0; `stellar-accounts` published on crates.io through 0.7.2), §1.5 (exact build command; two clean builds reproduce SHA-256 `42227f2b…6eed`), §1.6 (upload/deploy/fetch CLI surface: wasm hash & contract id on stdout, submitted-tx explorer links on stderr, `STELLAR_ACCOUNT` accepts a raw secret, `--network` vs `STELLAR_RPC_URL` exclusivity plus the cwd-`.env` dotenv pitfall, `contract fetch` for on-chain wasm).                                                                                                                                                                                                                                                                                 |
 | 2026-09-02 | T2 pre-flight session: added §7 (toolchain drift: stellar-cli v28.0.0 released, stellar-sdk 17.0.1, OZ still v0.7.2; testnet protocol 28 / RPC 28.0.1; `minPersistentTTL` 120960; archived entries read as `liveUntilLedgerSeq: 0`), §8 (OZ account side: no prebuilt account, constructor + `Signer` shapes, `add_context_rule` internals and self-authorized management surface, `AuthPayload`/digest, hand-built entry XDR proven with SDK 15.1.0, wallets-kit 2.6.0 + Freighter 5.47.0 sign the raw payload — `External` signing unsupported, `Delegated` path source-supported/unproven, CAP-71 status), §9 (MCP: v2 `@modelcontextprotocol/server@2.0.0` on spec `2026-07-28`, dual-era stdio, tool/result/error conventions, Claude Code + Desktop registration), §10 (agent-skill format from agentskills.io, platform.claude.com, code.claude.com), §11 (frequency policy reusable per (account, rule); T1 instances + wasm archived; `.env` identity funded). Notes added to §1.1, §3, §5. |
+| 2026-09-02 | D2.3 session: added §12 — native XLM SAC addresses per network computed with the pinned SDK and cross-checked against the live-resolved `native` token; the fresh claim→swap recording proven byte-identical to its raw captures offline (decoded args, ledgers, flows; XLM absent); the `swap-path` derivation rule as implemented (contract-address shape, arg[2] on the Soroswap signature); `npm run --silent` stdout diffability. Also regenerated `examples/live/context-rule.json` (DELTA note wording only) and the fixture artefacts under `examples/`.                                                                                                                                                                                                                                                                                                                                                                                                                                     |

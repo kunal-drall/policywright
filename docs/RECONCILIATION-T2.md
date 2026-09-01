@@ -182,6 +182,25 @@ did not produce — forbidden downstream, hence an emitter fix.
 
 ---
 
+## GATE 7 — D2.3: the dry-run harness vs. the approved criterion (2026-09-02)
+
+Criterion: _"The harness outputs a permit/deny/flag report for a generated
+policy including an argument-constrained case (BLND→XLM denied when enabled);
+tests green."_ Assumptions are what the T1-era code and its "landed early"
+footnotes implied; actuals are what was found and what D2.3 changed.
+
+| #   | Assumption                                              | Actual (verified 2026-09-02)                                                                                                                                                                                                                                                                                                                                                                                 | Consequence                                                                                                                                                   | Source                                                                                               |
+| --- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 59  | The unobserved-route scenario is the BLND→XLM case      | ✗ It routed through a synthetic placeholder `C` + 55×`Z`; XLM was never named, and the fixture's `tokens.XLM` / `addresses.tokenXLM` (whose note says it exists for this case) is not read by `parseRecordedTx` at all. **D2.3:** the probe token defaults to the recording network's native XLM SAC (FACTS §12.1), `--probe-token` overrides, and the placeholder is used only when XLM itself was observed | The criterion sentence was not literally reproducible before; the fixture is left unchanged (its hash stands) and the note's `tokenXLM` is documentation only | `src/simulate.ts` (pre-D2.3 `buildScenarios`), `src/sources/fixture.ts`, `fixtures/recorded-tx.json` |
+| 60  | `simulate` can run against a recorded sequence          | ✗ `synth` had `--input`; `simulate` loaded the fixture only. **D2.3:** `simulate --input <recorded.json>`                                                                                                                                                                                                                                                                                                    | The deny case could not be run on real recorded data from the CLI                                                                                             | `src/cli.ts` `cmdSimulate` (pre-D2.3)                                                                |
+| 61  | Argument derivation reads a `Vec<Address>`              | ✗ `isAddressVec` accepted any non-empty array of strings (a `Vec<Symbol>` or `Vec<String>` arg on a `*swap*` fn would have become a "token" allow-set). **D2.3:** contract-address shape only (`/^C[A-Z2-7]{55}$/`; shape, not checksum), as an explicit exported rule table                                                                                                                                 | Rule stated and testable; limits stated honestly in the README                                                                                                | `src/synthesizer.ts` `SWAP_PATH_RULE`, `src/network.ts`                                              |
+| 62  | `flag` is a third outcome the account could produce     | ✗ On-chain there is no flag: with constraints advisory the call is **permitted**. `flag` = permitted by every enforced check + an advisory scope gap. **D2.3:** the reason text, the report legend, and the type docs say exactly that                                                                                                                                                                       | Reviewers can read "flag" without inferring on-chain semantics that do not exist                                                                              | `src/types.ts` `SimulationDecision`, `src/simulate.ts` step 6                                        |
+| 63  | A deny reason names the violated constraint             | ✗ It named the function, the argument label, and the bad tokens — not the rule, the argument index, or the allow-set. **D2.3:** `argument constraint violated: <fn> arg[<i>] <name> (rule <id>) must stay within the observed token set {…}; candidate routes through unobserved <token>`                                                                                                                    | The committed deny report is self-explanatory                                                                                                                 | `src/simulate.ts` `describeViolation`; `examples/live/simulation-report.constrained.md`              |
+| 64  | The report identifies the generated policy it evaluated | ✗ It was a bare table. **D2.3:** provenance header (recording hashes, subject, context rule, enforced policies, argument-constraint mode, decision legend) and a token legend with the probe's provenance                                                                                                                                                                                                    | "for a generated policy" is visible in the artifact itself                                                                                                    | `src/simulate.ts` `renderReport`                                                                     |
+| 65  | Argument-level scope on-chain is covered by D2.3        | ✓ Not claimed: enforcement is offline-only; `context-rule.json` keeps the DELTA note (reworded to say what would be needed). On-chain enforcement is the T2 policy-codegen deliverable                                                                                                                                                                                                                       | No over-claim                                                                                                                                                 | `src/synthesizer.ts` notes; README "Limits"                                                          |
+
+---
+
 ## Summary of discrepancies (inputs to the T2 prompts)
 
 1. **No prebuilt account** (row 28): build the OZ example / Wizard-shaped
@@ -209,14 +228,19 @@ did not produce — forbidden downstream, hence an emitter fix.
 9. **T1 instance archived** (row 53): restore (or redeploy) before reuse;
    reuse per `(account, rule)` is by design (row 52).
 10. **Protocol 28 / tool versions drifted** (rows 55–57): no blocking effect.
+11. **D2.3 harness gaps closed** (rows 59–64): real XLM probe, `simulate
+--input`, address-shaped derivation as an explicit rule, flag = permitted +
+    advisory gap, self-naming deny reasons, self-describing reports; on-chain
+    argument enforcement explicitly not claimed (row 65).
 
 ## Self-validation
 
-- No gated field is "unknown"/"TODO": rows 28–58 each carry an actual value
+- No gated field is "unknown"/"TODO": rows 28–65 each carry an actual value
   and a source; every source was read or executed this session (FACTS §7–§11
   give the commands/URLs and dates).
 - The emitter-fix list is explicit (E1–E5).
 - `npm test` (90 tests), `npm run demo`, `npm run typecheck`, `npm run lint`
-  were green before and after this change (no code touched).
+  were green before and after the pre-flight (no code touched); after D2.3,
+  115 tests, demo, typecheck, lint, and the CI report diff are green.
 - No secret was printed: `.env` was inspected by key name only and the secret
   was used solely to derive its public key in-process.
