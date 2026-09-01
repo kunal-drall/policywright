@@ -6,13 +6,15 @@ links, paths, and hashes.
 Every row is checkable without trusting this document. Where a claim cannot be
 verified from the repository, it says so instead of claiming completion.
 
-**Scope note.** This is Tranche 1. All four T1 deliverables (D1.1–D1.4 below)
-are delivered as of 2026-08-03; formal tranche review by SCF delegates is
-pending, and later-tranche items are listed under
-[Not yet delivered](#not-yet-delivered). Since D1.3 exactly one real testnet
-deployment exists — the generated frequency-limit policy contract (see
-[Deployment log](#deployment-log)). Every address inside the committed fixture
-remains synthetic ([FACTS.md §5](../docs/FACTS.md)).
+**Scope note.** Tranche 1 (D1.1–D1.4 below) was delivered on 2026-08-03 and is
+closed. Tranche 2 is in progress: D2.3 (dry-run harness + argument-level
+scope) is delivered as of 2026-09-02 — see
+[Delivered — Tranche 2](#delivered--tranche-2); the remaining T2 items are
+listed under [Not yet delivered](#not-yet-delivered). Since D1.3 exactly one
+real testnet deployment exists — the generated frequency-limit policy contract
+(see [Deployment log](#deployment-log)); its ledger entries are archived as of
+2026-09-02 ([FACTS.md §11.2](../docs/FACTS.md)). Every address inside the
+committed fixture remains synthetic ([FACTS.md §5](../docs/FACTS.md)).
 
 **Where the completion criteria come from.** The public SCF project page
 ([SCF #44 — "Record-to-Policy MCP + Agent skill"](https://communityfund.stellar.org/project/policywright-j8x),
@@ -23,7 +25,7 @@ deliverable list in the [README](../README.md#deliverables) and
 [roadmap](https://policywright.lemmalabs.space/roadmap/)) — it is not a quote
 of hidden portal text.
 
-Last updated 2026-08-03.
+Last updated 2026-09-02.
 
 ---
 
@@ -34,6 +36,9 @@ git clone https://github.com/kunal-drall/policywright && cd policywright
 npm ci
 npm run lint && npm run format:check && npm run typecheck && npm test && npm run demo
 (cd contracts && cargo test --locked)   # Rust policy crate; toolchain per contracts/rust-toolchain.toml
+# D2.3 — the real recorded claim→swap sequence through the harness, both ways:
+npm run cli -- simulate --input examples/live/recorded-claim-swap-fresh.json
+npm run cli -- simulate --input examples/live/recorded-claim-swap-fresh.json --constrain-arguments
 ```
 
 `npm run demo` is a self-checking smoke test: it asserts each dry-run scenario
@@ -46,7 +51,7 @@ is cited per deliverable below (see the D1.2 CI-trigger note).
 
 ---
 
-## Delivered
+## Delivered — Tranche 1
 
 ### D1 — Recording layer
 
@@ -351,20 +356,26 @@ D1.2), `summary.txt`, and an illustrative Rust policy. A committed example run
 is checked in under [examples/](../examples/) so a reviewer can read the output
 without running anything.
 
-SHA-256 of the committed artefacts as of 2026-08-03 (post-D1.3):
+SHA-256 of the committed artefacts as of 2026-09-02 (post-D2.3; the fixture
+and the Rust are unchanged since D1.3 — `spec.json` gained the `rule` tag on
+argument scopes, `summary.txt`/`context-rule.json` reworded the argument-scope
+line and DELTA note, and the report gained its provenance header):
 
 ```
 8f91c68ef1fd16aba90f9a76b9491ed702e5bef7ab9e8ec892ef79888351db5e  examples/FrequencyLimitPolicy.rs
-f3e2121fbd567242d99bee6f7dcca392cd14adeaacd07f7e17c6ef4b0ad67c41  examples/spec.json
-be2853607fe692cf87c30780f7de857bf8a44f0146ef2a1ed0b409e91c76416f  examples/summary.txt
-77740e716cde4432c73a3e00d70e86ef2647344cca156bfd25d7e0f7fced5947  examples/simulation-report.md
-7cf76cfd50596a3c399f714a7ae0d6e25ea395221ef5b7f8718503a1f99a86c6  examples/context-rule.json
-0fd2c0e25845552cd35fb7de73e14001421bc33624b64ecaa7ed660431604bfb  examples/live/context-rule.json
+0dec4d4e1945d590e464e6fbe920c1467bd2bc9b1ed0b1765fbb58dd3941f762  examples/spec.json
+3f9f0dc9323fb4cee7cc3fe03317f432458227669d15a2de026e147082c7576f  examples/summary.txt
+e3e13706922e90e6cd9756600c403f85f840d95c67cdb5255caf3ee66ebe8938  examples/simulation-report.md
+847856f4ab43dfed8272e3ed33910a8a184812e1eff81d198375e36d95bb4429  examples/context-rule.json
+01067d8a3538432285c1cf20e849449f33f131919c2d24e7cc3b93ed468a2e5f  examples/live/context-rule.json
+9971a910bb0702d98308954ce572277d7e1ac91d9a2f49519a7bda24b2974133  examples/live/simulation-report.md
+27a606102859fe6d861bbb9635084ffcb43cbda924ae3ff48b69df6ff44be87e  examples/live/simulation-report.constrained.md
 0dd46d1d48664534f0324c4a606f1f2ba5e8ce0da0ec2c5723424372f85131aa  fixtures/recorded-tx.json
 ```
 
 Reproduce with `npm run demo && shasum -a 256 out/*` — `out/` should match
-`examples/` byte for byte.
+`examples/` byte for byte; the two `examples/live/simulation-report*.md` files
+are reproduced by the D2.3 commands above (CI diffs them on every run).
 
 ### D4 — Generated Rust conforms to the real OZ `Policy` trait
 
@@ -397,16 +408,19 @@ Check it survives: `npm run demo && head -12 out/FrequencyLimitPolicy.rs`.
 ### D5 — Offline dry-run harness
 
 **Delivered.** Six scenarios — one permit, four denies, one flag — each with a
-machine-checked expected decision.
+machine-checked expected decision. (Since D2.3 the unobserved-route scenario is
+the recorded swap re-routed through the network's native XLM asset contract,
+and every report carries a provenance header — see
+[D2.3](#d23--dry-run-harness--argument-level-scope).)
 
 ```
 $ npm run demo
-| replay recorded flow              | ✅ permit (permit)            |
-| over the spend cap                | ⛔ deny (spending-limit)      |
-| call to an unseen function        | ⛔ deny (scope)               |
-| call after rule expiry            | ⛔ deny (lifetime)            |
-| over the frequency limit          | ⛔ deny (frequency-limit)     |
-| route through an unobserved token | ⚠️ flag (argument-constraint) |
+| replay recorded flow                         | ✅ permit (permit)            |
+| over the spend cap                           | ⛔ deny (spending-limit)      |
+| call to an unseen function                   | ⛔ deny (scope)               |
+| call after rule expiry                       | ⛔ deny (lifetime)            |
+| over the frequency limit                     | ⛔ deny (frequency-limit)     |
+| BLND→XLM swap (route through unobserved XLM) | ⚠️ flag (argument-constraint) |
 All 6 dry-run scenarios behaved as expected.
 ```
 
@@ -423,12 +437,12 @@ conversion basis stated; the offline simulator still reasons in seconds.
 
 **Delivered.**
 
-| Item                | Evidence                                                                                                                                                                                                                                                                                               |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| CLI                 | [src/cli.ts](../src/cli.ts) — `synth`, `simulate`, `record`, with synthesis knobs as flags                                                                                                                                                                                                             |
-| Test suite          | 90 Vitest tests across 5 files — `npm test` (22 run every decoder against the committed raw captures; 28 cover the D1.2 OZ context rules; 4 lock the emitted Rust byte-identical to the compiled crate — all network-free) — plus 25 Rust tests in [contracts/](../contracts/) (`cargo test --locked`) |
-| Coverage thresholds | `synthesizer.ts` 97.21% lines, `simulate.ts` 90.47% lines (re-run 2026-08-03); both gated ≥90 in [vitest.config.ts](../vitest.config.ts) — `npm run test:coverage`                                                                                                                                     |
-| CI                  | lint → format:check → typecheck → test → demo, plus a docs-site build ([ci.yml](../.github/workflows/ci.yml))                                                                                                                                                                                          |
+| Item                | Evidence                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CLI                 | [src/cli.ts](../src/cli.ts) — `synth`, `simulate`, `record`, with synthesis knobs as flags                                                                                                                                                                                                                                                                                                          |
+| Test suite          | 115 Vitest tests across 6 files — `npm test` (23 run every decoder against the committed raw captures, including the fresh claim→swap re-assembly; 28 cover the D1.2 OZ context rules; 24 cover the D2.3 harness on the real sequence; 4 lock the emitted Rust byte-identical to the compiled crate — all network-free) — plus 25 Rust tests in [contracts/](../contracts/) (`cargo test --locked`) |
+| Coverage thresholds | `synthesizer.ts` 97.3% lines, `simulate.ts` 99.42% lines (re-run 2026-09-02); both gated ≥90 in [vitest.config.ts](../vitest.config.ts) — `npm run test:coverage`                                                                                                                                                                                                                                   |
+| CI                  | lint → format:check → typecheck → test → demo → live dry-run report diff (both modes), plus a docs-site build and the contracts job ([ci.yml](../.github/workflows/ci.yml))                                                                                                                                                                                                                         |
 
 ### D7 — Documentation site
 
@@ -449,6 +463,104 @@ delivered status with test references.
 
 ---
 
+## Delivered — Tranche 2
+
+### D2.3 — Dry-run harness + argument-level scope
+
+**Criterion (approved, verbatim):** "The harness outputs a permit/deny/flag
+report for a generated policy including an argument-constrained case (BLND→XLM
+denied when enabled); tests green."
+
+**Delivered 2026-09-02.** Argument-level scope is promoted from the T1-era
+"landed early, off by default" footnote to supported T2 scope: config-gated,
+**default off** (constraints are an opt-in tightening), with the derivation
+rule stated explicitly and its limits written down. The harness runs against
+the **real** recorded claim→swap sequence and reports the criterion case both
+ways.
+
+**The two commands and the two committed reports** (offline; the input is the
+D1.4 recorder output, proven byte-identical to its raw captures by
+`test/recorder.test.ts`):
+
+```bash
+npm run cli -- simulate --input examples/live/recorded-claim-swap-fresh.json
+# committed: examples/live/simulation-report.md          (constrainArguments: false)
+npm run cli -- simulate --input examples/live/recorded-claim-swap-fresh.json --constrain-arguments
+# committed: examples/live/simulation-report.constrained.md  (constrainArguments: true)
+```
+
+The criterion row from each committed report, verbatim:
+
+| Mode                      | Row                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| disabled (default) → flag | `\| BLND→XLM swap (route through unobserved XLM) \| ⚠️ flag (argument-constraint) \| permitted with a scope gap (constrainArguments is off, so this constraint is advisory): swap_exact_tokens_for_tokens arg[2] path (rule swap-path) must stay within the observed token set {BLND CB22KRA3YZVCNCQI64JQ5WE7UY2VAV7WFLK6A2JN3HEX56T2EDAFO7QF, USDC CAQCFVLOBK5GIULPNZRGATJJMIZL5BSP7X5YJVMGCPTUEPFM4AVSRCJU}; candidate routes through unobserved XLM CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC; enable --constrain-arguments to deny it \|` |
+| enabled → **deny**        | `\| BLND→XLM swap (route through unobserved XLM) \| ⛔ deny (argument-constraint) \| argument constraint violated: swap_exact_tokens_for_tokens arg[2] path (rule swap-path) must stay within the observed token set {BLND CB22KRA3YZVCNCQI64JQ5WE7UY2VAV7WFLK6A2JN3HEX56T2EDAFO7QF, USDC CAQCFVLOBK5GIULPNZRGATJJMIZL5BSP7X5YJVMGCPTUEPFM4AVSRCJU}; candidate routes through unobserved XLM CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC \|`                                                                                                    |
+
+Each report is self-describing: it states the recording (tx `9fff676c…` Blend
+claim + `ae943f99…` Soroswap swap, subject `GBMWJIAD…`), the **generated
+policy set** it was evaluated against (context rule `pw:claim+swap`; the BLND
+spending limit, the frequency limit, and — when enabled — the argument
+constraint), the mode, a decision legend, and the token addresses.
+
+**How each word of the criterion is met**
+
+| Criterion words             | What shipped                                                                                                                                                                                                                                                                  | Verify                                                                                                                                    |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| "permit/deny/flag report"   | Six scenarios: 1 permit, 4 denies (spend cap, scope, lifetime, frequency), and the argument case as flag or deny; Markdown report with provenance header and legend                                                                                                           | both committed reports; `renderReport` in [src/simulate.ts](../src/simulate.ts)                                                           |
+| "for a generated policy"    | The report header lists the synthesised policy set (`pw:claim+swap`: spending-limit BLND ≤ 2.3533505/86400 s, frequency-limit ≤ 5/86400 s, argument-constraint `swap-path` when enabled)                                                                                      | header lines of both reports                                                                                                              |
+| "argument-constrained case" | Derived from the real swap by the explicit `swap-path` rule: `swap_exact_tokens_for_tokens arg[2] path ⊆ {BLND, USDC}`                                                                                                                                                        | `spec.argumentScopes` via `npm run cli -- synth --input examples/live/recorded-claim-swap-fresh.json`; [FACTS.md §12.3](../docs/FACTS.md) |
+| "BLND→XLM"                  | The recorded swap (same `amount_in`, `amount_out_min`, `to`, `deadline`, same BLND outflow) with `path` redirected to `[BLND, XLM]`, XLM being the testnet native Stellar Asset Contract `CDLZFC3S…` — derived from the network passphrase and never present in the recording | [FACTS.md §12.1–12.2](../docs/FACTS.md); `test/harness.test.ts` "the fresh recording never touched XLM…"                                  |
+| "denied when enabled"       | `--constrain-arguments` → `⛔ deny (argument-constraint)` with the reason naming rule, call, argument index, allow-set, and offending token; default → `⚠️ flag`, permitted with the scope gap named                                                                          | the two rows above; CI diff step                                                                                                          |
+| "tests green"               | 115 Vitest tests (24 new in `test/harness.test.ts`, 1 new in `test/recorder.test.ts`), `npm run demo`, lint, format, typecheck — all green locally and in CI                                                                                                                  | `npm test`; CI run below                                                                                                                  |
+
+**Derivation rules and limits** (documented in the README section
+[Argument-level scope](../README.md#argument-level-scope---constrain-arguments)
+and [docs/architecture.md](../docs/architecture.md)): the exported rule table
+`ARGUMENT_DERIVATION_RULES` has one rule, `swap-path` — every call whose name
+contains `swap`, first argument that is a non-empty vector of
+contract-address-shaped strings, set of observed tokens. Limits stated:
+set semantics only (no ordering, hop count, amounts); `swap-path` is the only
+rule; address check is a StrKey shape check, not a checksum; **enforcement is
+offline-only** — no stock OZ policy expresses argument scoping, so
+`context-rule.json` records it as a DELTA note and on-chain enforcement is the
+remaining T2 policy-codegen deliverable (not built; not claimed here).
+
+**Tests** (`npm test`, network-free, wired into CI) —
+[test/harness.test.ts](../test/harness.test.ts): _native XLM Stellar Asset
+Contract_ (testnet address equals the recorder's live-resolved `native`; distinct
+contract-shaped address per network; the fresh recording never touched XLM);
+_argument-constraint derivation on the real sequence_ (rule table is exactly
+`swap-path`; derives `{BLND, USDC}` at arg[2]; claim's `Vec<u32>` is not a route;
+derived in both modes, enforced only when enabled; DELTA note wording);
+_criterion: BLND→XLM denied when enabled, flagged (permitted) when disabled_
+(both modes on the real args; observed BLND→USDC permitted in both; no-route
+candidate unaffected); _probe token_ (native SAC default; synthetic fallback when
+XLM was observed — the older `2dcff6…` recording; override accepted, non-address
+rejected); _buildScenarios on the real sequence_ (all six scenarios behave as
+expected in both modes; criterion scenario built from the REAL call with only the
+path changed; `--probe-token` honoured); _report rendering_ (provenance header,
+enforced/advisory legends, deny and flag rows, bare table without context);
+_committed reports are reproducible_ (both files byte-equal to the harness
+output). [test/recorder.test.ts](../test/recorder.test.ts): _fresh claim → swap
+sequence from committed captures_ re-assembles byte-for-byte into the committed
+recording. CI additionally regenerates both reports with the CLI and `diff`s them
+([ci.yml](../.github/workflows/ci.yml), step "Live dry-run reports (both modes)
+match the committed copies").
+
+**CI run for this deliverable:** _pending — dispatched after push; run URL
+recorded here once green._
+
+**Honest limits.** (1) Enforcement is offline: the installed OZ rule would
+permit BLND→XLM until an argument-checking policy exists (T2 codegen). (2) Set
+semantics: a route through only-observed tokens is allowed in any order or hop
+count. (3) The probe is XLM by construction; a route through any other
+unobserved token is equally denied/flagged (`--probe-token` demonstrates it) but
+only the XLM case is committed. (4) The recording's subject is a G-account, not
+a smart account; the harness reasons about the synthesised rule, not about an
+installed one — installation is D2.5.
+
+---
+
 ## Not yet delivered
 
 Stated plainly so no reviewer has to infer it.
@@ -462,7 +574,7 @@ Stated plainly so no reviewer has to infer it.
 | Resolve context-rule scope granularity          | T1      | **Delivered** (D1.2, 2026-08-03)                 |
 | MCP server, Claude skill, wallet integration    | T2      | Not started ([T2-NOTES.md](../docs/T2-NOTES.md)) |
 | Net-new policy codegen with storage segregation | T2      | Not started                                      |
-| Argument-level scope                            | T2      | Landed early, off by default                     |
+| Dry-run harness + argument-level scope          | T2      | **Delivered** (D2.3, 2026-09-02)                 |
 | Audit, mainnet, OZ validation, walkthroughs     | T3      | Not started                                      |
 
 ---
@@ -485,13 +597,14 @@ with no credentials at all.
 
 ## Changelog
 
-| Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-08-03 | File created. Recorded D1–D8 with reproduction steps and artefact hashes. Added the "Not yet delivered" table after correcting the README's Tranche 2 completion claim.                                                                                                                                                                                                                                                                                                    |
-| 2026-08-03 | D1.1 delivered: multi-hash recording of the real claim→swap sequence (committed output + reconciliation table above), simulated-path ingestion with a committed real `simulateTransaction` exchange, typed error taxonomy, capture-driven decoder tests (58 total). Superseded D1's "live path untested / simulated path not built" limits.                                                                                                                                |
-| 2026-08-03 | D1.3 delivered: the generated policy as a compiled crate against the real OZ `Policy` trait (25 Rust tests; emitter byte-equality locked in CI), reproducible wasm build, and a hash-verified testnet deployment (`CDSVPSTS…2ZPP`); deploy script + deployment log added; FACTS §1.4–1.6 and §5 record the toolchain, CLI-surface, and deployment facts.                                                                                                                   |
-| 2026-08-03 | D1.2 delivered: versioned `context-rule.json` (schema v1) with installable OZ rules and real stock `spending_limit` params, emitted and committed for the real recorded sequence; field-by-field install-signature cross-check kept as a CI test; 28 new network-free tests (86 total). Closed the §4.1/§4.2 divergences.                                                                                                                                                  |
-| 2026-08-03 | D1.4 delivered: license switched Apache-2.0 → MIT per the funded plan; CI gains Rust caching and a pinned stellar-cli wasm build with hash reporting; README corrected (SCF #44 / "Record-to-Policy MCP + Agent skill" — the #43 / "OZ accounts policy builder" attribution was wrong — and the CI badge now points at this repo); completion criteria recorded per D1.x; demo script with really-executed expected outputs; `.env.example`, CONTRIBUTING.md, repo topics. |
+| Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-08-03 | File created. Recorded D1–D8 with reproduction steps and artefact hashes. Added the "Not yet delivered" table after correcting the README's Tranche 2 completion claim.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 2026-08-03 | D1.1 delivered: multi-hash recording of the real claim→swap sequence (committed output + reconciliation table above), simulated-path ingestion with a committed real `simulateTransaction` exchange, typed error taxonomy, capture-driven decoder tests (58 total). Superseded D1's "live path untested / simulated path not built" limits.                                                                                                                                                                                                                                                                                                                       |
+| 2026-08-03 | D1.3 delivered: the generated policy as a compiled crate against the real OZ `Policy` trait (25 Rust tests; emitter byte-equality locked in CI), reproducible wasm build, and a hash-verified testnet deployment (`CDSVPSTS…2ZPP`); deploy script + deployment log added; FACTS §1.4–1.6 and §5 record the toolchain, CLI-surface, and deployment facts.                                                                                                                                                                                                                                                                                                          |
+| 2026-08-03 | D1.2 delivered: versioned `context-rule.json` (schema v1) with installable OZ rules and real stock `spending_limit` params, emitted and committed for the real recorded sequence; field-by-field install-signature cross-check kept as a CI test; 28 new network-free tests (86 total). Closed the §4.1/§4.2 divergences.                                                                                                                                                                                                                                                                                                                                         |
+| 2026-09-02 | D2.3 delivered: argument-level scope promoted to supported T2 scope (explicit `swap-path` derivation rule, contract-address-shaped; default off); `simulate --input` and `--probe-token`; the unobserved-route scenario is the REAL recorded swap re-routed through the network's native XLM SAC; deny reasons name the violated constraint, flags say "permitted with a scope gap"; reports carry provenance; both reports for the fresh claim→swap recording committed and diffed in CI; 25 new tests (115 total). D3 hashes refreshed; `examples/live/context-rule.json` regenerated (DELTA note wording only). Scope note updated: T1 closed, T2 in progress. |
+| 2026-08-03 | D1.4 delivered: license switched Apache-2.0 → MIT per the funded plan; CI gains Rust caching and a pinned stellar-cli wasm build with hash reporting; README corrected (SCF #44 / "Record-to-Policy MCP + Agent skill" — the #43 / "OZ accounts policy builder" attribution was wrong — and the CI badge now points at this repo); completion criteria recorded per D1.x; demo script with really-executed expected outputs; `.env.example`, CONTRIBUTING.md, repo topics.                                                                                                                                                                                        |
 
 ## Deployment log
 
