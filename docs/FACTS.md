@@ -32,6 +32,11 @@ in [RECONCILIATION.md](RECONCILIATION.md).
 | rustc / cargo                           | `1.90.0` / `1.90.0` (Homebrew)                                                          | `rustc --version; cargo --version`                                              | 2026-08-03 |
 | rustup targets installed                | `aarch64-apple-darwin`, `wasm32-unknown-unknown`, `wasm32v1-none`                       | `rustup target list --installed`                                                | 2026-08-03 |
 
+**Re-checked 2026-09-02 (T2 pre-flight):** the installed toolchain above is
+unchanged; the upstream side has moved (stellar-cli v28.0.0, stellar-sdk
+17.0.1, testnet protocol 28). Every drifted value is in §7.1 — this table is
+kept as the T1 record.
+
 **Version pins to use for generated/compiled Rust:** `soroban-sdk` must match
 what OpenZeppelin's contracts pin — OZ v0.7.2 pins **`soroban-sdk = "26.1.0"`**
 (workspace `Cargo.toml:55` in the OZ repo), NOT the crates.io latest 27.0.4.
@@ -390,6 +395,9 @@ Retention observed: ~7.0 days (oldest 3814616 at latest 3935575). All decoded
 findings below were derived from the committed raw captures with
 `@stellar/stellar-sdk` 15.1.0 (`xdr.TransactionEnvelope.fromXDR`,
 `xdr.ContractEvent.fromXDR`, `scValToNative`). Verified 2026-08-03.
+**Re-checked 2026-09-02:** the same node now reports **protocol 28**
+(RPC `28.0.1`, captive core `28.0.1`; §7.1); SDK 15.1.0 still decodes the
+current envelopes and `events` field (§7.1).
 
 ### 3.1 Captured transactions (committed under `examples/live/`)
 
@@ -698,6 +706,14 @@ evidence trail cites the fully-verified `CDSVPSTS…` instance.
 fetch --id CDSVPSTS… --network testnet` + `shasum -a 256` again produced
 `42227f2b6150c95a7084bb7c5ff2e7a40793eae39bf0c5dc95bd752d18ee6eed`.
 
+**Archived on testnet (verified 2026-09-02, §11.2):** both instances and the
+wasm code entry have passed their TTL — RPC `getLedgerEntries` reports the
+archived-entry placeholder `liveUntilLedgerSeq: 0` for all three (live
+contracts report real values). `stellar contract fetch` still returns the
+wasm with the same hash, so the hash claim above stands, but the contract
+cannot be invoked on-chain until it is restored (`stellar contract restore`,
+a human-initiated signed step) or redeployed.
+
 ---
 
 ## 6. The funded SCF submission — public facts
@@ -722,11 +738,395 @@ the tranche plan as recorded in this repository.
 
 ---
 
+## GATE 7 — T2 pre-flight: toolchain drift and testnet state (verified 2026-09-02)
+
+### 7.1 Versions re-checked
+
+| Fact                                    | Value                                                                                                                                                                                                                    | Verified by                                                                                                  | Date       |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ | ---------- |
+| Node.js / npm (dev machine)             | `v22.20.0` / `11.6.2` (unchanged)                                                                                                                                                                                        | `node --version; npm --version`                                                                              | 2026-09-02 |
+| stellar-cli latest stable release       | **`v28.0.0`** (2026-08-26, not prerelease)                                                                                                                                                                               | `GET /repos/stellar/stellar-cli/releases/latest`                                                             | 2026-09-02 |
+| stellar-cli installed                   | `27.1.0 (8e402ea…)` (unchanged; not upgraded this session)                                                                                                                                                               | `stellar --version`                                                                                          | 2026-09-02 |
+| `@stellar/stellar-sdk` latest (npm)     | **`17.0.1`** (2026-08-28)                                                                                                                                                                                                | `npm view @stellar/stellar-sdk version time.modified`                                                        | 2026-09-02 |
+| `@stellar/stellar-sdk` installed        | `15.1.0` (with `@stellar/stellar-base` `15.0.0`). Still decodes protocol-28 traffic: `getTransactions` from ledger 4454128 returned 50 txs, 36 `InvokeHostFunction` envelopes decoded, `events.contractEventsXdr` parsed | node script over `rpc.Server.getTransactions` (see §7.2 for the node)                                        | 2026-09-02 |
+| CAP-71 XDR in stellar-base 15.0.0       | **Absent** — no `HashIdPreimageSorobanAuthorizationWithAddress`, `SorobanAddressCredentialsWithDelegates` or `…V2` symbols                                                                                               | `grep -o … node_modules/@stellar/stellar-base/lib/generated/curr_generated.js` (empty)                       | 2026-09-02 |
+| OpenZeppelin/stellar-contracts releases | Latest release still **`v0.7.2`** (2026-06-09); newest tag `v0.8.0-rc.3` (2026-06-16, prerelease); crates.io `stellar-accounts` `max_stable_version` **0.7.2**                                                           | `GET /repos/OpenZeppelin/stellar-contracts/releases`; `GET https://crates.io/api/v1/crates/stellar-accounts` | 2026-09-02 |
+| `@creit.tech/stellar-wallets-kit`       | **`2.6.0`** (2026-08-28); depends on `@stellar/stellar-sdk ^17.0.0`, `@stellar/freighter-api 6.0.0`                                                                                                                      | `npm view`; `package.json` inside `npm pack` tarball                                                         | 2026-09-02 |
+| `@stellar/freighter-api`                | `6.0.1` (2025-12-03)                                                                                                                                                                                                     | `npm view`                                                                                                   | 2026-09-02 |
+| Freighter extension                     | `5.47.0` (2026-08-31)                                                                                                                                                                                                    | `GET /repos/stellar/freighter/releases`                                                                      | 2026-09-02 |
+| `@modelcontextprotocol/*`               | `sdk` **1.30.0** (2026-07-27, v1 line); `server` / `client` / `core` / `node` **2.0.0** (2026-07-28, v2 line); `server-legacy` 2.0.0 deprecated                                                                          | `npm view … version time.modified dist-tags deprecated`                                                      | 2026-09-02 |
+
+### 7.2 Testnet state
+
+Node `https://soroban-testnet.stellar.org`, `getVersionInfo`: RPC
+`28.0.1-273f19e4…` (built 2026-08-27), captive core `stellar-core 28.0.1`,
+**protocol 28** (`getNetwork` agrees; passphrase unchanged). Protocol 28 =
+CAP-0083 (validators may vote an empty tx set), CAP-0085 (externally managed
+contract executables), CAP-0086 (sparse symbol-keyed map host fns) — none
+touches authorization or the OZ v0.7.2 contracts
+([stellar-core v28.0.0 release notes](https://github.com/stellar/stellar-core/releases/tag/v28.0.0);
+`core/cap-0083.md`, `cap-0085.md`, `cap-0086.md`). Latest ledger observed
+during the session: 4454132 → 4454281.
+
+State-archival settings (`getLedgerEntries` on the
+`configSettingStateArchival` key): `minPersistentTTL` **120960** ledgers,
+`maxEntryTtl` 3110400, `minTemporaryTTL` 720.
+
+**Archived entries read as `liveUntilLedgerSeq: 0`.** RPC refuses TTL keys
+directly ("ledger ttl entries cannot be queried directly",
+`get_ledger_entries.go:21` @ v28.0.1) and, per the stellar-rpc maintainers,
+"we are returning a TTL placeholder of 0 for archived entries in
+`getLedgerEntries`" (issue #413; #430/#435 track the API refinement). Live
+entries return real values (Soroswap router `CCJUD55A…` → 7060981, Blend pool
+`CCEBVDYM…` → 6062102). See §11.2 for the T1 entries.
+
+---
+
+## GATE 8 — OpenZeppelin smart account, the ACCOUNT side (v0.7.2, verified 2026-09-02)
+
+Fresh shallow clone of tag `v0.7.2` (HEAD `a9c42169000638da937577f592ebf61a7a3c94ca`);
+`diff -rq` between the crates.io `stellar-accounts-0.7.2` sources and
+`packages/accounts/src` is empty. Paths below are under
+`packages/accounts/src/` unless another repository is named.
+
+### 8.1 What is deployable
+
+- `stellar-accounts` is a **library** (`lib.rs:6-10` exports `policies`,
+  `smart_account`, `verifiers`); `SmartAccount` is a `#[contracttrait]` with
+  default method bodies (`smart_account/mod.rs:135-477`). No `#[contract]`
+  account ships in the crate, and GitHub release `v0.7.2` has **no assets**
+  (`GET /repos/OpenZeppelin/stellar-contracts/releases/tags/v0.7.2` →
+  `assets: []`). The official deployable account is the example crate
+  **`multisig-account-example`**
+  (`examples/multisig-smart-account/account`, `publish = false`, cdylib),
+  built with `stellar contract build` per `README.md:59-66` /
+  `examples/multisig-smart-account/README.md:18-24`, deployed with
+  `stellar contract deploy --wasm … -- --signers '[…]' --policies '{…}'`
+  (`README.md:126-156`).
+- **Constructor** (`examples/…/account/src/contract.rs:32-41`):
+  `__constructor(e, signers: Vec<Signer>, policies: Map<Address, Val>)` →
+  `smart_account::add_context_rule(e, &ContextRuleType::Default,
+"multisig", None, &signers, &policies)` — the module-level function (no
+  `require_auth`; no rule exists yet). Also exposes `batch_add_signer`
+  (`:43-47`), `CustomAccountInterface` with `type Signature = AuthPayload`
+  (`:50-80`), `SmartAccount` + `ExecutionEntryPoint` via
+  `#[contractimpl(contracttrait)]` (`:82-86`), `Upgradeable` (`:88-94`).
+- **Initial ed25519 signer** is a constructor argument, either
+  `Signer::External(ed25519_verifier: Address, pubkey: Bytes /*32*/)` —
+  the verifier contract `multisig-ed25519-verifier-example`
+  (`examples/…/ed25519-verifier/src/contract.rs:13-56`, wraps
+  `verifiers::ed25519`) must be deployed first
+  (`README.md:64-76`; rule creation calls the verifier's
+  `batch_canonicalize_key`, `storage.rs:543-583`) — or
+  `Signer::Delegated(Address /* G or C */)` (`storage.rs:96-102`), which
+  needs no verifier.
+- **OpenZeppelin Wizard** (`OpenZeppelin/contracts-wizard`,
+  `packages/core/stellar/src/kind.ts`) has an **`Account`** kind:
+  `account.ts:10-37` (`delegatedSigners`, `ed25519Signers`,
+  `webauthnSigners`, `policy: false | simple-threshold | weighted-threshold`,
+  `executionEntryPoint`, `upgradeable`), constructor args per signer type
+  (`:144-172`) and the same module-level `add_context_rule` call with an
+  explanatory comment (`:180-192`); pinned to `contractsVersion = '0.7.2'`,
+  `compatibleSorobanVersion = '26.1.0'` (`utils/version.ts`). Snapshot:
+  `account.test.ts.md:31-59`.
+
+### 8.2 Rule creation, policy attachment, management surface
+
+- `SmartAccount::add_context_rule(context_type, name, valid_until:
+Option<u32>, signers: Vec<Signer>, policies: Map<Address, Val>) ->
+ContextRule` (`mod.rs:238-248`; `e.current_contract_address().require_auth()`
+  at `:246`). `valid_until` is a **ledger sequence**; `PastValidUntil` (3005)
+  when `< e.ledger().sequence()` (`storage.rs:649-654`).
+- Order inside `storage::add_context_rule` (`storage.rs:632-707`):
+  `validate_context_rule_name` (≤ 20 bytes, `:425-429`) → read `NextId` →
+  `validate_signer_key_size` + `validate_no_canonical_duplicates` (`:646-647`)
+  → `valid_until` check → `register_signer` per signer (`:659`) →
+  `register_policy` per policy (`:662-663`) → `validate_signers_and_policies`
+  (`:665`; **`MAX_POLICIES = 5` → `TooManyPolicies` 3011, `MAX_SIGNERS = 15`,
+  `NoSignersAndPolicies` 3004 when both empty**, `:377-391`) → store
+  `ContextRuleEntry` (`:668-677`) → **`PolicyClient::new(e, &policy).install(&param,
+&context_rule, &e.current_contract_address())` for each map entry
+  (`:690-693`)** → `emit_context_rule_added` → bump `NextId`/`Count`.
+  The `ContextRule` handed to `install` already carries the assigned `id`
+  (`:679-688`), which policies use as their storage key.
+- **Who invokes `install`:** the smart-account contract, cross-contract;
+  the policy's `smart_account.require_auth()` (`policies/spending_limit.rs:374`;
+  `contracts/frequency-limit-policy/src/lib.rs` `install`) is satisfied by
+  contract-invoker authorization ("direct contract-to-contract invocations
+  are always authorized", `mod.rs:484-485`). Map iteration is by key
+  (address) order, so install order = address order (`storage.rs:656, 690`).
+- `add_policy(context_rule_id, policy, install_param: Val) -> u32`
+  (`mod.rs:440-443`; `storage.rs:1110-1144`: register → `DuplicatePolicy`
+  3009 → count check `:1125` → `install` `:1139`);
+  `remove_policy(context_rule_id, policy_id)` (`mod.rs:473-476`;
+  `try_uninstall` `storage.rs:1195`).
+- Signers: `add_signer(context_rule_id, signer) -> u32` (`mod.rs:374-377`;
+  `storage.rs:931-955`), `remove_signer(context_rule_id, signer_id)`
+  (`mod.rs:405-408`; `storage.rs:992-1009`), `batch_add_signer` (module fn
+  only, `storage.rs:1053-1075`). Removing the last signer is allowed only
+  when ≥ 1 policy remains and vice-versa (`validate_signers_and_policies`).
+- `update_context_rule_name` (`mod.rs:275-278`), `update_context_rule_valid_until`
+  (`:308-315`), `remove_context_rule` (`:341-344`; uninstalls via
+  `try_uninstall`, `storage.rs:864-875`). **Every** trait default body
+  starts with `e.current_contract_address().require_auth()` (`mod.rs:246,
+276, 313, 342, 375, 406, 441, 474`); getters do not.
+- Consequence: a management call is an authorization **of the account by
+  itself** — an auth entry for the C-address, evaluated by `__check_auth`
+  against an existing rule whose type is `CallContract(account)` or
+  `Default` (`storage.rs:289-308`). The constructor's `Default` rule is that
+  admin rule; policywright's `CallContract(router/token)` rules never
+  authorize their own installation.
+
+### 8.3 `__check_auth`, `AuthPayload`, the digest, and the entry XDR
+
+- `AuthPayload { signers: Map<Signer, Bytes>, context_rule_ids: Vec<u32> }`
+  (`storage.rs:131-138`). `context_rule_ids` is aligned by index with
+  `auth_contexts`; mismatch → `ContextRuleIdsLengthMismatch` 3014
+  (`:468-470`); a signer not in any selected rule → `UnauthorizedSigner`
+  3016 (`:500-505`); rules without policies need **all** their signers
+  authenticated, rules with policies defer to `enforce` (`:316-322`).
+- **Signed digest:** `auth_digest = sha256(signature_payload ‖
+context_rule_ids.to_xdr())` (`storage.rs:492-495`; doc `:126-130`;
+  `README.md:171-213`; regression tests `smart_account/test/context_rules.rs:1142-1256`).
+  soroban-sdk `ToXdr` serialises the host `Val` (`src/xdr.rs:97-106`), so
+  the appended bytes are the `ScVal::Vec([ScVal::U32…])` XDR.
+- `authenticate` (`storage.rs:341-358`): `External(verifier, key)` →
+  `VerifierClient::verify(auth_digest_bytes, key, sig)`
+  (`ExternalVerificationFailed` 3003 if false); `Delegated(addr)` →
+  `addr.require_auth_for_args((auth_digest,))`. The ed25519 verifier is
+  `e.crypto().ed25519_verify(pubkey: BytesN<32>, payload, sig: BytesN<64>)`
+  (`verifiers/ed25519.rs:31-40`).
+- Host side (soroban-env-host 26.1.3): `check_account_contract_auth` calls
+  `__check_auth(payload_bytes, signature /* the credentials' ScVal, verbatim */,
+auth_contexts)` with self-reentry allowed
+  (`src/builtin_contracts/account_contract.rs:144-168`). `signature_payload =
+sha256(HashIdPreimage::envelopeTypeSorobanAuthorization { networkId, nonce,
+signatureExpirationLedger, invocation })` (stellar-base 15.0.0
+  `lib/auth.js:188-195`).
+- **Proven with the pinned SDK 15.1.0 (node one-off, 2026-09-02):** an
+  `AuthPayload` built as
+  `ScVal::Map { "context_rule_ids": Vec[U32 0, U32 2], "signers": Map { Vec[Symbol("External"), Address(CDLDYJWE…), Bytes(32)] → Bytes(64) } }`
+  encodes to
+  `AAAAEQAAAAEAAAACAAAADwAAABBjb250ZXh0X3J1bGVfaWRzAAAAEAAAAAEAAAACAAAAAwAAAAAAAAADAAAAAgAAAA8AAAAHc2lnbmVycw…`
+  and round-trips through `scValToNative`; wrapped in
+  `SorobanCredentials::sorobanCredentialsAddress({ address: C…, nonce,
+signatureExpirationLedger, signature })` + `rootInvocation`
+  `add_context_rule` it produces a valid `SorobanAuthorizationEntry`
+  (`lib/generated/curr_generated.js:4414`). For nonce `123456789`,
+  expiration `4460000`, empty args on `CCW6R5ZK…`: `signature_payload =
+a5b01cb5…9ed0`, `context_rule_ids` XDR =
+  `00000010 00000001 00000002 00000003 00000000 00000003 00000002`,
+  `auth_digest = ad363bc7…c6f5`.
+- `authorizeEntry` cannot produce this entry: it verifies the signature with
+  `Keypair.fromPublicKey(Address.fromScAddress(addr))` — a C-address throws
+  "invalid version byte" — and writes `scvVec([{public_key, signature}])`
+  (`lib/auth.js:210-238`). Entries for a custom account are hand-built XDR.
+
+### 8.4 Signing: what wallets can and cannot do
+
+- **`@creit.tech/stellar-wallets-kit` 2.6.0:** `StellarWalletsKit.signAuthEntry(authEntry, opts)`
+  forwards to the selected module (`esm/sdk/kit.js:87-92`); the interface
+  documents `authEntry` as "An XDR string version of
+  `HashIdPreimageSorobanAuthorization`" per SEP-0043 and returns
+  `{ signedAuthEntry: string /* base64 signature */, signerAddress }`
+  (`esm/types/mod.d.ts:153-171`). The Freighter module calls
+  `@stellar/freighter-api` `signAuthEntry` and base64-encodes the bytes
+  (`esm/sdk/modules/freighter.module.js:96-121`).
+- **Freighter 5.47.0 (extension source at tag `5.47.0`):** the popup parses
+  the entry with `xdr.HashIdPreimage.fromXdr(entry, "base64")` and rejects
+  anything unparseable (`extension/src/popup/views/SignAuthEntry/index.tsx:128-144`),
+  checks the embedded network id (`:146-198`), and blocks a CAP-71
+  address-bound entry whose address is not the active account (`:200-225`);
+  the background handler signs **`Keypair.sign(hash(Buffer.from(entry, "base64")))`**
+  (`extension/src/background/messageListener/handlers/signAuthEntry.ts:55-68`),
+  i.e. the raw `signature_payload`.
+- **Recorded unsupported thing:** a SEP-43 `signAuthEntry` yields
+  `sign(sha256(HashIdPreimage XDR))`; OZ v0.7.2 `External` signers must
+  sign `sha256(signature_payload ‖ context_rule_ids XDR)`. No wallet path
+  produces the latter, and the digest preimage cannot be smuggled in as the
+  "entry" because Freighter parses it first. The reference tool OZ points
+  to (`brozorec/smart-account-sign`, `stellar-smart-account/src/signing.rs:20-145`)
+  signs the digest with a locally held key and skips `Delegated` signers
+  (`:157-167`).
+- **`Delegated(G)` path (source-supported, unproven end-to-end):**
+  `require_auth_for_args` inside `__check_auth` is allowed for an address
+  other than the account itself (`src/auth.rs:965-976`; module docs
+  `:119-128`); the recorded function comes from the current frame, i.e.
+  `ContractFn { contract: account, fn_name: "__check_auth", args: [auth_digest] }`
+  (`src/auth.rs:572-586, 829-849`; `src/host.rs:3600-3611`). **Simulation
+  never returns that entry** — recording mode does not call `__check_auth`
+  (`src/auth.rs:1043-1047`; OZ `packages/accounts/README.md:88-96`; OZ docs
+  "Signers and Verifiers → Transaction Simulation Behavior"). A
+  `SourceAccount` credential is accepted for any entry whose address is the
+  transaction source (`src/auth.rs:110-117, 1807-1821`). OZ's own tests
+  exercise `Delegated` only under `mock_all_auths`
+  (`smart_account/test/context_rules.rs:118-124, 127-157`).
+- **CAP-71** ("Authentication delegation and address-bound Soroban
+  credentials", Status Final, **protocol 27**; CAP-71-01 adds
+  `delegate_account_auth` and `SOROBAN_CREDENTIALS_ADDRESS_WITH_DELEGATES`):
+  not used by OZ v0.7.2 (soroban-sdk 26) and not encodable with
+  stellar-base 15.0.0 (§7.1).
+  Sources: `stellar-protocol/core/cap-0071.md`, `cap-0071-01.md`.
+- SEP-0043 `signAuthEntry` contract: `(authEntry: string, opts?: {
+networkPassphrase?, address? }) => { signedAuthEntry, signerAddress }`
+  (`ecosystem/sep-0043.md:73-82, 184-196`).
+
+---
+
+## GATE 9 — MCP ground truth (verified 2026-09-02)
+
+### 9.1 Packages and protocol constants
+
+| Package                                 | Version / date       | Protocol constants (from `dist`)                                                                                                                         | Notes                                                                                                                                                                                                                  |
+| --------------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@modelcontextprotocol/sdk`             | `1.30.0`, 2026-07-27 | `LATEST_PROTOCOL_VERSION = '2025-11-25'`; `SUPPORTED = [2025-11-25, 2025-06-18, 2025-03-26, 2024-11-05, 2024-10-07]` (`dist/esm/types.js:2-4`)           | v1 line; peer `zod ^3.25 \|\| ^4.0`; `registerTool` config object (`dist/esm/server/mcp.d.ts:150-157`); `StdioServerTransport` (`dist/esm/server/stdio.d.ts`)                                                          |
+| `@modelcontextprotocol/server`          | `2.0.0`, 2026-07-28  | via `core`: `FIRST_MODERN_PROTOCOL_VERSION = "2026-07-28"` (`core/dist/index.mjs:544`), `MODERN_WIRE_REVISION` (`:4159`); legacy list unchanged (`:6-9`) | **v2 stable line** ("released alongside the 2026-07-28 spec"; v1 receives fixes ≥ 6 months — repo `README.md`). deps `zod ^4.2.0`, `@modelcontextprotocol/core 2.0.0`; `engines.node >= 20`; exports `.` and `./stdio` |
+| `@modelcontextprotocol/client` / `core` | `2.0.0`, 2026-07-28  | as above                                                                                                                                                 | `core` = public Zod `*Schema` constants                                                                                                                                                                                |
+| `@modelcontextprotocol/node`            | `2.0.0`, 2026-07-28  | —                                                                                                                                                        | Streamable-HTTP adapter for Node `http` only (package README "Exports"); not needed for stdio                                                                                                                          |
+| `@modelcontextprotocol/server-legacy`   | `2.0.0`, deprecated  | —                                                                                                                                                        | "frozen copy of v1's SSE transport and OAuth AS helpers for migration purposes only"                                                                                                                                   |
+
+Verified by `npm view …` and `npm pack` + reading `package.json`/`dist`
+(scratch copies; nothing added to the repo).
+
+### 9.2 Protocol revision and eras
+
+- Current revision **`2026-07-28`**; "legacy" = `2025-11-25` and earlier
+  (initialize handshake). Every modern request carries
+  `_meta["io.modelcontextprotocol/protocolVersion"]` (HTTP also
+  `MCP-Protocol-Version`); unsupported → JSON-RPC error `-32022` with
+  `data.supported`. Servers **MUST** implement `server/discover`. A dual-era
+  server answers `initialize` with legacy semantics and modern `_meta`
+  requests statelessly (compatibility matrix: Legacy client ↔ Dual-era server
+  works). Sources: <https://modelcontextprotocol.io/specification/versioning>,
+  <https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning>.
+- v2 SDK stdio serving: `serveStdio(factory)` from
+  `@modelcontextprotocol/server/stdio` "replaces the `new
+StdioServerTransport()` + `server.connect(transport)` wiring" and "serves
+  older clients from the same factory by default" (`legacy` option)
+  (typescript-sdk `docs/serving/stdio.md:10-31`; eras and the
+  `versionNegotiation` client option in `docs/protocol-versions.md`).
+- **Claude Code** (v2.1.232+) uses its v2 MCP runtime but "asks stdio servers
+  [for the newer revision] only if you set `MCP_PROTOCOL_NEGOTIATION` to
+  `auto`, and connects to every other server as v1 does"
+  (<https://code.claude.com/docs/en/mcp>). A dual-era v2 server therefore
+  serves Claude Code over stdio either way.
+
+### 9.3 Tool definition, results, errors (spec `2026-07-28/server/tools`)
+
+- Tool: `name` (1–128 chars, `[A-Za-z0-9_.-]`, unique per server), `title?`,
+  `description`, `inputSchema` (valid JSON Schema object; no-arg tools use
+  `{ "type": "object", "additionalProperties": false }`), `outputSchema?`,
+  `annotations?` (untrusted unless the server is trusted), `icons?`.
+- Result: `content: [{type:"text"|"image"|"audio"|"resource_link"|"resource"}]`,
+  `structuredContent?` (any JSON; with an `outputSchema` servers **MUST**
+  conform and **SHOULD** also serialise it into a text block; clients
+  **SHOULD** validate), `isError?`.
+- Errors: **tool execution errors** (API failure, input validation, business
+  logic) are results with `isError: true` — clients **SHOULD** feed them to
+  the model; **protocol errors** (unknown tool `-32602`, malformed request,
+  server error) are JSON-RPC errors.
+- v2 `registerTool(name, { title?, description?, inputSchema, outputSchema?,
+annotations?, _meta? }, cb)` takes Standard-Schema objects (`z.object(...)`
+  with Zod ≥ 4.2; raw shapes only via deprecated overloads; Zod v3
+  unsupported) — `server/dist/index.d.mts:3300-3310`;
+  `docs/migration/upgrade-to-v2.md:626-687`. `McpError` is `ProtocolError`
+  in v2 (`:70`).
+  Source: <https://modelcontextprotocol.io/specification/2026-07-28/server/tools>.
+
+### 9.4 Registering a local stdio server
+
+- **Claude Code** (<https://code.claude.com/docs/en/mcp>):
+  `claude mcp add --transport stdio <name> -- <command> [args…]`
+  (`--env KEY=value`; `--scope local|project|user`, default `local`).
+  Project scope writes `.mcp.json`:
+  `{ "mcpServers": { "<name>": { "command": "…", "args": […], "env": {…} } } }`
+  with `${VAR}`, `${VAR:-default}` and `${CLAUDE_PROJECT_DIR}` expansion;
+  local/user scopes live in `~/.claude.json` (`projects.<path>.mcpServers` /
+  `mcpServers`). Also `claude mcp add-json <name> '<json>'`,
+  `claude mcp list|get|remove`, `/mcp`. Tools are callable as
+  **`mcp__<server>__<tool>`** (plugin-bundled servers:
+  `mcp__plugin_<plugin>_<server>__<tool>`), the name used in permission
+  rules, a skill's `allowed-tools`, subagent `tools`, and hook matchers.
+- **Claude Desktop** (<https://modelcontextprotocol.io/docs/develop/connect-local-servers>):
+  `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) /
+  `%APPDATA%\Claude\claude_desktop_config.json` (Windows), same
+  `mcpServers → { command, args, env }` shape, **absolute paths**, full
+  restart required; logs `~/Library/Logs/Claude/mcp*.log`
+  (`mcp-server-<name>.log` = the server's stderr).
+
+---
+
+## GATE 10 — Agent-skill format (verified 2026-09-02)
+
+| Source (fetched 2026-09-02)                                                                                                                            | What it fixes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| <https://agentskills.io/specification> (open standard)                                                                                                 | Directory `skill-name/` with required `SKILL.md` (YAML frontmatter + Markdown), optional `scripts/`, `references/`, `assets/`. Frontmatter: `name` (required; 1–64; `a-z`, `0-9`, `-`; no leading/trailing/consecutive hyphens; **must match the directory name**), `description` (required; 1–1024; what + when), `license`, `compatibility` (≤ 500), `metadata` (string→string map), `allowed-tools` (space-separated, experimental). Body: keep `SKILL.md` under 500 lines / < 5000 tokens, reference files one level deep. Validate with `skills-ref validate ./my-skill`.                                                                                                                                                                                                                                                                                                                                                                                              |
+| <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview> (Anthropic; redirect target of `docs.claude.com/…/agent-skills/overview`) | Required fields `name` + `description`; `name` ≤ 64 chars, lowercase letters/numbers/hyphens, no XML tags, **no reserved words "anthropic"/"claude"**; `description` non-empty, ≤ 1024, no XML. Three-level progressive disclosure (metadata ≈ 100 tokens always; body < 5k when triggered; resources on demand). Surfaces: Claude API (`/v1/skills`, container `skill_id`, no network), claude.ai (zip upload, Settings → Features), Claude Code (`~/.claude/skills/` personal, `.claude/skills/` project, plugins). **Custom Skills do not sync across surfaces.**                                                                                                                                                                                                                                                                                                                                                                                                        |
+| <https://code.claude.com/docs/en/skills> (Claude Code)                                                                                                 | Locations: enterprise (managed settings) > personal `~/.claude/skills/<name>/SKILL.md` > project `.claude/skills/<name>/SKILL.md` > plugin `<plugin>/skills/<name>/SKILL.md` (namespaced `/plugin:skill`); `.claude/commands/*.md` merged into skills. Claude-Code-only frontmatter beyond the spec: `when_to_use`, `argument-hint`, `arguments`, `disable-model-invocation`, `user-invocable`, `disallowed-tools`, `model`, `effort`, `context: fork`, `agent`, `background`, `hooks`, `paths`, `shell` ("Using skill frontmatter outside Claude Code": other surfaces accept only the six spec fields and reject e.g. `argument-hint`). Adding `.claude-plugin/plugin.json` to a skill folder makes it a plugin that "can bundle agents, hooks, and MCP servers" (`.mcp.json`; `/reload-plugins` after changes). `allowed-tools` pre-approves tools for the invoking turn through the normal permission flow; MCP tools are referenced as `mcp__<server>__<tool>` (§9.4). |
+
+The format has changed before (commands → skills merge; Claude-Code
+extensions); re-fetch these three URLs before packaging.
+
+---
+
+## GATE 11 — T2 reuse check and identity (verified 2026-09-02)
+
+### 11.1 The T1 `FrequencyLimitPolicy` is reusable per (account, rule)
+
+`contracts/frequency-limit-policy/src/lib.rs`: all state is stored under
+`FrequencyLimitStorageKey::AccountContext(smart_account, context_rule.id)`;
+`install` panics `AlreadyInstalled` (3233) only when that exact key exists.
+One deployed instance therefore serves every rule of every account — the
+same OZ sharing model ("Policy Sharing Models", OZ docs Policies page). **T2
+path: reuse the existing instance; no per-rule deploy.** The emitter's
+`policyAddresses` default for testnet is `CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP`
+once restored (§11.2).
+
+### 11.2 …but the T1 entries are archived
+
+`getLedgerEntries` (RPC 28.0.1, latest ledger 4454281):
+
+| Entry                                                                              | `lastModifiedLedgerSeq` | `liveUntilLedgerSeq` | Reading                      |
+| ---------------------------------------------------------------------------------- | ----------------------- | -------------------- | ---------------------------- |
+| instance `CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP`                | 3943146                 | **0**                | archived (placeholder, §7.2) |
+| instance `CBZHVZJFMYKRM7U27IWG6AEYS3GMXB2N3IMDDGW74SC6UK5NHAN54BHS`                | 3943129                 | **0**                | archived                     |
+| wasm code `42227f2b6150c95a7084bb7c5ff2e7a40793eae39bf0c5dc95bd752d18ee6eed`       | —                       | **0**                | archived                     |
+| recorded subject wallet `CCW6R5ZKEIJJ75YT54TEHMRUYTP4XQGUI6H63EE3W65H4P4FAUICXP3Q` | 3817767                 | **0**                | archived (not needed by T2)  |
+| Soroswap router `CCJUD55A…` (control)                                              | 82780                   | 7060981              | live                         |
+| Blend pool `CCEBVDYM…` (control)                                                   | 3408325                 | 6062102              | live                         |
+| OZ README example verifier/policy `CDLDYJWE…`, `CA7IJLIH…`                         | —                       | no entry             | evicted                      |
+
+With `minPersistentTTL` 120960 and creation at ledger 3943146, expiry fell
+around ledger 4064106 (≈ 2026-08-10). Two observations that do **not**
+prove liveness: `stellar contract fetch --id CDSVPSTS… --network testnet`
+still returns the wasm (SHA-256 `42227f2b…6eed`, unchanged) and RPC
+`simulateTransaction` of `get_frequency_limit_data(0, CCW6R5ZK…)` executed
+to the contract's own error 3230 (`SmartAccountNotInstalled`) — RPC serves
+archived data to both. Restore surface (stellar-cli 27.1.0): `stellar
+contract restore --id <C> --network testnet --source-account <…>`
+("If no keys are specified the contract itself is restored"), plus
+`--wasm-hash <hex>` for the code entry; `stellar contract extend
+--ledgers-to-extend <n>` afterwards. Both are human-initiated, signed steps
+to log in EVIDENCE.md before any T2 install.
+
+### 11.3 Funded testnet identity
+
+`.env` (gitignored) contains exactly `STELLAR_SECRET_KEY`,
+`STELLAR_PUBLIC_KEY`, `STELLAR_NETWORK=testnet` (checked by key name only;
+no `STELLAR_RPC_URL`, per §1.6). In-process derivation
+`Keypair.fromSecret(...).publicKey() === STELLAR_PUBLIC_KEY` → `true`;
+public key `GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W`;
+Horizon testnet balance **9996.1093970 XLM**, sequence `13754327822761990`
+(2026-09-02). The secret was never printed.
+
+---
+
 ## Changelog
 
-| Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-08-03 | File created (toolchain, OZ trait/ContextRule/limits/stock policies, fixture audit). Restructured same day around the four pre-flight gates; added stellar-cli 26.0.0→27.1.0 upgrade, `--verifiable` finding, `wasm32v1-none`, live-chain captures (protocol 27 event shapes, fee-bump, Blend claim, Soroswap swap), swap-venue verification (Comet + Soroswap with on-chain liquidity), and version pins.                                                                                                                                                                                                                                                                                                           |
-| 2026-08-03 | D1.2 session: added §2.5 — `add_context_rule` install surface, one-`Context`-per-`require_auth` at `__check_auth` (nested transfers need their own rule; that is where `spending_limit` composes), no rule auto-discovery, ≥1 signer-or-policy per rule, `spending_limit` install guards (`OnlyCallContractAllowed`/`InvalidLimitOrPeriod`/`AlreadyInstalled`) and the non-empty-signers requirement in `enforce`. Verified against a fresh v0.7.2 clone (same commit `a9c4216…`).                                                                                                                                                                                                                                   |
-| 2026-08-03 | D1.1 session: pinned `@stellar/stellar-sdk` exact `15.1.0`; verified `createdAt` is a JSON string the SDK passes through untyped-correctly; verified SDK parses the protocol-27 `events` field; recorded the complete CAP-67 unified SAC event schemas (mint has NO admin topic; sep0011 string is never a strkey); captured and documented the raw `simulateTransaction` result shape (§3.6, committed fixture); retention re-check for the two flow hashes (still live, ≈4–6 h left).                                                                                                                                                                                                                              |
-| 2026-08-03 | D1.3 session: added §1.4 (soroban-sdk 26.1.0 declares rust-version 1.91.0 → rustc ≥ 1.92 required alongside §1.3's ==1.91.0 rejection; toolchain pinned 1.97.1; upstream `ed25519-dalek >=2.0.0` range resolves to a 3.0.0 that breaks soroban-env-host 26.1.3 testutils — locked to 2.2.0; `stellar-accounts` published on crates.io through 0.7.2), §1.5 (exact build command; two clean builds reproduce SHA-256 `42227f2b…6eed`), §1.6 (upload/deploy/fetch CLI surface: wasm hash & contract id on stdout, submitted-tx explorer links on stderr, `STELLAR_ACCOUNT` accepts a raw secret, `--network` vs `STELLAR_RPC_URL` exclusivity plus the cwd-`.env` dotenv pitfall, `contract fetch` for on-chain wasm). |
+| Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-08-03 | File created (toolchain, OZ trait/ContextRule/limits/stock policies, fixture audit). Restructured same day around the four pre-flight gates; added stellar-cli 26.0.0→27.1.0 upgrade, `--verifiable` finding, `wasm32v1-none`, live-chain captures (protocol 27 event shapes, fee-bump, Blend claim, Soroswap swap), swap-venue verification (Comet + Soroswap with on-chain liquidity), and version pins.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 2026-08-03 | D1.2 session: added §2.5 — `add_context_rule` install surface, one-`Context`-per-`require_auth` at `__check_auth` (nested transfers need their own rule; that is where `spending_limit` composes), no rule auto-discovery, ≥1 signer-or-policy per rule, `spending_limit` install guards (`OnlyCallContractAllowed`/`InvalidLimitOrPeriod`/`AlreadyInstalled`) and the non-empty-signers requirement in `enforce`. Verified against a fresh v0.7.2 clone (same commit `a9c4216…`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| 2026-08-03 | D1.1 session: pinned `@stellar/stellar-sdk` exact `15.1.0`; verified `createdAt` is a JSON string the SDK passes through untyped-correctly; verified SDK parses the protocol-27 `events` field; recorded the complete CAP-67 unified SAC event schemas (mint has NO admin topic; sep0011 string is never a strkey); captured and documented the raw `simulateTransaction` result shape (§3.6, committed fixture); retention re-check for the two flow hashes (still live, ≈4–6 h left).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 2026-08-03 | D1.3 session: added §1.4 (soroban-sdk 26.1.0 declares rust-version 1.91.0 → rustc ≥ 1.92 required alongside §1.3's ==1.91.0 rejection; toolchain pinned 1.97.1; upstream `ed25519-dalek >=2.0.0` range resolves to a 3.0.0 that breaks soroban-env-host 26.1.3 testutils — locked to 2.2.0; `stellar-accounts` published on crates.io through 0.7.2), §1.5 (exact build command; two clean builds reproduce SHA-256 `42227f2b…6eed`), §1.6 (upload/deploy/fetch CLI surface: wasm hash & contract id on stdout, submitted-tx explorer links on stderr, `STELLAR_ACCOUNT` accepts a raw secret, `--network` vs `STELLAR_RPC_URL` exclusivity plus the cwd-`.env` dotenv pitfall, `contract fetch` for on-chain wasm).                                                                                                                                                                                                                                                                                 |
+| 2026-09-02 | T2 pre-flight session: added §7 (toolchain drift: stellar-cli v28.0.0 released, stellar-sdk 17.0.1, OZ still v0.7.2; testnet protocol 28 / RPC 28.0.1; `minPersistentTTL` 120960; archived entries read as `liveUntilLedgerSeq: 0`), §8 (OZ account side: no prebuilt account, constructor + `Signer` shapes, `add_context_rule` internals and self-authorized management surface, `AuthPayload`/digest, hand-built entry XDR proven with SDK 15.1.0, wallets-kit 2.6.0 + Freighter 5.47.0 sign the raw payload — `External` signing unsupported, `Delegated` path source-supported/unproven, CAP-71 status), §9 (MCP: v2 `@modelcontextprotocol/server@2.0.0` on spec `2026-07-28`, dual-era stdio, tool/result/error conventions, Claude Code + Desktop registration), §10 (agent-skill format from agentskills.io, platform.claude.com, code.claude.com), §11 (frequency policy reusable per (account, rule); T1 instances + wasm archived; `.env` identity funded). Notes added to §1.1, §3, §5. |
