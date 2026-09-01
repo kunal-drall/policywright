@@ -163,9 +163,13 @@ export interface SynthConfig {
   /** Maximum calls permitted within {@link frequencyWindowSecs}. */
   readonly frequencyMaxCalls: number;
   /**
-   * When `true`, derive constraints on observed call arguments (the Soroswap
-   * swap `path`). When `false`, arguments are unconstrained and unobserved-asset
-   * routes are flagged rather than denied (preserves the v0 behaviour).
+   * Argument-level scope (opt-in tightening; default `false`).
+   *
+   * Observed-argument constraints (see {@link ArgumentConstraintPolicy} and
+   * the derivation rules in `src/synthesizer.ts`) are always *derived* and
+   * recorded on the spec. When `true` they are also *enforced*: a candidate
+   * violating one is denied in the dry run. When `false` they are advisory:
+   * the same candidate is permitted and the report carries a scope-gap flag.
    */
   readonly constrainArguments: boolean;
 }
@@ -240,12 +244,22 @@ export interface FrequencyLimitPolicy {
 }
 
 /**
+ * Identifies the derivation rule that produced an {@link ArgumentConstraintPolicy}.
+ * Rules are defined and documented in `src/synthesizer.ts`
+ * (`ARGUMENT_DERIVATION_RULES`); `swap-path` is the only rule today.
+ */
+export type ArgumentRuleId = 'swap-path';
+
+/**
  * Constrains a positional argument of a specific call to an observed allow-set.
- * Currently used for the Soroswap swap `path`. Only emitted when
- * {@link SynthConfig.constrainArguments} is enabled.
+ * Derived by one of the argument derivation rules (today: the swap `path`
+ * token set). Always recorded on the spec as an observation; counted as an
+ * enforced policy only when {@link SynthConfig.constrainArguments} is enabled.
  */
 export interface ArgumentConstraintPolicy {
   readonly kind: 'argument-constraint';
+  /** The derivation rule that produced this constraint. */
+  readonly rule: ArgumentRuleId;
   /** Contract the constraint applies to. */
   readonly contract: string;
   /** Function the constraint applies to. */
@@ -255,8 +269,10 @@ export interface ArgumentConstraintPolicy {
   /** Human label for the argument (e.g. `path`). */
   readonly argName: string;
   /**
-   * Allowed token contract ids observed for this argument. A candidate call
-   * routing through any address outside this set is denied.
+   * Allowed token contract ids observed for this argument (set semantics —
+   * order, hop count, and amounts are not constrained). A candidate call
+   * routing through any address outside this set violates the constraint:
+   * denied when enforced, flagged when advisory.
    */
   readonly allowedTokens: readonly string[];
 }
@@ -373,7 +389,15 @@ export interface SmartAccountSpec {
   readonly config: SynthConfig;
 }
 
-/** The outcome of a dry-run evaluation of one candidate call. */
+/**
+ * The outcome of a dry-run evaluation of one candidate call.
+ *
+ * - `permit` — every check passed.
+ * - `deny`   — a check failed; `reasonCode` names it.
+ * - `flag`   — every *enforced* check passed, so the call would be permitted,
+ *              but an advisory (unenforced) argument constraint was violated.
+ *              The report surfaces this as a scope gap for the reviewer.
+ */
 export type SimulationDecision = 'permit' | 'deny' | 'flag';
 
 /** A candidate call to evaluate against a spec in the dry run. */

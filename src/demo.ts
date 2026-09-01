@@ -10,7 +10,13 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { emit } from './emitter.js';
 import { loadFixture } from './sources/fixture.js';
-import { buildScenarios, renderReport, simulateCall } from './simulate.js';
+import {
+  buildScenarios,
+  probeTokenFor,
+  renderReport,
+  simulateCall,
+  tokenLabelsFor,
+} from './simulate.js';
 import { synthesize } from './synthesizer.js';
 import { DEFAULT_SYNTH_CONFIG, type SimulationResult } from './types.js';
 
@@ -46,9 +52,11 @@ export function runDemo(): readonly SimulationResult[] {
   const spec = synthesize(tx, DEFAULT_SYNTH_CONFIG, now);
   const artifacts = emit(tx, spec);
 
+  const probe = probeTokenFor(spec, tx);
+  const labels = tokenLabelsFor(tx, probe);
   const scenarios = buildScenarios(spec, tx);
-  const results = scenarios.map((s) => simulateCall(spec, s.candidate));
-  const report = renderReport(results);
+  const results = scenarios.map((s) => simulateCall(spec, s.candidate, labels));
+  const report = renderReport(results, { tx, spec, probe });
 
   const dir = writeArtifacts(
     artifacts.summary,

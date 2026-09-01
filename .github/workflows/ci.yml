@@ -35,6 +35,17 @@ jobs:
       - name: Demo (offline smoke test)
         run: npm run demo
 
+      # D2.3: the dry-run reports committed for the REAL recorded claim→swap
+      # sequence must be exactly what the harness prints today, in both modes
+      # (argument constraints advisory → BLND→XLM flagged; enforced → denied).
+      - name: Live dry-run reports (both modes) match the committed copies
+        run: |
+          npm run --silent cli -- simulate --input examples/live/recorded-claim-swap-fresh.json \
+            | diff - examples/live/simulation-report.md
+          npm run --silent cli -- simulate --input examples/live/recorded-claim-swap-fresh.json --constrain-arguments \
+            | diff - examples/live/simulation-report.constrained.md
+          echo "both committed reports are reproducible"
+
   site:
     runs-on: ubuntu-latest
     steps:

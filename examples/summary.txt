@@ -27,7 +27,7 @@ Policies (2)
 
 Argument scopes — advisory (flag only)
 --------------
-  - argument-constraint: swap_exact_tokens_for_tokens arg[2] (path) restricted to 2 observed token(s)
+  - argument-constraint (swap-path): swap_exact_tokens_for_tokens arg[2] (path) restricted to 2 observed token(s)
 
 Installable OZ context rules (2) — see context-rule.json
 ----------------------------

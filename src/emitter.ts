@@ -53,6 +53,7 @@ function serialisePolicy(policy: PolicySpec): Record<string, unknown> {
     case 'argument-constraint':
       return {
         kind: policy.kind,
+        rule: policy.rule,
         contract: policy.contract,
         fnName: policy.fnName,
         argIndex: policy.argIndex,
@@ -159,7 +160,7 @@ function describeBinding(binding: OzPolicyBinding): string {
 }
 
 /** One human-readable line describing a policy. */
-function describePolicy(policy: PolicySpec): string {
+export function describePolicy(policy: PolicySpec): string {
   switch (policy.kind) {
     case 'spending-limit': {
       const cap = formatAmount(policy.cap, policy.asset.decimals);
@@ -169,7 +170,7 @@ function describePolicy(policy: PolicySpec): string {
     case 'frequency-limit':
       return `frequency-limit: <= ${policy.maxCalls} call(s) per ${policy.windowSecs}s`;
     case 'argument-constraint':
-      return `argument-constraint: ${policy.fnName} arg[${policy.argIndex}] (${policy.argName}) restricted to ${policy.allowedTokens.length} observed token(s)`;
+      return `argument-constraint (${policy.rule}): ${policy.fnName} arg[${policy.argIndex}] (${policy.argName}) restricted to ${policy.allowedTokens.length} observed token(s)`;
   }
 }
 

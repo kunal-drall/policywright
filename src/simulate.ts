@@ -4,14 +4,18 @@
  * flag it — before anything is installed on-chain.
  *
  * Checks run in a fixed order; the first one that fails produces the decision:
- *   1. scope            — is the (contract, fn) pair authorised by the rule?
- *   2. lifetime         — is the call within the rule's validity window?
- *   3. spending-limit   — does any outflow exceed its asset's cap?
- *   4. frequency-limit  — would this call exceed the rolling call cap?
+ *   1. scope               — is the (contract, fn) pair authorised by the rule?
+ *   2. lifetime            — is the call within the rule's validity window?
+ *   3. argument-constraint — ENFORCED constraints (constrainArguments on): deny
+ *   4. spending-limit      — does any outflow exceed its asset's cap?
+ *   5. frequency-limit     — would this call exceed the rolling call cap?
+ *   6. argument-constraint — ADVISORY constraints (constrainArguments off): the
+ *                            call is permitted but the report carries a flag
  * If every check passes, the call is permitted.
  */
 
-import { formatAmount } from './emitter.js';
+import { describePolicy, formatAmount } from './emitter.js';
+import { CONTRACT_ADDRESS_SHAPE, nativeSacContractId } from './network.js';
 import type {
   ArgumentConstraintPolicy,
   CallArg,
@@ -28,6 +32,31 @@ export interface Scenario {
   readonly expectedDecision: SimulationResult['decision'];
   readonly expectedReasonCode: string;
 }
+
+/**
+ * The token the unobserved-route scenario probes with: an address that is NOT
+ * in the observed swap-path set, so routing through it must be flagged or
+ * denied. `provenance` says where the address came from so the report can
+ * state it.
+ */
+export interface ProbeToken {
+  readonly contractId: string;
+  /** Short label for scenario names and the token legend (e.g. `XLM`). */
+  readonly label: string;
+  readonly provenance: string;
+}
+
+/** Options for {@link buildScenarios}. */
+export interface ScenarioOptions {
+  /** Override the probe token (e.g. from `--probe-token`). */
+  readonly probeToken?: string;
+}
+
+/** Contract id → human label, used to name tokens in reasons and reports. */
+export type TokenLabels = ReadonlyMap<string, string>;
+
+/** A well-formed but synthetic address used only when no better probe exists. */
+export const SYNTHETIC_PROBE_TOKEN = `C${'Z'.repeat(55)}`;
 
 function isScoped(spec: SmartAccountSpec, contract: string, fnName: string): boolean {
   return spec.contextRule.scopedCalls.some((s) => s.contract === contract && s.fnName === fnName);
@@ -68,8 +97,33 @@ function callsInWindow(candidate: CandidateCall, windowSecs: number): number {
     .length;
 }
 
-/** Evaluate one candidate call against the spec. */
-export function simulateCall(spec: SmartAccountSpec, candidate: CandidateCall): SimulationResult {
+/** `SYMBOL <id>` when the token has a label, else the bare id. */
+function nameToken(id: string, labels: TokenLabels): string {
+  const label = labels.get(id);
+  return label === undefined ? id : `${label} ${id}`;
+}
+
+/** The constraint a candidate violated, named fully: rule, call, argument, allow-set. */
+function describeViolation(
+  scope: ArgumentConstraintPolicy,
+  bad: readonly string[],
+  labels: TokenLabels,
+): string {
+  const allowed = scope.allowedTokens.map((t) => nameToken(t, labels)).join(', ');
+  const violating = bad.map((t) => nameToken(t, labels)).join(', ');
+  return `${scope.fnName} arg[${scope.argIndex}] ${scope.argName} (rule ${scope.rule}) must stay within the observed token set {${allowed}}; candidate routes through unobserved ${violating}`;
+}
+
+/**
+ * Evaluate one candidate call against the spec.
+ *
+ * @param labels optional contract-id → symbol map so reasons can name tokens
+ */
+export function simulateCall(
+  spec: SmartAccountSpec,
+  candidate: CandidateCall,
+  labels: TokenLabels = new Map(),
+): SimulationResult {
   // 1. Scope.
   if (!isScoped(spec, candidate.contract, candidate.fnName)) {
     return {
@@ -101,7 +155,7 @@ export function simulateCall(spec: SmartAccountSpec, candidate: CandidateCall): 
         label: candidate.label,
         decision: 'deny',
         reasonCode: 'argument-constraint',
-        reason: `${policy.fnName} ${policy.argName} routes through unobserved token(s) ${bad.join(', ')}`,
+        reason: `argument constraint violated: ${describeViolation(policy, bad, labels)}`,
       };
     }
   }
@@ -138,9 +192,8 @@ export function simulateCall(spec: SmartAccountSpec, candidate: CandidateCall): 
     }
   }
 
-  // 6. Advisory argument constraints (flag, not deny) when not enforced.
-  const argEnforced = spec.policies.some((p) => p.kind === 'argument-constraint');
-  if (!argEnforced) {
+  // 6. Advisory argument constraints: permitted, but flagged as a scope gap.
+  if (!spec.config.constrainArguments) {
     for (const scope of spec.argumentScopes) {
       const bad = disallowedArgTokens(candidate, scope);
       if (bad !== null) {
@@ -148,7 +201,7 @@ export function simulateCall(spec: SmartAccountSpec, candidate: CandidateCall): 
           label: candidate.label,
           decision: 'flag',
           reasonCode: 'argument-constraint',
-          reason: `${scope.fnName} ${scope.argName} routes through unobserved token(s) ${bad.join(', ')}; not enforced (constrainArguments is off)`,
+          reason: `permitted with a scope gap (constrainArguments is off, so this constraint is advisory): ${describeViolation(scope, bad, labels)}; enable --constrain-arguments to deny it`,
         };
       }
     }
@@ -163,12 +216,69 @@ export function simulateCall(spec: SmartAccountSpec, candidate: CandidateCall): 
 }
 
 /**
+ * Choose the probe token for the unobserved-route scenario.
+ *
+ * Preference order: an explicit override; else the recording network's native
+ * XLM Stellar Asset Contract (its address derives from the network passphrase,
+ * so it is real on every network and needs no lookup) provided XLM was not
+ * itself observed in a constrained argument; else a synthetic placeholder.
+ */
+export function probeTokenFor(
+  spec: SmartAccountSpec,
+  tx: RecordedTx,
+  override?: string,
+): ProbeToken {
+  if (override !== undefined) {
+    if (!CONTRACT_ADDRESS_SHAPE.test(override)) {
+      throw new Error(
+        `probe token must be a contract address (C… + 55 base32 chars), got "${override}"`,
+      );
+    }
+    return { contractId: override, label: 'probe', provenance: 'supplied via --probe-token' };
+  }
+  const native = nativeSacContractId(tx.network);
+  const observed = spec.argumentScopes.some((s) => s.allowedTokens.includes(native));
+  if (!observed) {
+    return {
+      contractId: native,
+      label: 'XLM',
+      provenance: `native XLM Stellar Asset Contract on ${tx.network}, derived from the network passphrase (Asset.native().contractId)`,
+    };
+  }
+  return {
+    contractId: SYNTHETIC_PROBE_TOKEN,
+    label: 'ZZZ',
+    provenance: 'synthetic placeholder — the native XLM SAC is already in the observed set',
+  };
+}
+
+/** Contract-id → symbol labels from the recording's flows plus the probe token. */
+export function tokenLabelsFor(tx: RecordedTx, probe?: ProbeToken): TokenLabels {
+  const labels = new Map<string, string>();
+  for (const flow of tx.flows) {
+    if (!labels.has(flow.asset.contractId)) {
+      labels.set(flow.asset.contractId, flow.asset.symbol);
+    }
+  }
+  if (probe !== undefined && !labels.has(probe.contractId)) {
+    labels.set(probe.contractId, probe.label);
+  }
+  return labels;
+}
+
+/**
  * Build the standard dry-run scenarios for a spec + recording. Each is derived
  * generically from the spec so the set stays consistent with whatever was
  * synthesised. Returns the recorded ("original") permit case plus one deny case
- * per enforced check.
+ * per enforced check, and — when an argument constraint was derived — the
+ * unobserved-route case built from the REAL observed call with its route
+ * redirected to the probe token (flag when advisory, deny when enforced).
  */
-export function buildScenarios(spec: SmartAccountSpec, tx: RecordedTx): Scenario[] {
+export function buildScenarios(
+  spec: SmartAccountSpec,
+  tx: RecordedTx,
+  options: ScenarioOptions = {},
+): Scenario[] {
   const base = spec.contextRule.validUntil - spec.config.lifetimeSecs;
   const scoped = spec.contextRule.scopedCalls;
   const spendCall = scoped[scoped.length - 1];
@@ -263,21 +373,30 @@ export function buildScenarios(spec: SmartAccountSpec, tx: RecordedTx): Scenario
     });
   }
 
-  // argument scope: a swap routing through an unobserved token. Denied when
-  // constrainArguments is enabled, flagged (advisory) when it is not.
+  // argument scope: the REAL observed swap, re-routed through the probe token
+  // (BLND→XLM for the claim→swap recordings). Denied when constrainArguments
+  // is enabled, flagged (permitted, advisory) when it is not.
   const argScope = spec.argumentScopes[0];
   if (argScope !== undefined) {
-    const unobservedToken = `C${'Z'.repeat(55)}`;
-    const allowed = argScope.allowedTokens[0] ?? unobservedToken;
-    const args: CallArg[] = Array.from({ length: argScope.argIndex }, () => null);
-    args.push([allowed, unobservedToken]);
+    const probe = probeTokenFor(spec, tx, options.probeToken);
+    const labels = tokenLabelsFor(tx, probe);
+    const observedCall = tx.calls.find(
+      (c) => c.contract === argScope.contract && c.fnName === argScope.fnName,
+    );
+    const observedArgs: readonly CallArg[] =
+      observedCall?.args ?? Array.from({ length: argScope.argIndex + 1 }, () => null);
+    const from = argScope.allowedTokens[0] ?? probe.contractId;
+    const args = observedArgs.map((arg, i) =>
+      i === argScope.argIndex ? [from, probe.contractId] : arg,
+    );
+    const fromLabel = labels.get(from) ?? from.slice(0, 8);
     scenarios.push({
       candidate: {
-        label: 'route through an unobserved token',
+        label: `${fromLabel}→${probe.label} swap (route through unobserved ${probe.label})`,
         contract: argScope.contract,
         fnName: argScope.fnName,
         args,
-        outflows: [],
+        outflows: recordedOutflows,
         timestamp: base + 60,
         priorCallTimestamps: [],
       },
@@ -289,13 +408,57 @@ export function buildScenarios(spec: SmartAccountSpec, tx: RecordedTx): Scenario
   return scenarios;
 }
 
-/** Render dry-run results as a Markdown report. */
-export function renderReport(results: readonly SimulationResult[]): string {
+/** What a report was evaluated against, rendered as its provenance header. */
+export interface ReportContext {
+  readonly tx: RecordedTx;
+  readonly spec: SmartAccountSpec;
+  /** The probe token the unobserved-route scenario used, when one was built. */
+  readonly probe?: ProbeToken;
+}
+
+/**
+ * Render dry-run results as a Markdown report. With a {@link ReportContext}
+ * the report is self-describing: which recording, which generated policy set
+ * and mode it was evaluated against, what each decision means, and which
+ * addresses the token symbols refer to.
+ */
+export function renderReport(
+  results: readonly SimulationResult[],
+  context?: ReportContext,
+): string {
   const icon = (d: SimulationResult['decision']): string =>
     d === 'permit' ? '✅' : d === 'flag' ? '⚠️' : '⛔';
   const lines: string[] = [];
   lines.push('# policywright dry-run report');
   lines.push('');
+  if (context !== undefined) {
+    const { tx, spec } = context;
+    const hashes = [...new Set(tx.calls.map((c) => c.sourceHash))].filter(
+      (h): h is string => h !== null,
+    );
+    lines.push(
+      `Recording: ${tx.network}, from ${tx.source}${hashes.length > 0 ? `, tx ${hashes.join(', ')}` : ''}${tx.subject !== null ? `; subject ${tx.subject}` : ''}.`,
+    );
+    lines.push(
+      `Generated policy set (context rule \`${spec.contextRule.name}\`, ${spec.policies.length} enforced polic${spec.policies.length === 1 ? 'y' : 'ies'}):`,
+    );
+    for (const policy of spec.policies) {
+      lines.push(`- ${describePolicy(policy)}`);
+    }
+    if (spec.argumentScopes.length > 0) {
+      lines.push(
+        `Argument constraints (\`constrainArguments: ${spec.config.constrainArguments}\`): ${spec.config.constrainArguments ? 'ENFORCED — a violation is denied.' : 'advisory (default) — a violation is permitted and flagged as a scope gap; `--constrain-arguments` enforces it.'}`,
+      );
+      for (const scope of spec.argumentScopes) {
+        lines.push(`- ${describePolicy(scope)}: ${scope.allowedTokens.join(', ')}`);
+      }
+    }
+    lines.push('');
+    lines.push(
+      'Decisions: ✅ permit — every check passed; ⛔ deny — the named check failed; ⚠️ flag — every enforced check passed (the call would be permitted) but an advisory argument constraint was violated.',
+    );
+    lines.push('');
+  }
   lines.push('| Scenario | Decision | Reason |');
   lines.push('| --- | --- | --- |');
   for (const r of results) {
@@ -304,5 +467,19 @@ export function renderReport(results: readonly SimulationResult[]): string {
     );
   }
   lines.push('');
+  if (context !== undefined) {
+    const labels = tokenLabelsFor(context.tx, context.probe);
+    if (labels.size > 0) {
+      lines.push('Tokens:');
+      for (const [id, label] of labels) {
+        const note =
+          context.probe !== undefined && id === context.probe.contractId
+            ? ` — ${context.probe.provenance}`
+            : '';
+        lines.push(`- ${label} = ${id}${note}`);
+      }
+      lines.push('');
+    }
+  }
   return lines.join('\n');
 }

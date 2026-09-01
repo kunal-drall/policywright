@@ -2,8 +2,8 @@
  * policywright command-line entry point.
  *
  *   demo                 run the end-to-end demo and self-check (see demo.ts)
- *   synth                synthesize a spec from the baked-in fixture and print it
- *   simulate             run the dry-run scenarios against the fixture's spec
+ *   synth                synthesize a spec from the baked-in fixture (or --input) and print it
+ *   simulate             run the dry-run scenarios against the fixture's (or --input) spec
  *   record <hash...>     fetch a transaction sequence by hash (or ingest a saved
  *                        simulation with --from-simulation) and print the merged
  *                        RecordedTx
@@ -20,7 +20,13 @@ import { loadRecordedTx } from './sources/recorded.js';
 import { recordFromHashes, tokenResolverFor } from './sources/rpc.js';
 import { ingestSimulation } from './sources/simulation.js';
 import { badInput } from './sources/errors.js';
-import { buildScenarios, renderReport, simulateCall } from './simulate.js';
+import {
+  buildScenarios,
+  probeTokenFor,
+  renderReport,
+  simulateCall,
+  tokenLabelsFor,
+} from './simulate.js';
 import { synthesize } from './synthesizer.js';
 import { DEFAULT_SYNTH_CONFIG, type Network, type RecordedTx, type SynthConfig } from './types.js';
 
@@ -32,6 +38,7 @@ Usage:
   npm run demo                          end-to-end demo + dry-run self-check
   npm run cli -- synth     [synth-flags] synthesize from the baked-in fixture
   npm run cli -- simulate  [synth-flags] dry-run scenarios against the spec
+                                        (permit / deny / flag report)
   npm run record -- <txHash> [<txHash> ...] [record-flags]
   npm run record -- --from-simulation <file.json> [record-flags]
 
@@ -57,7 +64,14 @@ Synthesis flags (defaults in parentheses):
   --cap-multiplier <number>  cap = observed gross out * this (${D.capMultiplier})
   --frequency-window <secs>  frequency rolling window (${D.frequencyWindowSecs})
   --frequency-max <count>    max calls per frequency window (${D.frequencyMaxCalls})
-  --constrain-arguments      enforce swap-path token set (default off: flag only)
+  --constrain-arguments      enforce the derived argument constraints (swap-path
+                             token set): a violating route is DENIED. Default
+                             off: the route is permitted and FLAGGED instead.
+
+Simulate flags:
+  --probe-token <C...>       token the unobserved-route scenario routes through
+                             (default: the network's native XLM SAC, unless XLM
+                             was observed — then a synthetic placeholder)
 
 Networks default to testnet.`;
 
@@ -165,11 +179,19 @@ function cmdSynth(config: SynthConfig, inputPath: string | undefined): void {
   process.stdout.write(`${artifacts.contextRuleJson}\n`);
 }
 
-function cmdSimulate(config: SynthConfig): void {
-  const tx = loadFixture();
+function cmdSimulate(
+  config: SynthConfig,
+  inputPath: string | undefined,
+  probeToken: string | undefined,
+): void {
+  const tx = inputPath === undefined ? loadFixture() : loadRecordedTx(inputPath);
   const spec = synthesize(tx, config, tx.timestamp ?? 0);
-  const results = buildScenarios(spec, tx).map((s) => simulateCall(spec, s.candidate));
-  process.stdout.write(`${renderReport(results)}\n`);
+  const probe = probeTokenFor(spec, tx, probeToken);
+  const labels = tokenLabelsFor(tx, probe);
+  const results = buildScenarios(spec, tx, probeToken === undefined ? {} : { probeToken }).map(
+    (s) => simulateCall(spec, s.candidate, labels),
+  );
+  process.stdout.write(`${renderReport(results, { tx, spec, probe })}\n`);
 }
 
 /** Positional (non-flag) arguments, skipping each flag's value token. */
@@ -246,9 +268,11 @@ async function main(): Promise<void> {
       cmdSynth(parseSynthConfig(flags), flags.get('input'));
       return;
     }
-    case 'simulate':
-      cmdSimulate(parseSynthConfig(parseFlags(rest)));
+    case 'simulate': {
+      const flags = parseFlags(rest);
+      cmdSimulate(parseSynthConfig(flags), flags.get('input'), flags.get('probe-token'));
       return;
+    }
     case 'record':
       await cmdRecord(rest);
       return;

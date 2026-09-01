@@ -10,10 +10,12 @@
  * {@link MAX_POLICIES} policies, which we surface as a warning.
  */
 
+import { isContractAddressShaped } from './network.js';
 import {
   ESTIMATED_SECS_PER_LEDGER,
   MAX_POLICIES,
   type ArgumentConstraintPolicy,
+  type ArgumentRuleId,
   type CallArg,
   type ContextRule,
   type CustomFrequencyLimitBinding,
@@ -159,28 +161,66 @@ function deriveSpendingPolicies(tx: RecordedTx, config: SynthConfig): SpendingLi
   return policies;
 }
 
-/** True when an argument is an array whose every element is a string (addresses). */
-function isAddressVec(arg: CallArg): arg is readonly string[] {
-  return Array.isArray(arg) && arg.length > 0 && arg.every((e) => typeof e === 'string');
+/**
+ * An argument derivation rule: which observed call arguments become
+ * {@link ArgumentConstraintPolicy} observations, and how.
+ *
+ * Rules are applied to every observed call. Each match yields one constraint
+ * per `(contract, fnName, argIndex)`, whose allow-set is the union of the
+ * token addresses observed there across the whole recording. Rules only ever
+ * *derive*; whether a derived constraint is enforced is decided by
+ * {@link SynthConfig.constrainArguments}.
+ */
+export interface ArgumentDerivationRule {
+  readonly id: ArgumentRuleId;
+  /** Human label for the constrained argument in specs and reports. */
+  readonly argName: string;
+  /** One-paragraph statement of what the rule reads and what it does not. */
+  readonly description: string;
+  /** Select the constrained argument of a call, or null when the rule does not apply. */
+  readonly select: (call: ScopedCall) => { argIndex: number; tokens: readonly string[] } | null;
 }
 
-/** The index + values of a swap call's `path` argument, if present. */
-function findPathArg(call: ScopedCall): { argIndex: number; tokens: readonly string[] } | null {
-  // We only constrain swap routes; "start with swap path" per the design.
-  if (!call.fnName.includes('swap')) {
-    return null;
-  }
-  const argIndex = call.args.findIndex(isAddressVec);
-  if (argIndex === -1) {
-    return null;
-  }
-  return { argIndex, tokens: call.args[argIndex] as readonly string[] };
+/** True for a non-empty vector whose every element is a contract-address-shaped string. */
+function isContractAddressVec(arg: CallArg): arg is readonly string[] {
+  return Array.isArray(arg) && arg.length > 0 && arg.every(isContractAddressShaped);
 }
 
 /**
- * Derive argument-constraint observations from the recording. Currently this
- * pins the set of token addresses a swap `path` may touch to those observed, so
- * a candidate routing through an unobserved token can be flagged or denied.
+ * `swap-path`: for any call whose function name contains `swap`, the FIRST
+ * positional argument that is a non-empty `Vec` of contract-address-shaped
+ * strings is taken to be the route (`path: Vec<Address>` in the Soroswap
+ * router signature — docs/FACTS.md §4.3), and the set of token addresses
+ * observed in it becomes the allow-set.
+ */
+export const SWAP_PATH_RULE: ArgumentDerivationRule = {
+  id: 'swap-path',
+  argName: 'path',
+  description:
+    'Applies to every observed call whose function name contains "swap". Reads the first ' +
+    'positional argument that is a non-empty vector of contract-address-shaped strings ' +
+    '(StrKey shape "C" + 55 base32 chars; shape, not checksum) and pins the SET of token ' +
+    'addresses observed there. Not constrained: ordering, hop count, amounts (amounts are ' +
+    "the spending-limit policy's job). A swap whose route is not an address vector (e.g. " +
+    "Comet's token_in/token_out addresses) derives nothing.",
+  select: (call) => {
+    if (!call.fnName.includes('swap')) {
+      return null;
+    }
+    const argIndex = call.args.findIndex(isContractAddressVec);
+    if (argIndex === -1) {
+      return null;
+    }
+    return { argIndex, tokens: call.args[argIndex] as readonly string[] };
+  },
+};
+
+/** Every argument derivation rule, in application order. */
+export const ARGUMENT_DERIVATION_RULES: readonly ArgumentDerivationRule[] = [SWAP_PATH_RULE];
+
+/**
+ * Derive argument-constraint observations from the recording by applying
+ * {@link ARGUMENT_DERIVATION_RULES} to every observed call.
  *
  * These are always returned (as observations); the caller decides whether to
  * enforce them based on {@link SynthConfig.constrainArguments}.
@@ -188,28 +228,31 @@ function findPathArg(call: ScopedCall): { argIndex: number; tokens: readonly str
 function deriveArgumentScopes(tx: RecordedTx): ArgumentConstraintPolicy[] {
   const byKey = new Map<string, { policy: ArgumentConstraintPolicy; tokens: Set<string> }>();
   for (const call of tx.calls) {
-    const path = findPathArg(call);
-    if (path === null) {
-      continue;
-    }
-    const key = `${call.contract}::${call.fnName}::${path.argIndex}`;
-    let entry = byKey.get(key);
-    if (entry === undefined) {
-      entry = {
-        tokens: new Set<string>(),
-        policy: {
-          kind: 'argument-constraint',
-          contract: call.contract,
-          fnName: call.fnName,
-          argIndex: path.argIndex,
-          argName: 'path',
-          allowedTokens: [],
-        },
-      };
-      byKey.set(key, entry);
-    }
-    for (const token of path.tokens) {
-      entry.tokens.add(token);
+    for (const rule of ARGUMENT_DERIVATION_RULES) {
+      const selected = rule.select(call);
+      if (selected === null) {
+        continue;
+      }
+      const key = `${rule.id}::${call.contract}::${call.fnName}::${selected.argIndex}`;
+      let entry = byKey.get(key);
+      if (entry === undefined) {
+        entry = {
+          tokens: new Set<string>(),
+          policy: {
+            kind: 'argument-constraint',
+            rule: rule.id,
+            contract: call.contract,
+            fnName: call.fnName,
+            argIndex: selected.argIndex,
+            argName: rule.argName,
+            allowedTokens: [],
+          },
+        };
+        byKey.set(key, entry);
+      }
+      for (const token of selected.tokens) {
+        entry.tokens.add(token);
+      }
     }
   }
   return [...byKey.values()].map((e) => ({ ...e.policy, allowedTokens: [...e.tokens] }));
@@ -446,7 +489,7 @@ export function synthesize(tx: RecordedTx, config: SynthConfig, now: number): Sm
   const { rules: ozContextRules, notes } = deriveOzContextRules(tx, config, spendingPolicies);
   if (argumentScopes.length > 0) {
     notes.push(
-      `DELTA: no stock policy can express the observed argument constraints (swap path token set); they are ${config.constrainArguments ? 'enforced' : 'advisory'} in the offline dry run only. Argument-level policy codegen is Tranche 2 (docs/T2-NOTES.md).`,
+      `DELTA: no stock policy can express the observed argument constraints (${argumentScopes.map((s) => `${s.rule}: ${s.fnName} ${s.argName} token set`).join('; ')}); they are ${config.constrainArguments ? 'ENFORCED (deny)' : 'advisory (flag)'} in the offline dry-run harness only. On-chain enforcement needs a generated policy whose enforce checks the argument — that codegen is the remaining T2 policy-codegen deliverable and is not built yet (docs/T2-NOTES.md).`,
     );
   }
 

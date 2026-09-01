@@ -476,3 +476,48 @@ describe('fixture path (unchanged behaviour)', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// The FRESH claim → swap sequence (D1.4 demo recording; D2.3 harness input)
+// ---------------------------------------------------------------------------
+
+const FRESH_CLAIM_HASH = '9fff676c46c5b00afb124cd4f59f63d76177c7b4585bde31a518acf923f0a0b6';
+const FRESH_SWAP_HASH = 'ae943f998fd07dfd17536d8c25b714146f467ea222a6314f23cf7032cdc67c46';
+
+describe('fresh claim → swap sequence from committed captures', () => {
+  it('re-assembles byte-for-byte into the committed recorded-claim-swap-fresh.json', async () => {
+    const committedRaw = readFileSync(
+      new URL('../examples/live/recorded-claim-swap-fresh.json', import.meta.url),
+      'utf8',
+    );
+    const committed = JSON.parse(committedRaw) as {
+      subject: string;
+      flows: { asset: TokenRef }[];
+    };
+    // Token metadata was resolved live when the file was recorded; replay it
+    // from the committed file so the comparison stays network-free.
+    const known = new Map(committed.flows.map((f) => [f.asset.contractId, f.asset]));
+    const resolver: TokenResolver = (contractId) =>
+      Promise.resolve(known.get(contractId) ?? fallbackToken(contractId));
+
+    const recorded = await assembleRecording(
+      [
+        decodeTx(decodedTxInputFromCapture(loadCapture(FRESH_CLAIM_HASH))),
+        decodeTx(decodedTxInputFromCapture(loadCapture(FRESH_SWAP_HASH))),
+      ],
+      { network: 'testnet', source: 'rpc', subject: committed.subject, resolveToken: resolver },
+    );
+
+    const serialised = JSON.stringify(
+      recorded,
+      (_key, value: unknown) => (typeof value === 'bigint' ? value.toString() : value),
+      2,
+    );
+    expect(`${serialised}\n`).toBe(committedRaw);
+    expect(recorded.calls.map((c) => c.sourceHash)).toEqual([FRESH_CLAIM_HASH, FRESH_SWAP_HASH]);
+    expect(recorded.calls[1]?.args[2]).toEqual([
+      'CB22KRA3YZVCNCQI64JQ5WE7UY2VAV7WFLK6A2JN3HEX56T2EDAFO7QF',
+      'CAQCFVLOBK5GIULPNZRGATJJMIZL5BSP7X5YJVMGCPTUEPFM4AVSRCJU',
+    ]);
+  });
+});

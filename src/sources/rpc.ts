@@ -29,12 +29,12 @@ import {
   Account,
   BASE_FEE,
   Contract,
-  Networks,
   StrKey,
   TransactionBuilder,
   rpc,
   scValToNative,
 } from '@stellar/stellar-sdk';
+import { NETWORK_PASSPHRASES } from '../network.js';
 import type { Network, RecordedTx, TokenRef } from '../types.js';
 import {
   assembleRecording,
@@ -50,13 +50,6 @@ const RPC_URLS: Record<Network, string> = {
   testnet: 'https://soroban-testnet.stellar.org',
   mainnet: 'https://mainnet.sorobanrpc.com',
   futurenet: 'https://rpc-futurenet.stellar.org',
-};
-
-/** Network passphrases, needed to build the read-only metadata simulations. */
-const NETWORK_PASSPHRASES: Record<Network, string> = {
-  testnet: Networks.TESTNET,
-  mainnet: Networks.PUBLIC,
-  futurenet: Networks.FUTURENET,
 };
 
 /**

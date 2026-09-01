@@ -35,6 +35,7 @@
   "argumentScopes": [
     {
       "kind": "argument-constraint",
+      "rule": "swap-path",
       "contract": "CBGAPUV74GVQYQYBHMIN4LF5ZEHYIMM4L5VBGUBB4IJXM5D4RQ7275J7",
       "fnName": "swap_exact_tokens_for_tokens",
       "argIndex": 2,

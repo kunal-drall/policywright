@@ -73,7 +73,7 @@
     "valid_until is a LEDGER SEQUENCE, not a Unix time (storage.rs:282; RECONCILIATION row 15): emitted 2368821 = recording ledger 1850421 + 518400 ledgers (2592000s at 5s/ledger). Recompute from the live ledger head at install — the recording ledger is in the past.",
     "context rules cannot carry function names (matching is contract-level — storage.rs:289-304; RECONCILIATION rows 13-14): observedFns is advisory. Function-level narrowing must live in a policy's enforce; that codegen is Tranche 2 (docs/T2-NOTES.md).",
     "emitted rules carry no signers: attach the smart account's signer(s) at install. add_context_rule requires at least one signer or policy per rule (mod.rs:20-21), and stock spending_limit::enforce rejects when no signers authenticated (spending_limit.rs:232-234).",
-    "DELTA: no stock policy can express the observed argument constraints (swap path token set); they are advisory in the offline dry run only. Argument-level policy codegen is Tranche 2 (docs/T2-NOTES.md)."
+    "DELTA: no stock policy can express the observed argument constraints (swap-path: swap_exact_tokens_for_tokens path token set); they are advisory (flag) in the offline dry-run harness only. On-chain enforcement needs a generated policy whose enforce checks the argument — that codegen is the remaining T2 policy-codegen deliverable and is not built yet (docs/T2-NOTES.md)."
   ],
   "config": {
     "lifetimeSecs": 2592000,
