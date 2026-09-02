@@ -40,6 +40,10 @@ Produces a `RecordedTx`: the transaction hash/network, the ordered `ScopedCall`s
   simulation discovers the authorization tree an unsigned envelope does not carry.
 - **`recorded.ts`** re-loads a previously saved recording (`synth --input <file>`).
 
+  The synthesizer also takes deploy-time **install targets** (`--signer`,
+  `--policy-address`, `--ledger-head`) so the emitted rules carry real `Signer` shapes,
+  deployed policy addresses, and a relative `lifetimeLedgers` (schema v2).
+
   Decoding assumptions (Soroban protocol 27 / CAP-67, `@stellar/stellar-sdk` 15.1.0 —
   every shape verified against the committed captures, [FACTS.md §3](FACTS.md)):
   - the transaction is a v1 (or fee-bump-wrapping-v1) envelope;
@@ -113,6 +117,18 @@ Renders the spec four ways:
   `--frequency-window`/`--frequency-max` values are substituted into the template). Every
   generated Rust file is stamped **ILLUSTRATIVE / UNAUDITED — NOT DEPLOY-READY**; the
   summary carries the same note.
+
+### 3b. Install and verify (`src/install-shape.ts`, `src/install.ts`, `src/verify.ts`)
+
+The deploy-second half, reachable only from the CLI (never from the MCP server).
+`install-shape.ts` validates an emitted `context-rule.json` (schema v2) field-by-field
+against the checks the OZ contracts perform and encodes install params as the sorted
+`ScMap` they decode; `install.ts` maps each rule to `add_context_rule` arguments, builds the
+account's `AuthPayload` entry and the `Delegated(G)` signer's nested `__check_auth` entry,
+simulates in enforcing mode, signs through a labelled `SigningSurface` (local `.env` key
+fallback today; a wallet signs the same transaction), and submits; `verify.ts` reads the
+account's rules and policy params back through simulated getters and diffs them (pure
+`diffRules`, thin RPC layer). Details: [smart-account-install.md](smart-account-install.md).
 
 ### 4. Simulation (`src/simulate.ts`)
 

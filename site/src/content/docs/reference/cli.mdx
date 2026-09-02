@@ -22,6 +22,8 @@ with defaults defined in
 | `npm run cli -- simulate`                      | Run the dry-run scenarios against the fixture's spec (or `--input <recorded.json>`) and print the permit / deny / flag report.             |
 | `npm run record -- <txHash> [<txHash> ...]`    | Fetch one or more live transactions by hash and print them merged (ledger-close-time order) as ONE `RecordedTx` JSON.                      |
 | `npm run record -- --from-simulation <file>`   | Ingest a saved `simulateTransaction` exchange instead of fetching hashes (`source: "simulation"`). Cannot be combined with hashes.         |
+| `npm run cli -- install --artifact <context-rule.json> --account <C…>` | Testnet only. Validate the artifact against the OZ install signature, build the `add_context_rule` transactions with the account's `AuthPayload` entry and the `Delegated(G)` nested entry, simulate (recording, then enforcing), sign client-side with `STELLAR_SECRET_KEY` from the environment, submit. `--dry-run` simulates everything and submits nothing; `--out` writes the install log. |
+| `npm run cli -- verify --artifact <context-rule.json> --account <C…>` | Read-only: read the account's rules and policy params back and diff them against the artifact (PASS/FAIL); `--install-log` also checks `valid_until`. |
 | `npm run cli -- help`                          | Print usage (also `--help` / `-h` / no arguments).                                                                                         |
 
 `npm run synth`, `npm run simulate`, and `npm run record` are direct package
@@ -49,6 +51,20 @@ npm run cli -- synth --lifetime 604800 --cap-multiplier 1.25
 npm run cli -- simulate --input examples/live/recorded-claim-swap-fresh.json
 npm run cli -- simulate --input examples/live/recorded-claim-swap-fresh.json --constrain-arguments
 ```
+
+## Install targets (`synth`)
+
+Deploy-time facts the artifact must carry to install as-is
+([schema v2](https://github.com/kunal-drall/policywright/blob/main/docs/context-rule-schema.md)):
+
+| Flag                                         | Meaning                                                                                                                  |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `--signer delegated:<G…\|C…>`                 | A rule signer in the real OZ `Signer` shape (repeatable, ≤ 15). `external:<verifier C…>:<hex>` for an `External` signer. |
+| `--policy-address <kind>=<C…>`               | Deployed policy contract per binding kind: `custom:FrequencyLimitPolicy`, `stock:spending_limit`.                        |
+| `--ledger-head <n>`                          | Live ledger head → absolute `validUntilLedger`; omit to emit the relative `lifetimeLedgers` only.                        |
+
+The committed installable artifact's flags are pinned in
+[examples/live/fresh/synth.args](https://github.com/kunal-drall/policywright/blob/main/examples/live/fresh/synth.args).
 
 ## `record` flags
 

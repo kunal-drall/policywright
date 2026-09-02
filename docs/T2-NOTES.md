@@ -13,6 +13,13 @@ codegen with storage segregation, wallet integration (testnet, end-to-end).
 
 ## Delivered
 
+### D2.5 — Testnet smart account with the installed generated policy (2026-09-02, fallback path)
+
+Criterion: _"A testnet smart account with an installed generated policy;
+end-to-end demo recorded."_ Everything but the human demo recording is done
+([EVIDENCE.md § D2.5](../evidence/EVIDENCE.md#d25--testnet-smart-account-with-the-installed-generated-policy-fallback-path));
+the recording and the Freighter approval are the BLOCKERS listed there.
+
 ### D2.3 — Dry-run harness + argument-level scope (2026-09-02)
 
 Criterion: _"The harness outputs a permit/deny/flag report for a generated policy
@@ -100,11 +107,16 @@ Packaged agent skill over the MCP server. Not started.
 
 ### Wallet integration (testnet, end-to-end)
 
-Installing a synthesized rule + policies on a real smart account and signing
-through it. Not started. This is the point at which
-[FACTS.md §2.2](FACTS.md) (`valid_until` is a ledger sequence, not a Unix
-timestamp) stops being a documentation issue and becomes a blocking bug — the
-conversion needs a ledger-sequence estimate from the network.
+Delivered as **D2.5 — fallback path** (2026-09-02): an OZ smart account on
+testnet (`CBQ6H7IL…QHDT`) with the emitted rules installed as-is and verified
+on-chain ([smart-account-install.md](smart-account-install.md); EVIDENCE §
+D2.5). The `valid_until` unit problem is closed by emitter fix E1 (relative
+`lifetimeLedgers`; the installer adds the live head). What remains open is the
+**primary signing mode**: a wallets-kit + Freighter page that signs the same
+install transaction through SEP-43 `signTransaction` (the `Delegated(G)` model
+needs nothing more — proven with the local key as `G`). The installer's
+`SigningSurface` interface is the plug point; the cohort-wallet track replaces
+only that row.
 
 ### Simulated-transaction recording path
 

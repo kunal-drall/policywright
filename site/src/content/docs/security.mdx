@@ -28,6 +28,15 @@ linked to its source) from what is **planned**.
   review — `spec.json`, `context-rule.json`, `summary.txt`, the generated
   Rust, and the dry-run report. Nothing installs automatically
   ([src/demo.ts](https://github.com/kunal-drall/policywright/blob/main/src/demo.ts)).
+  Installing is a separate, human-initiated CLI step: the artifact is validated
+  field-by-field against the OpenZeppelin install signature and refused if it
+  would not install as-is, simulated in enforcing mode with the real
+  authorization entries before anything is signed, and signed **client-side**
+  through a labelled signing surface — the `.env` key fallback today, a wallet
+  signing the same transaction as the open primary track. The signing mode and
+  its reason are printed in every output and install log; the secret is read
+  from the environment only and never logged
+  ([docs/smart-account-install.md](https://github.com/kunal-drall/policywright/blob/main/docs/smart-account-install.md)).
 - **Deny-case verification.** The dry-run harness auto-generates adjacent
   scenarios that must fail — over the spend cap, an unseen function, after
   expiry, over the frequency cap — plus the recorded swap re-routed through an
