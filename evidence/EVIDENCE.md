@@ -665,8 +665,12 @@ limit is never `generated`; a frequency limit is never `composed`; every binding
 is `stock:*` or `custom:FrequencyLimitPolicy`; the generated Rust contains no
 spend-cap code.
 
-**CI run for this deliverable:** _pending — dispatched after push; run URL
-recorded here once green._
+**CI run for this deliverable:**
+[run 33618871930](https://github.com/kunal-drall/policywright/actions/runs/33618871930)
+— all three jobs green on commit `4efafc0` (`build`: lint → format → typecheck
+→ 145 tests → demo → both live reports and the side-by-side artefacts diffed
+against the committed copies; `site`: docs build; `contracts`: fmt → clippy →
+25 Rust tests → wasm hash `42227f2b…`). Dispatched manually (fork).
 
 **Honest limits.** (1) A configuration has no compiler: "compiles" here means
 it validates against every install check the real contracts perform and
