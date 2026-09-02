@@ -1,0 +1,86 @@
+{
+  "generatedBy": "policywright install",
+  "at": "2026-09-02T10:57:58.043Z",
+  "network": "testnet",
+  "account": "CBQ6H7ILH54ADWTVS7FCK36W7FY2RJJOWR4VGLZG7D4PZUG5FSA7QHDT",
+  "adminRuleId": 0,
+  "adminSigners": [
+    {
+      "type": "Delegated",
+      "address": "GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W"
+    }
+  ],
+  "signingMode": "local-fallback",
+  "signingReason": "local signer from .env (fallback): the .env key acts as the Delegated(G) rule signer and transaction source; a wallet would sign this same transaction via signTransaction, but no SEP-43 wallet can sign an OZ External digest (FACTS §8.4), and the wallets-kit page is the cohort-wallet track (open)",
+  "dryRun": false,
+  "ledgerHeadAtPlan": 4464615,
+  "artifact": "examples/live/fresh/context-rule.json",
+  "results": [
+    {
+      "rule": "pw:claim",
+      "contract": "CAPBMXIQTICKWFPWFDJWMAKBXBPJZUKLNONQH3MLPLLBKQ643CYN5PRW",
+      "validUntil": 4983015,
+      "validUntilSource": "head+lifetime",
+      "signingMode": "local-fallback",
+      "signingReason": "local signer from .env (fallback): the .env key acts as the Delegated(G) rule signer and transaction source; a wallet would sign this same transaction via signTransaction, but no SEP-43 wallet can sign an OZ External digest (FACTS §8.4), and the wallets-kit page is the cohort-wallet track (open)",
+      "authEntries": 2,
+      "auth": {
+        "nonce": "6390771807479998740",
+        "expirationLedger": 4464735,
+        "digestHex": "bf8a4c691149343311af1bf643a6ba21fee2a52fae9cedc99ee614cb1aa2ab08"
+      },
+      "simulation": {
+        "minResourceFee": "413828",
+        "latestLedger": 4464615
+      },
+      "submitted": true,
+      "txHash": "2bd245b67925e688a183be50e6d6c75d3d7b4eb98b0be02d23693611f44b8a6e",
+      "ledger": 4464616,
+      "contextRuleId": 1
+    },
+    {
+      "rule": "pw:swap",
+      "contract": "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD",
+      "validUntil": 4983015,
+      "validUntilSource": "head+lifetime",
+      "signingMode": "local-fallback",
+      "signingReason": "local signer from .env (fallback): the .env key acts as the Delegated(G) rule signer and transaction source; a wallet would sign this same transaction via signTransaction, but no SEP-43 wallet can sign an OZ External digest (FACTS §8.4), and the wallets-kit page is the cohort-wallet track (open)",
+      "authEntries": 2,
+      "auth": {
+        "nonce": "8612165682076793040",
+        "expirationLedger": 4464736,
+        "digestHex": "c010c9c9fbc1b10d1ffae58a0474c0578a1b553bbf4e9fbcd84078578129fda5"
+      },
+      "simulation": {
+        "minResourceFee": "171306",
+        "latestLedger": 4464616
+      },
+      "submitted": true,
+      "txHash": "065bf20b3d6e3b8b3cd9a8e408f009a61c347e0dfaaa4a5bda40b2199aa33dfa",
+      "ledger": 4464617,
+      "contextRuleId": 2
+    },
+    {
+      "rule": "pw:xfer:BLND",
+      "contract": "CB22KRA3YZVCNCQI64JQ5WE7UY2VAV7WFLK6A2JN3HEX56T2EDAFO7QF",
+      "validUntil": 4983015,
+      "validUntilSource": "head+lifetime",
+      "signingMode": "local-fallback",
+      "signingReason": "local signer from .env (fallback): the .env key acts as the Delegated(G) rule signer and transaction source; a wallet would sign this same transaction via signTransaction, but no SEP-43 wallet can sign an OZ External digest (FACTS §8.4), and the wallets-kit page is the cohort-wallet track (open)",
+      "authEntries": 2,
+      "auth": {
+        "nonce": "7975374885390084706",
+        "expirationLedger": 4464737,
+        "digestHex": "d0520f4b4393befdeb3015981931ebc1b971fb63ef235f66a1045a0a84cf1f1d"
+      },
+      "simulation": {
+        "minResourceFee": "172416",
+        "latestLedger": 4464617
+      },
+      "submitted": true,
+      "txHash": "6593a5a0440b02e8679e9f87b7031d915b35b85a6873eb23b18016e827771a9a",
+      "ledger": 4464618,
+      "contextRuleId": 3
+    }
+  ]
+}

@@ -189,8 +189,49 @@ export const ESTIMATED_SECS_PER_LEDGER = 5;
 /**
  * Version of the emitted `context-rule.json` schema. Bump on any change to
  * the emitted shape; the schema is documented in docs/context-rule-schema.md.
+ *
+ * v2 (D2.5, emitter fixes E1–E5): relative `lifetimeLedgers` per rule and an
+ * absolute `validUntilLedger` only when a live ledger head was supplied;
+ * signers in the real OZ `Signer` shape; deployed policy addresses; an
+ * `installTargets` echo. v1 artifacts predate these fields.
  */
-export const CONTEXT_RULE_SCHEMA_VERSION = 1;
+export const CONTEXT_RULE_SCHEMA_VERSION = 2;
+
+/**
+ * A rule signer in the real OpenZeppelin `Signer` shape
+ * (`smart_account/storage.rs:96-102`): `Delegated(Address)` needs no
+ * verifier; `External(verifier, key_data)` names a deployed verifier contract
+ * and the raw public-key bytes (hex here; 32 bytes for ed25519).
+ */
+export type OzSigner =
+  | { readonly type: 'Delegated'; readonly address: string }
+  | { readonly type: 'External'; readonly verifier: string; readonly keyData: string };
+
+/**
+ * Deploy-time facts the emitter takes as INPUT so the artifact installs
+ * as-is (RECONCILIATION-T2 E1–E3): the rule signers, the deployed policy
+ * contract addresses, and the live ledger head. None is a synthesis knob;
+ * all are echoed into `context-rule.json` for reproducibility.
+ */
+export interface InstallTargets {
+  /** Signers attached to every emitted rule (E2). Empty = design artifact only. */
+  readonly signers: readonly OzSigner[];
+  /** Deployed policy contract address per binding kind (E3); missing → `null`. */
+  readonly policyAddresses: Partial<Record<OzPolicyBinding['policy'], string>>;
+  /**
+   * Live ledger head at synthesis time (E1). When present, `validUntilLedger`
+   * is emitted absolute (head + lifetime); otherwise it is `null` and the
+   * installer adds `lifetimeLedgers` to the head it observes.
+   */
+  readonly ledgerHead: number | null;
+}
+
+/** No deploy-time facts: the artifact is a design document, not yet installable. */
+export const NO_INSTALL_TARGETS: InstallTargets = {
+  signers: [],
+  policyAddresses: {},
+  ledgerHead: null,
+};
 
 /**
  * The OpenZeppelin release every emitted install shape is verified against.
@@ -289,8 +330,8 @@ export type PolicySpec = SpendingLimitPolicy | FrequencyLimitPolicy | ArgumentCo
  */
 export interface StockSpendingLimitBinding {
   readonly policy: 'stock:spending_limit';
-  /** Deployed policy-wrapper contract address; null until deployed. */
-  readonly address: null;
+  /** Deployed policy-wrapper contract address from {@link InstallTargets}; null when not supplied. */
+  readonly address: string | null;
   /** Exact `SpendingLimitAccountParams` field names and types. */
   readonly installParams: {
     /** i128 — max spend within the period, smallest token unit. */
@@ -310,8 +351,8 @@ export interface StockSpendingLimitBinding {
 /** The generated custom frequency policy, bound with its own install params. */
 export interface CustomFrequencyLimitBinding {
   readonly policy: 'custom:FrequencyLimitPolicy';
-  /** Deployed policy contract address; null until deployed. */
-  readonly address: null;
+  /** Deployed policy contract address from {@link InstallTargets}; null when not supplied. */
+  readonly address: string | null;
   /** Exact `FrequencyLimitParams` field names of the generated Rust. */
   readonly installParams: {
     /** u64 — rolling window length in seconds. */
@@ -336,12 +377,20 @@ export interface OzContextRule {
   /** Rule name, capped at 20 BYTES (OZ `MAX_NAME_SIZE`). */
   readonly name: string;
   /**
-   * `valid_until` as a LEDGER SEQUENCE (u32), computed from the recording's
-   * ledger + the configured lifetime at {@link ESTIMATED_SECS_PER_LEDGER}.
-   * Null when the recording has no ledger; must be recomputed from the live
-   * ledger head at install time either way (the recording ledger is past).
+   * The rule lifetime in LEDGERS: the configured `lifetimeSecs` at
+   * {@link ESTIMATED_SECS_PER_LEDGER}. Always emitted (E1); the installer adds
+   * it to the live ledger head when {@link validUntilLedger} is null.
+   */
+  readonly lifetimeLedgers: number;
+  /**
+   * `valid_until` as an absolute LEDGER SEQUENCE (u32): the live ledger head
+   * supplied via {@link InstallTargets.ledgerHead} + {@link lifetimeLedgers}.
+   * Null when no head was supplied — never derived from the recording ledger,
+   * which is in the past (RECONCILIATION-T2 E1).
    */
   readonly validUntilLedger: number | null;
+  /** Rule signers in the real OZ `Signer` shape (E2); empty when none were supplied. */
+  readonly signers: readonly OzSigner[];
   /** Functions observed on this contract in the recording (advisory). */
   readonly observedFns: readonly string[];
   readonly policies: readonly OzPolicyBinding[];
@@ -387,6 +436,8 @@ export interface SmartAccountSpec {
   readonly warnings: readonly string[];
   /** The config the spec was synthesised with (echoed for reproducibility). */
   readonly config: SynthConfig;
+  /** The deploy-time facts the rules were emitted with (echoed for reproducibility). */
+  readonly installTargets: InstallTargets;
 }
 
 /**

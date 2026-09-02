@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "generatedBy": "policywright",
   "target": {
     "package": "stellar-accounts (OpenZeppelin/stellar-contracts)",
@@ -19,7 +19,12 @@
   },
   "ledgerTimeBasis": {
     "estimatedSecsPerLedger": 5,
-    "note": "every *_ledgers and validUntilLedger value was converted from configured seconds at this estimated rate; recompute validUntilLedger from the live ledger head at install"
+    "note": "every *_ledgers and lifetimeLedgers value was converted from configured seconds at this estimated rate; validUntilLedger is absolute only when a live ledger head was supplied (installTargets.ledgerHead), otherwise the installer adds lifetimeLedgers to the head it observes"
+  },
+  "installTargets": {
+    "signers": [],
+    "policyAddresses": {},
+    "ledgerHead": null
   },
   "contextRules": [
     {
@@ -28,7 +33,8 @@
         "contract": "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD"
       },
       "name": "pw:swap",
-      "validUntilLedger": 4336170,
+      "lifetimeLedgers": 518400,
+      "validUntilLedger": null,
       "signers": [],
       "observedFns": [
         "swap_exact_tokens_for_tokens"
@@ -51,7 +57,8 @@
         "contract": "CCSLYYVQ575EAPCDOEYGVOI4NVYD2V7RP3F5HRP4LVDUWEJ4HOLVL357"
       },
       "name": "pw:harvest",
-      "validUntilLedger": 4336170,
+      "lifetimeLedgers": 518400,
+      "validUntilLedger": null,
       "signers": [],
       "observedFns": [
         "harvest"
@@ -74,7 +81,8 @@
         "contract": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"
       },
       "name": "pw:xfer:native",
-      "validUntilLedger": 4336170,
+      "lifetimeLedgers": 518400,
+      "validUntilLedger": null,
       "signers": [],
       "observedFns": [
         "transfer"
@@ -104,10 +112,11 @@
   ],
   "notes": [
     "spend windows are measured in LEDGERS on-chain: 86400s → 17280 ledgers at an estimated 5s/ledger (spending_limit.rs:88-94; OZ's own DAY_IN_LEDGERS = 17280 = 86400s at this rate).",
-    "spending_limit is asset-blind: it meters whatever transfer amounts pass through its rule, so the metered token is the rule's CallContract target (one instance per token rule).",
-    "valid_until is a LEDGER SEQUENCE, not a Unix time (storage.rs:282; RECONCILIATION row 15): emitted 4336170 = recording ledger 3817770 + 518400 ledgers (2592000s at 5s/ledger). Recompute from the live ledger head at install — the recording ledger is in the past.",
+    "spending_limit is asset-blind: it meters whatever transfer amounts pass through its rule, so the metered token is the rule's CallContract target — one RULE per token. The same deployed spending_limit instance serves every rule (state is keyed on (account, rule id), spending_limit.rs:144-149).",
+    "validUntilLedger is null because no live ledger head was supplied (--ledger-head): the installer adds lifetimeLedgers 518400 (2592000s at 5s/ledger) to the ledger head it observes. valid_until is a ledger sequence, not a Unix time (storage.rs:282); the recording ledger is never used — it is in the past.",
     "context rules cannot carry function names (matching is contract-level — storage.rs:289-304; RECONCILIATION rows 13-14): observedFns is advisory. Function-level narrowing must live in a policy's enforce; that codegen is Tranche 2 (docs/T2-NOTES.md).",
-    "emitted rules carry no signers: attach the smart account's signer(s) at install. add_context_rule requires at least one signer or policy per rule (mod.rs:20-21), and stock spending_limit::enforce rejects when no signers authenticated (spending_limit.rs:232-234).",
+    "emitted rules carry no signers (none supplied via --signer), so this artifact is a design document, not installable as-is: add_context_rule requires at least one signer or policy per rule (mod.rs:20-21), and stock spending_limit::enforce rejects when no signers authenticated (spending_limit.rs:232-234) — the installer refuses a spending_limit rule with no signers.",
+    "policy address is null for custom:FrequencyLimitPolicy, stock:spending_limit: supply the deployed contract address(es) via --policy-address <policy>=<C…> to make the artifact installable (add_context_rule takes policies as Map<Address, Val>, mod.rs:238-248).",
     "DELTA: no stock policy can express the observed argument constraints (swap-path: swap_exact_tokens_for_tokens path token set); they are advisory (flag) in the offline dry-run harness only. On-chain enforcement needs a generated policy whose enforce checks the argument — that codegen is the remaining T2 policy-codegen deliverable and is not built yet (docs/T2-NOTES.md)."
   ],
   "config": {

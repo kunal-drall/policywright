@@ -215,19 +215,31 @@ describe('OZ context rules — token-transfer rules and the composed spending li
   });
 });
 
-describe('OZ context rules — valid_until as a ledger sequence', () => {
-  it('computes validUntilLedger from the recording ledger + lifetime in ledgers', () => {
+describe('OZ context rules — valid_until as a ledger sequence (E1)', () => {
+  it('always emits the relative lifetimeLedgers', () => {
     const tx = makeTx({ ledger: 1000, calls: [call(contractId('pool'), 'claim')] });
     const spec = synthesize(tx, { ...DEFAULT_SYNTH_CONFIG, lifetimeSecs: 3600 }, NOW);
     // 3600s at 5s/ledger = 720 ledgers.
-    expect(spec.ozContextRules[0]?.validUntilLedger).toBe(1720);
+    expect(spec.ozContextRules[0]?.lifetimeLedgers).toBe(720);
   });
 
-  it('emits null and a compute-at-install note when the recording has no ledger', () => {
-    const tx = makeTx({ ledger: null, calls: [call(contractId('pool'), 'claim')] });
+  it('computes an absolute validUntilLedger only from a supplied live ledger head', () => {
+    const tx = makeTx({ ledger: 1000, calls: [call(contractId('pool'), 'claim')] });
+    const spec = synthesize(tx, { ...DEFAULT_SYNTH_CONFIG, lifetimeSecs: 3600 }, NOW, {
+      signers: [],
+      policyAddresses: {},
+      ledgerHead: 4_464_380,
+    });
+    expect(spec.ozContextRules[0]?.validUntilLedger).toBe(4_464_380 + 720);
+    expect(spec.notes.some((n) => n.includes('supplied ledger head 4464380'))).toBe(true);
+  });
+
+  it('never derives validUntilLedger from the recording ledger: null without a head, with the installer note', () => {
+    const tx = makeTx({ ledger: 1000, calls: [call(contractId('pool'), 'claim')] });
     const spec = synthesize(tx, DEFAULT_SYNTH_CONFIG, NOW);
     expect(spec.ozContextRules[0]?.validUntilLedger).toBeNull();
-    expect(spec.notes.some((n) => n.includes('compute it at install'))).toBe(true);
+    expect(spec.notes.some((n) => n.includes('the installer adds lifetimeLedgers'))).toBe(true);
+    expect(spec.notes.some((n) => n.includes('recording ledger is never used'))).toBe(true);
   });
 });
 

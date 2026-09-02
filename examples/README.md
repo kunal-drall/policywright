@@ -60,3 +60,11 @@ npm run cli -- synth --input examples/live/recorded-claim-swap-fresh.json --out 
 
 These are generated artefacts and are intentionally excluded from Prettier so
 they match the tool's raw output verbatim.
+
+[`live/testnet/`](live/testnet/) is the D2.5 trail on testnet: `account.json` (the
+OpenZeppelin smart account created with the `.env` key as `Delegated` signer),
+the `install-*.json` logs (dry run, then the three `add_context_rule` transactions —
+tx hashes, rule ids, `valid_until`, signing mode), and `verify.md` (the on-chain
+read-back diffed against `live/fresh/context-rule.json`: PASS). The fresh artefacts
+were emitted with the flags in `live/fresh/synth.args`, which name the deployed
+policy contracts.

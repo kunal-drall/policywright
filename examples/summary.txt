@@ -32,13 +32,15 @@ Argument scopes — advisory (flag only)
 Installable OZ context rules (2) — see context-rule.json
 ----------------------------
   pw:claim  CallContract(CCFZSK3W5W54JT2QPLBDDQ5W4JEIVBG3PUFONKE5YOMS52L6GQIPIV4V)
-    valid until ledger 2368821; observed fns: claim
-    - custom:FrequencyLimitPolicy { window_secs: 86400, max_calls: 5 }
+    lifetime 518400 ledgers; valid until ledger (head + lifetime at install); observed fns: claim
+    signers: (none supplied — not installable as-is)
+    - custom:FrequencyLimitPolicy { window_secs: 86400, max_calls: 5 } @ (address not supplied)
   pw:swap  CallContract(CBGAPUV74GVQYQYBHMIN4LF5ZEHYIMM4L5VBGUBB4IJXM5D4RQ7275J7)
-    valid until ledger 2368821; observed fns: swap_exact_tokens_for_tokens
-    - custom:FrequencyLimitPolicy { window_secs: 86400, max_calls: 5 }
+    lifetime 518400 ledgers; valid until ledger (head + lifetime at install); observed fns: swap_exact_tokens_for_tokens
+    signers: (none supplied — not installable as-is)
+    - custom:FrequencyLimitPolicy { window_secs: 86400, max_calls: 5 } @ (address not supplied)
 
-  5 composition note(s) in context-rule.json (unit conversions,
+  6 composition note(s) in context-rule.json (unit conversions,
   deltas the stock policies cannot express).
 
 Note: the generated FrequencyLimitPolicy Rust is ILLUSTRATIVE and

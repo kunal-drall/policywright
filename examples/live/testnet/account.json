@@ -1,0 +1,12 @@
+{
+  "network": "testnet",
+  "account": "CBQ6H7ILH54ADWTVS7FCK36W7FY2RJJOWR4VGLZG7D4PZUG5FSA7QHDT",
+  "wasmHash": "1815dda1b96ea6d23865be8a16ffcbe0b8336d15fc0d3d5ada776c06cb17afde",
+  "deployTx": "89cec37e9b2d10f12ebaac094c622dc0255af6f16da37bbd7764873d2bfab458",
+  "uploadTx": "(wasm already on-chain; no upload tx)",
+  "adminRuleId": 0,
+  "adminSigners": [{ "type": "Delegated", "address": "GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W" }],
+  "deployer": "GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W",
+  "createdAt": "2026-09-02T10:53:50Z",
+  "source": "contracts/multisig-account (OpenZeppelin stellar-contracts v0.7.2 examples/multisig-smart-account/account, vendored verbatim)"
+}

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "generatedBy": "policywright",
   "target": {
     "package": "stellar-accounts (OpenZeppelin/stellar-contracts)",
@@ -19,7 +19,20 @@
   },
   "ledgerTimeBasis": {
     "estimatedSecsPerLedger": 5,
-    "note": "every *_ledgers and validUntilLedger value was converted from configured seconds at this estimated rate; recompute validUntilLedger from the live ledger head at install"
+    "note": "every *_ledgers and lifetimeLedgers value was converted from configured seconds at this estimated rate; validUntilLedger is absolute only when a live ledger head was supplied (installTargets.ledgerHead), otherwise the installer adds lifetimeLedgers to the head it observes"
+  },
+  "installTargets": {
+    "signers": [
+      {
+        "type": "Delegated",
+        "address": "GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W"
+      }
+    ],
+    "policyAddresses": {
+      "custom:FrequencyLimitPolicy": "CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP",
+      "stock:spending_limit": "CCOQPGEYKZVNDRIUFMP6IQRDUONOURWWDJTXP22SJZ7NICJX7VGS4W4E"
+    },
+    "ledgerHead": null
   },
   "contextRules": [
     {
@@ -28,15 +41,21 @@
         "contract": "CAPBMXIQTICKWFPWFDJWMAKBXBPJZUKLNONQH3MLPLLBKQ643CYN5PRW"
       },
       "name": "pw:claim",
-      "validUntilLedger": 4547500,
-      "signers": [],
+      "lifetimeLedgers": 518400,
+      "validUntilLedger": null,
+      "signers": [
+        {
+          "type": "Delegated",
+          "address": "GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W"
+        }
+      ],
       "observedFns": [
         "claim"
       ],
       "policies": [
         {
           "policy": "custom:FrequencyLimitPolicy",
-          "address": null,
+          "address": "CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP",
           "installParams": {
             "window_secs": 86400,
             "max_calls": 5
@@ -51,15 +70,21 @@
         "contract": "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD"
       },
       "name": "pw:swap",
-      "validUntilLedger": 4547500,
-      "signers": [],
+      "lifetimeLedgers": 518400,
+      "validUntilLedger": null,
+      "signers": [
+        {
+          "type": "Delegated",
+          "address": "GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W"
+        }
+      ],
       "observedFns": [
         "swap_exact_tokens_for_tokens"
       ],
       "policies": [
         {
           "policy": "custom:FrequencyLimitPolicy",
-          "address": null,
+          "address": "CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP",
           "installParams": {
             "window_secs": 86400,
             "max_calls": 5
@@ -74,15 +99,21 @@
         "contract": "CB22KRA3YZVCNCQI64JQ5WE7UY2VAV7WFLK6A2JN3HEX56T2EDAFO7QF"
       },
       "name": "pw:xfer:BLND",
-      "validUntilLedger": 4547500,
-      "signers": [],
+      "lifetimeLedgers": 518400,
+      "validUntilLedger": null,
+      "signers": [
+        {
+          "type": "Delegated",
+          "address": "GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W"
+        }
+      ],
       "observedFns": [
         "transfer"
       ],
       "policies": [
         {
           "policy": "stock:spending_limit",
-          "address": null,
+          "address": "CCOQPGEYKZVNDRIUFMP6IQRDUONOURWWDJTXP22SJZ7NICJX7VGS4W4E",
           "installParams": {
             "spending_limit": "23533505",
             "period_ledgers": 17280
@@ -104,10 +135,10 @@
   ],
   "notes": [
     "spend windows are measured in LEDGERS on-chain: 86400s → 17280 ledgers at an estimated 5s/ledger (spending_limit.rs:88-94; OZ's own DAY_IN_LEDGERS = 17280 = 86400s at this rate).",
-    "spending_limit is asset-blind: it meters whatever transfer amounts pass through its rule, so the metered token is the rule's CallContract target (one instance per token rule).",
-    "valid_until is a LEDGER SEQUENCE, not a Unix time (storage.rs:282; RECONCILIATION row 15): emitted 4547500 = recording ledger 4029100 + 518400 ledgers (2592000s at 5s/ledger). Recompute from the live ledger head at install — the recording ledger is in the past.",
+    "spending_limit is asset-blind: it meters whatever transfer amounts pass through its rule, so the metered token is the rule's CallContract target — one RULE per token. The same deployed spending_limit instance serves every rule (state is keyed on (account, rule id), spending_limit.rs:144-149).",
+    "validUntilLedger is null because no live ledger head was supplied (--ledger-head): the installer adds lifetimeLedgers 518400 (2592000s at 5s/ledger) to the ledger head it observes. valid_until is a ledger sequence, not a Unix time (storage.rs:282); the recording ledger is never used — it is in the past.",
     "context rules cannot carry function names (matching is contract-level — storage.rs:289-304; RECONCILIATION rows 13-14): observedFns is advisory. Function-level narrowing must live in a policy's enforce; that codegen is Tranche 2 (docs/T2-NOTES.md).",
-    "emitted rules carry no signers: attach the smart account's signer(s) at install. add_context_rule requires at least one signer or policy per rule (mod.rs:20-21), and stock spending_limit::enforce rejects when no signers authenticated (spending_limit.rs:232-234).",
+    "every rule carries the supplied signer(s) in the real OZ Signer shape (Delegated(GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W)); a Delegated signer authorizes through its own nested __check_auth auth entry (FACTS §8.4).",
     "DELTA: no stock policy can express the observed argument constraints (swap-path: swap_exact_tokens_for_tokens path token set); they are advisory (flag) in the offline dry-run harness only. On-chain enforcement needs a generated policy whose enforce checks the argument — that codegen is the remaining T2 policy-codegen deliverable and is not built yet (docs/T2-NOTES.md)."
   ],
   "config": {

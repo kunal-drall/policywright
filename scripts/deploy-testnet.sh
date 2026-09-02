@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
-# Deploy the frequency-limit policy contract to Stellar TESTNET.
+# Deploy a contracts/ workspace package to Stellar TESTNET.
+#
+#   scripts/deploy-testnet.sh [package] [-- <constructor args…>]
+#
+# package defaults to frequency-limit-policy (the D1.3 generated policy); the
+# D2.5 deploys use spending-limit-policy (OZ's stock-policy wrapper) and
+# multisig-account (OZ's example smart account, which takes constructor args).
 #
 # Builds the wasm with stellar-cli (wasm32v1-none), uploads it, deploys an
 # instance, then fetches the on-chain wasm back and verifies its SHA-256
@@ -15,6 +21,12 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+
+PACKAGE="${1:-frequency-limit-policy}"
+if [[ $# -gt 0 ]]; then shift; fi
+CTOR_ARGS=()
+if [[ "${1:-}" == "--" ]]; then shift; CTOR_ARGS=("$@"); fi
+WASM_NAME="${PACKAGE//-/_}"
 
 if [[ ! -f .env ]]; then
   echo "error: .env not found — create it with STELLAR_SECRET_KEY=<testnet secret>" >&2
@@ -45,9 +57,9 @@ echo "==> deploy identity: ${STELLAR_PUBLIC_KEY:-<unknown public key>} (testnet)
 echo "==> building via stellar-cli (from clean, per the FACTS.md §1.5 reproducibility procedure)"
 # rm -rf instead of cargo clean: this volume writes macOS AppleDouble ._*
 # sidecar files that break cargo clean and the CLI's *.wasm glob.
-(cd contracts && rm -rf target && stellar contract build --package frequency-limit-policy)
+(cd contracts && rm -rf target && stellar contract build --package "$PACKAGE")
 find contracts/target -name '._*' -delete 2>/dev/null || true
-WASM=contracts/target/wasm32v1-none/release/frequency_limit_policy.wasm
+WASM="contracts/target/wasm32v1-none/release/${WASM_NAME}.wasm"
 LOCAL_SHA=$(shasum -a 256 "$WASM" | cut -d' ' -f1)
 echo "==> local wasm sha256: $LOCAL_SHA"
 
@@ -74,7 +86,7 @@ fi
 
 echo "==> deploying instance"
 if ! CONTRACT_ID=$(stellar contract deploy --wasm-hash "$WASM_HASH" --network "$NETWORK" \
-  --alias frequency-limit-policy 2>"$DEP_ERR"); then
+  --alias "$PACKAGE" ${CTOR_ARGS[@]+-- "${CTOR_ARGS[@]}"} 2>"$DEP_ERR"); then
   cat "$DEP_ERR" >&2
   exit 1
 fi
@@ -103,7 +115,7 @@ if ! grep -q '^## Deployment log' "$EVIDENCE"; then
 fi
 {
   echo ''
-  echo "### $DATE_UTC — frequency-limit-policy"
+  echo "### $DATE_UTC — $PACKAGE"
   echo ''
   echo "| Item | Value |"
   echo "| --- | --- |"
@@ -112,6 +124,9 @@ fi
   echo "| Upload tx | ${UPLOAD_TX:+[\`$UPLOAD_TX\`](https://stellar.expert/explorer/testnet/tx/$UPLOAD_TX)}${UPLOAD_TX:-(wasm already on-chain; no upload tx)} |"
   echo "| Deploy tx | [\`$DEPLOY_TX\`](https://stellar.expert/explorer/testnet/tx/$DEPLOY_TX) |"
   echo "| Deployer | \`${STELLAR_PUBLIC_KEY:-unknown}\` |"
+  if [[ ${#CTOR_ARGS[@]} -gt 0 ]]; then
+    echo "| Constructor args | \`${CTOR_ARGS[*]}\` |"
+  fi
 } >>"$EVIDENCE"
 
 echo ''

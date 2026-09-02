@@ -10,16 +10,18 @@
  * {@link MAX_POLICIES} policies, which we surface as a warning.
  */
 
-import { isContractAddressShaped } from './network.js';
+import { CONTRACT_ADDRESS_SHAPE, isContractAddressShaped } from './network.js';
 import {
   ESTIMATED_SECS_PER_LEDGER,
   MAX_POLICIES,
+  NO_INSTALL_TARGETS,
   type ArgumentConstraintPolicy,
   type ArgumentRuleId,
   type CallArg,
   type ContextRule,
   type CustomFrequencyLimitBinding,
   type FrequencyLimitPolicy,
+  type InstallTargets,
   type InvocationNode,
   type OzContextRule,
   type OzPolicyBinding,
@@ -29,6 +31,7 @@ import {
   type ScopedCall,
   type SmartAccountSpec,
   type SpendingLimitPolicy,
+  type OzSigner,
   type StockSpendingLimitBinding,
   type SynthConfig,
   type TokenRef,
@@ -65,6 +68,61 @@ export function validateConfig(config: SynthConfig): void {
   }
   if (!Number.isFinite(config.capMultiplier) || config.capMultiplier <= 0) {
     throw new SynthError(`capMultiplier must be a positive number, got ${config.capMultiplier}`);
+  }
+}
+
+/** OZ caps a rule at this many signers (`validate_signers_and_policies`, storage.rs:377-391). */
+export const MAX_SIGNERS = 15;
+
+const G_ADDRESS_SHAPE = /^G[A-Z2-7]{55}$/;
+
+/** Validate deploy-time install targets, throwing {@link SynthError} on bad values. */
+export function validateInstallTargets(targets: InstallTargets): void {
+  if (targets.signers.length > MAX_SIGNERS) {
+    throw new SynthError(
+      `at most ${MAX_SIGNERS} signers per rule (OZ MAX_SIGNERS), got ${targets.signers.length}`,
+    );
+  }
+  const seen = new Set<string>();
+  for (const signer of targets.signers) {
+    const key = JSON.stringify(signer);
+    if (seen.has(key)) {
+      throw new SynthError(
+        `duplicate signer ${key} (OZ rejects canonical duplicates, storage.rs:646-647)`,
+      );
+    }
+    seen.add(key);
+    if (signer.type === 'Delegated') {
+      if (!G_ADDRESS_SHAPE.test(signer.address) && !CONTRACT_ADDRESS_SHAPE.test(signer.address)) {
+        throw new SynthError(
+          `Delegated signer must be a G… or C… address, got "${signer.address}"`,
+        );
+      }
+    } else {
+      if (!CONTRACT_ADDRESS_SHAPE.test(signer.verifier)) {
+        throw new SynthError(
+          `External signer verifier must be a C… address, got "${signer.verifier}"`,
+        );
+      }
+      if (!/^([0-9a-f]{2})+$/i.test(signer.keyData)) {
+        throw new SynthError(`External signer keyData must be hex bytes, got "${signer.keyData}"`);
+      }
+    }
+  }
+  for (const [policy, address] of Object.entries(targets.policyAddresses)) {
+    if (address !== undefined && !CONTRACT_ADDRESS_SHAPE.test(address)) {
+      throw new SynthError(`policy address for ${policy} must be a C… address, got "${address}"`);
+    }
+  }
+  if (
+    targets.ledgerHead !== null &&
+    (!Number.isInteger(targets.ledgerHead) ||
+      targets.ledgerHead <= 0 ||
+      targets.ledgerHead >= 2 ** 32)
+  ) {
+    throw new SynthError(
+      `ledgerHead must be a positive u32 ledger sequence, got ${targets.ledgerHead}`,
+    );
   }
 }
 
@@ -328,14 +386,19 @@ function deriveOzContextRules(
   tx: RecordedTx,
   config: SynthConfig,
   spendingPolicies: readonly SpendingLimitPolicy[],
+  targets: InstallTargets,
 ): { rules: OzContextRule[]; notes: string[] } {
   const notes: string[] = [];
   const lifetimeLedgers = secsToLedgers(config.lifetimeSecs);
-  const validUntilLedger = tx.ledger !== null ? tx.ledger + lifetimeLedgers : null;
+  // E1: never derive valid_until from the recording ledger (it is in the past
+  // by install time). Absolute only when a live head was supplied.
+  const validUntilLedger =
+    targets.ledgerHead !== null ? targets.ledgerHead + lifetimeLedgers : null;
+  const signers: readonly OzSigner[] = targets.signers;
 
   const frequencyBinding: CustomFrequencyLimitBinding = {
     policy: 'custom:FrequencyLimitPolicy',
-    address: null,
+    address: targets.policyAddresses['custom:FrequencyLimitPolicy'] ?? null,
     installParams: {
       window_secs: config.frequencyWindowSecs,
       max_calls: config.frequencyMaxCalls,
@@ -379,7 +442,7 @@ function deriveOzContextRules(
     composedAssets.add(tokenContract);
     const binding: StockSpendingLimitBinding = {
       policy: 'stock:spending_limit',
-      address: null,
+      address: targets.policyAddresses['stock:spending_limit'] ?? null,
       installParams: {
         spending_limit: policy.cap,
         period_ledgers: secsToLedgers(policy.windowSecs),
@@ -419,21 +482,38 @@ function deriveOzContextRules(
     notes.push(
       `spend windows are measured in LEDGERS on-chain: ${config.spendWindowSecs}s → ${secsToLedgers(config.spendWindowSecs)} ledgers at an estimated ${ESTIMATED_SECS_PER_LEDGER}s/ledger (spending_limit.rs:88-94; OZ's own DAY_IN_LEDGERS = 17280 = 86400s at this rate).`,
     );
+    // E5: one RULE per token; the same policy instance serves every rule.
     notes.push(
-      `spending_limit is asset-blind: it meters whatever transfer amounts pass through its rule, so the metered token is the rule's CallContract target (one instance per token rule).`,
+      `spending_limit is asset-blind: it meters whatever transfer amounts pass through its rule, so the metered token is the rule's CallContract target — one RULE per token. The same deployed spending_limit instance serves every rule (state is keyed on (account, rule id), spending_limit.rs:144-149).`,
     );
   }
+  // E1: lifetime is relative; valid_until is absolute only from a live head.
   notes.push(
     validUntilLedger !== null
-      ? `valid_until is a LEDGER SEQUENCE, not a Unix time (storage.rs:282; RECONCILIATION row 15): emitted ${validUntilLedger} = recording ledger ${tx.ledger} + ${lifetimeLedgers} ledgers (${config.lifetimeSecs}s at ${ESTIMATED_SECS_PER_LEDGER}s/ledger). Recompute from the live ledger head at install — the recording ledger is in the past.`
-      : `the recording carries no ledger sequence, so valid_until is null here; compute it at install as current ledger + ${lifetimeLedgers} (${config.lifetimeSecs}s at ${ESTIMATED_SECS_PER_LEDGER}s/ledger). valid_until is a ledger sequence, not a Unix time (storage.rs:282).`,
+      ? `valid_until is a LEDGER SEQUENCE, not a Unix time (storage.rs:282): emitted ${validUntilLedger} = supplied ledger head ${targets.ledgerHead} + lifetimeLedgers ${lifetimeLedgers} (${config.lifetimeSecs}s at ${ESTIMATED_SECS_PER_LEDGER}s/ledger). Install before that ledger passes; add_context_rule rejects a past valid_until (PastValidUntil 3005, storage.rs:649-654).`
+      : `validUntilLedger is null because no live ledger head was supplied (--ledger-head): the installer adds lifetimeLedgers ${lifetimeLedgers} (${config.lifetimeSecs}s at ${ESTIMATED_SECS_PER_LEDGER}s/ledger) to the ledger head it observes. valid_until is a ledger sequence, not a Unix time (storage.rs:282); the recording ledger is never used — it is in the past.`,
   );
   notes.push(
     `context rules cannot carry function names (matching is contract-level — storage.rs:289-304; RECONCILIATION rows 13-14): observedFns is advisory. Function-level narrowing must live in a policy's enforce; that codegen is Tranche 2 (docs/T2-NOTES.md).`,
   );
+  // E2: signers in the real shape, or an explicit statement that none were supplied.
   notes.push(
-    `emitted rules carry no signers: attach the smart account's signer(s) at install. add_context_rule requires at least one signer or policy per rule (mod.rs:20-21), and stock spending_limit::enforce rejects when no signers authenticated (spending_limit.rs:232-234).`,
+    signers.length > 0
+      ? `every rule carries the supplied signer(s) in the real OZ Signer shape (${signers.map((sg) => (sg.type === 'Delegated' ? `Delegated(${sg.address})` : `External(${sg.verifier}, ${sg.keyData.length / 2} bytes)`)).join(', ')}); a Delegated signer authorizes through its own nested __check_auth auth entry (FACTS §8.4).`
+      : `emitted rules carry no signers (none supplied via --signer), so this artifact is a design document, not installable as-is: add_context_rule requires at least one signer or policy per rule (mod.rs:20-21), and stock spending_limit::enforce rejects when no signers authenticated (spending_limit.rs:232-234) — the installer refuses a spending_limit rule with no signers.`,
   );
+  // E3: policy addresses, or an explicit statement that they are missing.
+  const missing = (['custom:FrequencyLimitPolicy', 'stock:spending_limit'] as const).filter(
+    (p) =>
+      targets.policyAddresses[p] === undefined &&
+      drafts.size > 0 &&
+      [...drafts.values()].some((d) => d.policies.some((b) => b.policy === p)),
+  );
+  if (missing.length > 0) {
+    notes.push(
+      `policy address is null for ${missing.join(', ')}: supply the deployed contract address(es) via --policy-address <policy>=<C…> to make the artifact installable (add_context_rule takes policies as Map<Address, Val>, mod.rs:238-248).`,
+    );
+  }
 
   const usedNames = new Set<string>();
   const rules: OzContextRule[] = [];
@@ -444,10 +524,24 @@ function deriveOzContextRules(
       isTokenRule && asset !== undefined
         ? `pw:xfer:${assetLabel(asset)}`
         : `pw:${[...new Set(draft.fns.map((f) => f.split('_')[0] ?? f))].join('+')}`;
+    // E4: two bindings with the same address would collapse into one map key.
+    const addresses = draft.policies.map((b) => b.address).filter((a): a is string => a !== null);
+    if (new Set(addresses).size !== addresses.length) {
+      throw new SynthError(
+        `rule for ${contract} binds the same policy address twice (${addresses.join(', ')}); add_context_rule takes policies as a Map<Address, Val>, so duplicate addresses collapse`,
+      );
+    }
+    if (draft.policies.length > MAX_POLICIES) {
+      throw new SynthError(
+        `rule for ${contract} binds ${draft.policies.length} policies; OZ allows at most ${MAX_POLICIES} (TooManyPolicies 3011)`,
+      );
+    }
     rules.push({
       contextType: { type: 'CallContract', contract },
       name: uniqueRuleName(base, usedNames),
+      lifetimeLedgers,
       validUntilLedger,
+      signers,
       observedFns: draft.fns,
       policies: draft.policies,
     });
@@ -526,12 +620,20 @@ export function realisePolicies(spec: SmartAccountSpec): PolicyRealisation[] {
 /**
  * Synthesize a least-privilege smart-account spec for a recorded transaction.
  *
- * @param tx     the normalised recording to authorise
- * @param config synthesis knobs (validated here)
- * @param now    Unix seconds used as the base for the rule lifetime
+ * @param tx      the normalised recording to authorise
+ * @param config  synthesis knobs (validated here)
+ * @param now     Unix seconds used as the base for the rule lifetime
+ * @param targets deploy-time facts (signers, policy addresses, ledger head)
+ *                the emitted rules carry so the artifact installs as-is
  */
-export function synthesize(tx: RecordedTx, config: SynthConfig, now: number): SmartAccountSpec {
+export function synthesize(
+  tx: RecordedTx,
+  config: SynthConfig,
+  now: number,
+  targets: InstallTargets = NO_INSTALL_TARGETS,
+): SmartAccountSpec {
   validateConfig(config);
+  validateInstallTargets(targets);
   if (!Number.isInteger(now) || now < 0) {
     throw new SynthError(`now must be a non-negative Unix timestamp, got ${now}`);
   }
@@ -555,7 +657,12 @@ export function synthesize(tx: RecordedTx, config: SynthConfig, now: number): Sm
     ...(config.constrainArguments ? argumentScopes : []),
   ];
 
-  const { rules: ozContextRules, notes } = deriveOzContextRules(tx, config, spendingPolicies);
+  const { rules: ozContextRules, notes } = deriveOzContextRules(
+    tx,
+    config,
+    spendingPolicies,
+    targets,
+  );
   if (argumentScopes.length > 0) {
     notes.push(
       `DELTA: no stock policy can express the observed argument constraints (${argumentScopes.map((s) => `${s.rule}: ${s.fnName} ${s.argName} token set`).join('; ')}); they are ${config.constrainArguments ? 'ENFORCED (deny)' : 'advisory (flag)'} in the offline dry-run harness only. On-chain enforcement needs a generated policy whose enforce checks the argument — that codegen is the remaining T2 policy-codegen deliverable and is not built yet (docs/T2-NOTES.md).`,
@@ -569,5 +676,14 @@ export function synthesize(tx: RecordedTx, config: SynthConfig, now: number): Sm
     );
   }
 
-  return { contextRule, policies, argumentScopes, ozContextRules, notes, warnings, config };
+  return {
+    contextRule,
+    policies,
+    argumentScopes,
+    ozContextRules,
+    notes,
+    warnings,
+    config,
+    installTargets: targets,
+  };
 }

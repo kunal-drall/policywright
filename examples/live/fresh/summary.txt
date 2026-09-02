@@ -32,14 +32,17 @@ Argument scopes — advisory (flag only)
 Installable OZ context rules (3) — see context-rule.json
 ----------------------------
   pw:claim  CallContract(CAPBMXIQTICKWFPWFDJWMAKBXBPJZUKLNONQH3MLPLLBKQ643CYN5PRW)
-    valid until ledger 4547500; observed fns: claim
-    - custom:FrequencyLimitPolicy { window_secs: 86400, max_calls: 5 }
+    lifetime 518400 ledgers; valid until ledger (head + lifetime at install); observed fns: claim
+    signers: Delegated(GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W)
+    - custom:FrequencyLimitPolicy { window_secs: 86400, max_calls: 5 } @ CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP
   pw:swap  CallContract(CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD)
-    valid until ledger 4547500; observed fns: swap_exact_tokens_for_tokens
-    - custom:FrequencyLimitPolicy { window_secs: 86400, max_calls: 5 }
+    lifetime 518400 ledgers; valid until ledger (head + lifetime at install); observed fns: swap_exact_tokens_for_tokens
+    signers: Delegated(GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W)
+    - custom:FrequencyLimitPolicy { window_secs: 86400, max_calls: 5 } @ CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP
   pw:xfer:BLND  CallContract(CB22KRA3YZVCNCQI64JQ5WE7UY2VAV7WFLK6A2JN3HEX56T2EDAFO7QF)
-    valid until ledger 4547500; observed fns: transfer
-    - stock:spending_limit { spending_limit: 23533505, period_ledgers: 17280 } (caps BLND transfers)
+    lifetime 518400 ledgers; valid until ledger (head + lifetime at install); observed fns: transfer
+    signers: Delegated(GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W)
+    - stock:spending_limit { spending_limit: 23533505, period_ledgers: 17280 } (caps BLND transfers) @ CCOQPGEYKZVNDRIUFMP6IQRDUONOURWWDJTXP22SJZ7NICJX7VGS4W4E
 
   6 composition note(s) in context-rule.json (unit conversions,
   deltas the stock policies cannot express).

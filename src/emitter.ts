@@ -131,13 +131,15 @@ export function contextRuleJson(tx: RecordedTx, spec: SmartAccountSpec): string 
       },
       ledgerTimeBasis: {
         estimatedSecsPerLedger: ESTIMATED_SECS_PER_LEDGER,
-        note: 'every *_ledgers and validUntilLedger value was converted from configured seconds at this estimated rate; recompute validUntilLedger from the live ledger head at install',
+        note: 'every *_ledgers and lifetimeLedgers value was converted from configured seconds at this estimated rate; validUntilLedger is absolute only when a live ledger head was supplied (installTargets.ledgerHead), otherwise the installer adds lifetimeLedgers to the head it observes',
       },
+      installTargets: spec.installTargets,
       contextRules: spec.ozContextRules.map((rule) => ({
         contextType: rule.contextType,
         name: rule.name,
+        lifetimeLedgers: rule.lifetimeLedgers,
         validUntilLedger: rule.validUntilLedger,
-        signers: [],
+        signers: rule.signers,
         observedFns: rule.observedFns,
         policies: rule.policies.map(serialiseBinding),
       })),
@@ -225,10 +227,15 @@ export function renderSummary(tx: RecordedTx, spec: SmartAccountSpec): string {
     for (const rule of spec.ozContextRules) {
       lines.push(`  ${rule.name}  CallContract(${rule.contextType.contract})`);
       lines.push(
-        `    valid until ledger ${rule.validUntilLedger ?? '(compute at install)'}; observed fns: ${rule.observedFns.join(', ')}`,
+        `    lifetime ${rule.lifetimeLedgers} ledgers; valid until ledger ${rule.validUntilLedger ?? '(head + lifetime at install)'}; observed fns: ${rule.observedFns.join(', ')}`,
+      );
+      lines.push(
+        `    signers: ${rule.signers.length === 0 ? '(none supplied — not installable as-is)' : rule.signers.map((sg) => (sg.type === 'Delegated' ? `Delegated(${sg.address})` : `External(${sg.verifier}, ${sg.keyData.length / 2}B)`)).join(', ')}`,
       );
       for (const binding of rule.policies) {
-        lines.push(`    - ${describeBinding(binding)}`);
+        lines.push(
+          `    - ${describeBinding(binding)} @ ${binding.address ?? '(address not supplied)'}`,
+        );
       }
     }
     lines.push('');

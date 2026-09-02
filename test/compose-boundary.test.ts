@@ -36,6 +36,7 @@ import { realisePolicies, synthesize } from '../src/synthesizer.js';
 import {
   DEFAULT_SYNTH_CONFIG,
   type FrequencyLimitPolicy,
+  type InstallTargets,
   type PolicyRealisation,
   type SmartAccountSpec,
 } from '../src/types.js';
@@ -49,7 +50,31 @@ const CRATE = here('../contracts/frequency-limit-policy/src/lib.rs');
 const BLND = 'CB22KRA3YZVCNCQI64JQ5WE7UY2VAV7WFLK6A2JN3HEX56T2EDAFO7QF';
 
 const fresh = loadRecordedTx(FRESH);
-const freshSpec = synthesize(fresh, DEFAULT_SYNTH_CONFIG, fresh.timestamp ?? 0);
+
+/**
+ * The deploy-time facts the committed fresh artefacts were emitted with
+ * (examples/live/fresh/synth.args, one CLI flag per line — the same file CI
+ * passes to `synth`): the .env signer as Delegated(G) and the two deployed
+ * testnet policy addresses (D2.5).
+ */
+function freshTargets(): InstallTargets {
+  const lines = readFileSync(`${FRESH_DIR}synth.args`, 'utf8')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+  const signers = lines
+    .filter((l) => l.startsWith('--signer='))
+    .map((l) => l.slice('--signer=delegated:'.length))
+    .map((address) => ({ type: 'Delegated' as const, address }));
+  const policyAddresses: Record<string, string> = {};
+  for (const l of lines.filter((x) => x.startsWith('--policy-address='))) {
+    const kv = l.slice('--policy-address='.length);
+    const eq = kv.indexOf('=');
+    policyAddresses[kv.slice(0, eq)] = kv.slice(eq + 1);
+  }
+  return { signers, policyAddresses, ledgerHead: null };
+}
+const freshSpec = synthesize(fresh, DEFAULT_SYNTH_CONFIG, fresh.timestamp ?? 0, freshTargets());
 
 const byKind = (rs: readonly PolicyRealisation[]) => ({
   composed: rs.filter((r) => r.kind === 'composed'),
@@ -242,7 +267,7 @@ describe('composed configuration — validates field-by-field against the OZ ins
     expect(rule?.policies).toEqual([
       expect.objectContaining({
         policy: 'stock:spending_limit',
-        address: null,
+        address: freshTargets().policyAddresses['stock:spending_limit'],
         installParams: { spending_limit: '23533505', period_ledgers: 17280 },
       }),
     ]);
@@ -266,6 +291,7 @@ describe('composed configuration — validates field-by-field against the OZ ins
     contextRules: {
       contextType: { type: string; contract: string };
       name: string;
+      signers: unknown[];
       policies: { policy: string; installParams: Record<string, unknown> }[];
     }[];
   }
@@ -317,8 +343,9 @@ describe('composed configuration — validates field-by-field against the OZ ins
       'a rule with neither signers nor policies',
       (d) => {
         d.contextRules[claimRule]!.policies = [];
+        d.contextRules[claimRule]!.signers = [];
       },
-      'NoSignersOrPolicies',
+      'NoSignersAndPolicies (3004)',
     ],
     [
       'spending_limit on a non-transfer rule',

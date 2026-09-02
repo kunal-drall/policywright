@@ -51,7 +51,10 @@ jobs:
       # must be exactly what synth emits today.
       - name: Live side-by-side artifacts (composed config + generated policy) match the committed copies
         run: |
-          npm run --silent cli -- synth --input examples/live/recorded-claim-swap-fresh.json --out "$RUNNER_TEMP/fresh" > /dev/null
+          # synth.args pins the deploy-time facts (signer, deployed policy
+          # addresses) the installable artifact was emitted with (D2.5).
+          npm run --silent cli -- synth --input examples/live/recorded-claim-swap-fresh.json --out "$RUNNER_TEMP/fresh" $(cat examples/live/fresh/synth.args) > /dev/null
+          cp examples/live/fresh/synth.args "$RUNNER_TEMP/fresh/"
           diff -r "$RUNNER_TEMP/fresh" examples/live/fresh
           echo "composed configuration and generated policy are reproducible"
 
@@ -108,6 +111,20 @@ jobs:
 
       - name: Build contract wasm with stellar-cli
         run: stellar contract build --package frequency-limit-policy
+
+      # D2.5: the vendored OZ account and stock spending-limit wrapper build to
+      # the hashes deployed on testnet (FACTS.md §14).
+      - name: Build the vendored OZ account and spending-limit wrapper
+        run: |
+          stellar contract build --package multisig-account
+          stellar contract build --package spending-limit-policy
+          for pair in "multisig_account:1815dda1b96ea6d23865be8a16ffcbe0b8336d15fc0d3d5ada776c06cb17afde" \
+                      "spending_limit_policy:5a45420db383bfc6166519780bdf54cda976f869e441e1a4d98666e4726cbec4"; do
+            name=${pair%%:*}; expected=${pair##*:}
+            built=$(sha256sum "target/wasm32v1-none/release/${name}.wasm" | cut -d' ' -f1)
+            echo "${name}: built $built expected $expected"
+            [ "$built" = "$expected" ] || { echo "::error::${name} wasm sha256 differs from the deployed hash"; exit 1; }
+          done
 
       # Cross-platform reproducibility verified in run 30839117017 (Linux
       # x86_64 == macOS arm64 hash; FACTS.md §1.5) — asserted since then.
