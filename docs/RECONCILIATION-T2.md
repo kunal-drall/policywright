@@ -382,7 +382,7 @@ Ground truth from the installed SDK typings and compiled sources
   D2.2, 214 tests (9 in the skill suite) and `skills-ref validate` are green;
   after the close-out, 215 tests, `npm run build`, the demo-artifact diff and
   the site build are green; after Prompt D, 215 tests, `npm run demo`,
-  `npm run build`, `format:check`, the site build (20 pages), the headless
+  `npm run build`, `format:check`, the site build (19 content pages), the headless
   render check and the full link check are green, and nothing was installed.
 - No secret was printed: `.env` was inspected by key name only and the secret
   was used solely to derive its public key in-process.

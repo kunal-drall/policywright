@@ -525,7 +525,7 @@ resolved). What shipped:
 capability (testnet)` (recurring SEP-41 payments; bounded Soroswap trading,
   which showcases the shipped argument constraints), and the safety framing
   page. Every page states testnet-only wherever installation appears; the
-  banner is on all 20 pages; no page says "In development".
+  banner is on all 19 content pages; no page says "In development".
 - Getting Started quotes today's `npm run demo` output verbatim (the previous
   quote had drifted one line), the runnable `record --from-simulation` example
   with its output, the honest `TX_NOT_FOUND` for the aged-out hashes, the
@@ -534,8 +534,8 @@ capability (testnet)` (recurring SEP-41 payments; bounded Soroswap trading,
 **How a reviewer verifies it.**
 
 ```bash
-cd site && npm ci && npm run build        # 20 pages; Pagefind index; sitemap
-grep -rl "Generated contracts are illustrative and unaudited" dist --include=index.html | wc -l   # 20
+cd site && npm ci && npm run build        # 19 content pages (+ a generated 404)
+grep -rl "Generated contracts are illustrative and unaudited" dist --include=index.html | wc -l   # 19
 grep -rl "Status: In development" dist --include=index.html | wc -l                                # 0
 ```
 
