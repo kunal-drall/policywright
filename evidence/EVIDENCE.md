@@ -8,14 +8,17 @@ verified from the repository, it says so instead of claiming completion.
 
 **Scope note.** Tranche 1 (D1.1–D1.4 below) was delivered on 2026-08-03 and is
 closed. Tranche 2 is in progress: D2.3 (dry-run harness + argument-level
-scope) and D2.4 (composed configuration + generated stateful policy) are
-delivered as of 2026-09-02 — see
+scope), D2.4 (composed configuration + generated stateful policy) and D2.5
+(testnet smart account with the installed generated policy — fallback signing
+path) are delivered as of 2026-09-02 — see
 [Delivered — Tranche 2](#delivered--tranche-2); the remaining T2 items are
 listed under [Not yet delivered](#not-yet-delivered). Since D1.3 exactly one
 real testnet deployment exists — the generated frequency-limit policy contract
-(see [Deployment log](#deployment-log)); its ledger entries are archived as of
-2026-09-02 ([FACTS.md §11.2](../docs/FACTS.md)). Every address inside the
-committed fixture remains synthetic ([FACTS.md §5](../docs/FACTS.md)).
+(see [Deployment log](#deployment-log)); D2.5 restored it and added two more
+testnet deployments — OpenZeppelin's example smart account and stock
+spending-limit wrapper, built from vendored pinned source ([FACTS.md
+§14](../docs/FACTS.md)). Every address inside the committed fixture remains
+synthetic ([FACTS.md §5](../docs/FACTS.md)).
 
 **Where the completion criteria come from.** The public SCF project page
 ([SCF #44 — "Record-to-Policy MCP + Agent skill"](https://communityfund.stellar.org/project/policywright-j8x),
@@ -40,8 +43,13 @@ npm run lint && npm run format:check && npm run typecheck && npm test && npm run
 # D2.3 — the real recorded claim→swap sequence through the harness, both ways:
 npm run cli -- simulate --input examples/live/recorded-claim-swap-fresh.json
 npm run cli -- simulate --input examples/live/recorded-claim-swap-fresh.json --constrain-arguments
-# D2.4 — both artifacts (composed configuration + generated policy) for that sequence:
-npm run cli -- synth --input examples/live/recorded-claim-swap-fresh.json --out /tmp/fresh && diff -r /tmp/fresh examples/live/fresh
+# D2.4/D2.5 — both artifacts for that sequence, emitted with the pinned deploy-time facts:
+npm run cli -- synth --input examples/live/recorded-claim-swap-fresh.json --out /tmp/fresh $(cat examples/live/fresh/synth.args)
+cp examples/live/fresh/synth.args /tmp/fresh/ && diff -r /tmp/fresh examples/live/fresh
+# D2.5 — what is installed on the testnet smart account vs. the artifact (read-only, no key needed):
+npm run cli -- verify --artifact examples/live/fresh/context-rule.json \
+  --account CBQ6H7ILH54ADWTVS7FCK36W7FY2RJJOWR4VGLZG7D4PZUG5FSA7QHDT \
+  --install-log examples/live/testnet/install-20260902T105742Z.json
 ```
 
 `npm run demo` is a self-checking smoke test: it asserts each dry-run scenario
@@ -162,12 +170,12 @@ npm run cli -- synth --input examples/live/recorded-claim-swap.json
 # committed: examples/live/context-rule.json
 ```
 
-| Item                                | Value                                                                                                                                                                                                                                                                          |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Committed emitted artifact          | [examples/live/context-rule.json](../examples/live/context-rule.json) (schema: [docs/context-rule-schema.md](../docs/context-rule-schema.md), `schemaVersion: 1`)                                                                                                              |
-| Its source recording                | [examples/live/recorded-claim-swap.json](../examples/live/recorded-claim-swap.json) — both original tx hashes are carried in the artifact's `source.sourceHashes`                                                                                                              |
-| Stock params emitted                | `stock:spending_limit { spending_limit: "11000000", period_ledgers: 17280 }` on the `CallContract(native XLM SAC)` rule — 11000000 = ceil(observed gross out 10000000 × 1.1); 17280 ledgers = the configured 86400 s window at ~5 s/ledger, equal to OZ's own `DAY_IN_LEDGERS` |
-| Verified install surface it targets | `add_context_rule(context_type, name, valid_until, signers, policies: Map<Address, Val>)` — [FACTS.md §2.5](../docs/FACTS.md)                                                                                                                                                  |
+| Item                                | Value                                                                                                                                                                                                                                                                                                                          |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Committed emitted artifact          | [examples/live/context-rule.json](../examples/live/context-rule.json) (schema: [docs/context-rule-schema.md](../docs/context-rule-schema.md); emitted at `schemaVersion: 1` for D1.2, regenerated as v2 by D2.5 — same rules and params, plus `lifetimeLedgers`, empty `signers`, null addresses and an `installTargets` echo) |
+| Its source recording                | [examples/live/recorded-claim-swap.json](../examples/live/recorded-claim-swap.json) — both original tx hashes are carried in the artifact's `source.sourceHashes`                                                                                                                                                              |
+| Stock params emitted                | `stock:spending_limit { spending_limit: "11000000", period_ledgers: 17280 }` on the `CallContract(native XLM SAC)` rule — 11000000 = ceil(observed gross out 10000000 × 1.1); 17280 ledgers = the configured 86400 s window at ~5 s/ledger, equal to OZ's own `DAY_IN_LEDGERS`                                                 |
+| Verified install surface it targets | `add_context_rule(context_type, name, valid_until, signers, policies: Map<Address, Val>)` — [FACTS.md §2.5](../docs/FACTS.md)                                                                                                                                                                                                  |
 
 **Field-by-field cross-check against the OZ source** (every citation is at tag
 `v0.7.2`, commit `a9c4216…`, re-verified against a fresh clone on 2026-08-03):
@@ -289,16 +297,16 @@ pack that makes review trivial.
 
 **Delivered 2026-08-03.**
 
-| Item           | Value                                                                                                                                                                                                                                                                                                                                                                                                   |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Public repo    | <https://github.com/kunal-drall/policywright> (public; description + topics set — `gh repo view kunal-drall/policywright --json isPrivate,description,repositoryTopics`)                                                                                                                                                                                                                                |
-| License        | MIT — [LICENSE](../LICENSE), `license` field in [package.json](../package.json). The repo was Apache-2.0 until 2026-08-03 and was switched to MIT per the funded plan; every commit is by the project author (both git identities — `git shortlog -sne --all`), so no third-party consent was needed                                                                                                    |
-| CI             | [ci.yml](../.github/workflows/ci.yml): `build` (npm ci → lint → format:check → typecheck → 90 tests → demo), `site` (docs build), `contracts` (pinned Rust 1.97.1: fmt → clippy `-D warnings` → 25 tests → `stellar contract build` via the official `stellar/stellar-cli@v27.1.0` action, wasm hash reported against FACTS §1.5). Node toolchain cached by `setup-node`, Rust by `Swatinem/rust-cache` |
-| Demo artifacts | `npm run demo` writes `spec.json`, `context-rule.json`, `summary.txt`, `simulation-report.md`, `FrequencyLimitPolicy.rs` to `out/` and exits non-zero unless all 6 dry-run scenarios behave as expected (byte-identical committed copies under [examples/](../examples/) — hashes in D3)                                                                                                                |
-| Evidence pack  | This file — one section per deliverable with its criterion, what was delivered, and the exact reproduction commands                                                                                                                                                                                                                                                                                     |
-| Demo script    | Maintained as an internal team document (not tracked in this repository); every expected-output block in it is produced by really running the command shown                                                                                                                                                                                                                                             |
-| Housekeeping   | [.env.example](../.env.example) (no secrets; documents the `STELLAR_RPC_URL` pitfall from FACTS §1.6), [CONTRIBUTING.md](../CONTRIBUTING.md), `.gitignore` covers `.env` and `out/` (see [Secrets hygiene](#secrets-hygiene))                                                                                                                                                                           |
-| Recorded demo  | [Loom, 4:35](https://www.loom.com/share/c5d5dea5fab8498fb31c1044ed3cf3a7) — the five-beat demo: fresh claim→swap recording by hash, synthesis with real OZ install params, dry-run, and the deployed contract's on-chain wasm hash verified live (public link verified 2026-08-09)                                                                                                                      |
+| Item           | Value                                                                                                                                                                                                                                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Public repo    | <https://github.com/kunal-drall/policywright> (public; description + topics set — `gh repo view kunal-drall/policywright --json isPrivate,description,repositoryTopics`)                                                                                                                                     |
+| License        | MIT — [LICENSE](../LICENSE), `license` field in [package.json](../package.json). The repo was Apache-2.0 until 2026-08-03 and was switched to MIT per the funded plan; every commit is by the project author (both git identities — `git shortlog -sne --all`), so no third-party consent was needed         |
+| CI             | lint → format:check → typecheck → test → demo → live dry-run report diff (both modes) → side-by-side artefact diff (with `synth.args`), plus a docs-site build and the contracts job (fmt → clippy → tests → three wasm builds asserted against the deployed hashes) ([ci.yml](../.github/workflows/ci.yml)) |
+| Demo artifacts | `npm run demo` writes `spec.json`, `context-rule.json`, `summary.txt`, `simulation-report.md`, `FrequencyLimitPolicy.rs` to `out/` and exits non-zero unless all 6 dry-run scenarios behave as expected (byte-identical committed copies under [examples/](../examples/) — hashes in D3)                     |
+| Evidence pack  | This file — one section per deliverable with its criterion, what was delivered, and the exact reproduction commands                                                                                                                                                                                          |
+| Demo script    | Maintained as an internal team document (not tracked in this repository); every expected-output block in it is produced by really running the command shown                                                                                                                                                  |
+| Housekeeping   | [.env.example](../.env.example) (no secrets; documents the `STELLAR_RPC_URL` pitfall from FACTS §1.6), [CONTRIBUTING.md](../CONTRIBUTING.md), `.gitignore` covers `.env` and `out/` (see [Secrets hygiene](#secrets-hygiene))                                                                                |
+| Recorded demo  | [Loom, 4:35](https://www.loom.com/share/c5d5dea5fab8498fb31c1044ed3cf3a7) — the five-beat demo: fresh claim→swap recording by hash, synthesis with real OZ install params, dry-run, and the deployed contract's on-chain wasm hash verified live (public link verified 2026-08-09)                           |
 
 **How a reviewer verifies it end to end (no secrets needed):**
 
@@ -359,26 +367,27 @@ D1.2), `summary.txt`, and an illustrative Rust policy. A committed example run
 is checked in under [examples/](../examples/) so a reviewer can read the output
 without running anything.
 
-SHA-256 of the committed artefacts as of 2026-09-02 (post-D2.4; the fixture
-and the Rust are unchanged since D1.3 — `spec.json` gained the `rule` tag on
-argument scopes, `summary.txt`/`context-rule.json` reworded the argument-scope
-line and DELTA note, the reports gained their provenance header and the
-**Enforced by** column, and `examples/live/fresh/` holds the D2.4 side-by-side
-artefacts for the fresh recording):
+SHA-256 of the committed artefacts as of 2026-09-02 (post-D2.5; the fixture
+and the Rust are unchanged since D1.3. Schema v2 (emitter fixes E1–E5) changed
+every `context-rule.json`: relative `lifetimeLedgers`, `signers` in the real
+`Signer` shape, deployed policy `address`es, an `installTargets` echo. The
+`examples/live/fresh/` set is the installable artifact — emitted with the
+flags in `synth.args` — that D2.5 installed on testnet):
 
 ```
 8f91c68ef1fd16aba90f9a76b9491ed702e5bef7ab9e8ec892ef79888351db5e  examples/FrequencyLimitPolicy.rs
 0dec4d4e1945d590e464e6fbe920c1467bd2bc9b1ed0b1765fbb58dd3941f762  examples/spec.json
-3f9f0dc9323fb4cee7cc3fe03317f432458227669d15a2de026e147082c7576f  examples/summary.txt
+fe669eaf38ab4448755e3b20e267cfccbf3f054f5f16484b766dc8e7615c2fd5  examples/summary.txt
 7265e0669c37cfa6905c82edbda461e7a0ac2e86c10a2aa6f65656e8fedfec44  examples/simulation-report.md
-847856f4ab43dfed8272e3ed33910a8a184812e1eff81d198375e36d95bb4429  examples/context-rule.json
-01067d8a3538432285c1cf20e849449f33f131919c2d24e7cc3b93ed468a2e5f  examples/live/context-rule.json
+cbfc72ed398d93e5bc22893de7c0d0076a7ceb269c06d965ff0c9d816631f236  examples/context-rule.json
+d5321addfb8a11f8d32828c0da5a92902bc5e3897db362eaa13b2360256a903e  examples/live/context-rule.json
 360c71478d091ab0d98055eb5840f115ec720eb0685de44a186a54b8693efd31  examples/live/simulation-report.md
 cb71f71ede75858ba702cef99d80aa0fc2627f2314aed17f12ee3f5fa3040253  examples/live/simulation-report.constrained.md
 230d7686a6098b427432cc00a2d7e4a30e6b18021d5ba678d6970faaf0666a50  examples/live/fresh/spec.json
-01ab3d8edaa6a54e70140226564c2cc41c163c26fdddeaa8c5242bcbd49737f6  examples/live/fresh/summary.txt
-eeb2830ae0c41335629c4d95b6c612c7c4a6984a22077a427f8161d2efdffec5  examples/live/fresh/context-rule.json
+391a4330f8bcc33fdc2815ff41c4d062e2e6c8541d5933b5a08f3dd4c0df111b  examples/live/fresh/summary.txt
+b74574fcecf25131b48ee95591283074ddd77c4f23fd277ec4b8cf70795a0017  examples/live/fresh/context-rule.json
 8f91c68ef1fd16aba90f9a76b9491ed702e5bef7ab9e8ec892ef79888351db5e  examples/live/fresh/FrequencyLimitPolicy.rs
+a6a038b6a596da71ac4912c43545e0a4b06df5f0a192c721f7df3ebacdad9ecc  examples/live/fresh/synth.args
 0dd46d1d48664534f0324c4a606f1f2ba5e8ce0da0ec2c5723424372f85131aa  fixtures/recorded-tx.json
 ```
 
@@ -447,12 +456,12 @@ conversion basis stated; the offline simulator still reasons in seconds.
 
 **Delivered.**
 
-| Item                | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CLI                 | [src/cli.ts](../src/cli.ts) — `synth`, `simulate`, `record`, with synthesis knobs as flags                                                                                                                                                                                                                                                                                                                                                                                                    |
-| Test suite          | 145 Vitest tests across 7 files — `npm test` (23 run every decoder against the committed raw captures, including the fresh claim→swap re-assembly; 28 cover the D1.2 OZ context rules; 24 cover the D2.3 harness on the real sequence; 30 cover the D2.4 compose/generate boundary, install-shape validation and ScVal encoding; 4 lock the emitted Rust byte-identical to the compiled crate — all network-free) — plus 25 Rust tests in [contracts/](../contracts/) (`cargo test --locked`) |
-| Coverage thresholds | `synthesizer.ts` 97.66% lines, `simulate.ts` 99.47% lines (re-run 2026-09-02 after D2.4); both gated ≥90 in [vitest.config.ts](../vitest.config.ts) — `npm run test:coverage`                                                                                                                                                                                                                                                                                                                 |
-| CI                  | lint → format:check → typecheck → test → demo → live dry-run report diff (both modes) → side-by-side artefact diff, plus a docs-site build and the contracts job ([ci.yml](../.github/workflows/ci.yml))                                                                                                                                                                                                                                                                                      |
+| Item                | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| CLI                 | [src/cli.ts](../src/cli.ts) — `synth`, `simulate`, `record`, with synthesis knobs as flags                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Test suite          | 174 Vitest tests across 8 files — `npm test` (23 run every decoder against the committed raw captures, including the fresh claim→swap re-assembly; 28 cover the D1.2 OZ context rules; 24 cover the D2.3 harness on the real sequence; 30 cover the D2.4 compose/generate boundary, install-shape validation and ScVal encoding; 29 cover the D2.5 artifact→call-args mapping, AuthPayload/digest, emitter fixes E1–E5 and the verify diff; 4 lock the emitted Rust byte-identical to the compiled crate — all network-free) — plus 25 Rust tests in [contracts/](../contracts/) (`cargo test --locked`; the vendored OZ account adds its own 2) |
+| Coverage thresholds | `synthesizer.ts` 95.66% lines, `simulate.ts` 99.47% lines (re-run 2026-09-02 after D2.5); both gated ≥90 in [vitest.config.ts](../vitest.config.ts) — `npm run test:coverage`. The install/verify RPC layers are exercised on testnet (D2.5), not by unit coverage                                                                                                                                                                                                                                                                                                                                                                               |
+| CI                  | lint → format:check → typecheck → test → demo → live dry-run report diff (both modes) → side-by-side artefact diff (with `synth.args`), plus a docs-site build and the contracts job (fmt → clippy → tests → three wasm builds asserted against the deployed hashes) ([ci.yml](../.github/workflows/ci.yml))                                                                                                                                                                                                                                                                                                                                     |
 
 ### D7 — Documentation site
 
@@ -603,17 +612,17 @@ npm run cli -- synth --input examples/live/recorded-claim-swap-fresh.json --out 
 
 **The composed params, field by field** (emitted value → the OZ check it passes):
 
-| Emitted (`pw:xfer:BLND`)                        | OZ install signature                                                          | Check                                                                                                                      |
-| ----------------------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `spending_limit: "23533505"` = ⌈21394095 × 1.1⌉ | `SpendingLimitAccountParams.spending_limit: i128` — `spending_limit.rs:88-94` | `> 0` → passes the `InvalidLimitOrPeriod` guard `:380-382`                                                                 |
-| `period_ledgers: 17280`                         | `SpendingLimitAccountParams.period_ledgers: u32` — `:88-94`                   | `> 0` → passes `:380-382`; = 86400 s at 5 s/ledger = OZ `DAY_IN_LEDGERS`                                                   |
-| exactly those two fields                        | struct decode via `FromVal`                                                   | no extra or missing field                                                                                                  |
-| rule type `CallContract(CB22KRA3… BLND)`        | `OnlyCallContractAllowed` — `:376-378`                                        | CallContract ✓                                                                                                             |
-| `observedFns: ["transfer"]`                     | `enforce` meters `fn_name == "transfer"`, amount `args[2]` — `:222-294`       | bound to a transfer rule ✓                                                                                                 |
-| `name: "pw:xfer:BLND"` (12 bytes)               | `MAX_NAME_SIZE = 20` bytes — `smart_account/mod.rs:522-530`                   | ✓                                                                                                                          |
-| 1 policy, 0 signers                             | ≥ 1 signer or policy — `mod.rs:20-21`                                         | ✓ (signers attached at install; `spending_limit::enforce` needs ≥ 1 authenticated signer — `:232-234`)                     |
-| `validUntilLedger: 4547500`                     | `valid_until: Option<u32>` — `storage.rs:282`                                 | u32 ✓ — **recompute at install** (recording ledger + lifetime is in the past; emitter fix E1, D2.5)                        |
-| encoded `Val`                                   | sorted `ScMap { period_ledgers: u32, spending_limit: i128 }`                  | `AAAAEQAAAAEAAAACAAAADwAAAA5wZXJpb2RfbGVkZ2VycwAAAAAAAwAAQ4AAAAAPAAAADnNwZW5kaW5nX2xpbWl0AAAAAAAKAAAAAAAAAAAAAAAAAWcXwQ==` |
+| Emitted (`pw:xfer:BLND`)                            | OZ install signature                                                                                         | Check                                                                                                                      |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `spending_limit: "23533505"` = ⌈21394095 × 1.1⌉     | `SpendingLimitAccountParams.spending_limit: i128` — `spending_limit.rs:88-94`                                | `> 0` → passes the `InvalidLimitOrPeriod` guard `:380-382`                                                                 |
+| `period_ledgers: 17280`                             | `SpendingLimitAccountParams.period_ledgers: u32` — `:88-94`                                                  | `> 0` → passes `:380-382`; = 86400 s at 5 s/ledger = OZ `DAY_IN_LEDGERS`                                                   |
+| exactly those two fields                            | struct decode via `FromVal`                                                                                  | no extra or missing field                                                                                                  |
+| rule type `CallContract(CB22KRA3… BLND)`            | `OnlyCallContractAllowed` — `:376-378`                                                                       | CallContract ✓                                                                                                             |
+| `observedFns: ["transfer"]`                         | `enforce` meters `fn_name == "transfer"`, amount `args[2]` — `:222-294`                                      | bound to a transfer rule ✓                                                                                                 |
+| `name: "pw:xfer:BLND"` (12 bytes)                   | `MAX_NAME_SIZE = 20` bytes — `smart_account/mod.rs:522-530`                                                  | ✓                                                                                                                          |
+| 1 policy, 1 signer `Delegated(GATUKCIM…KS3W)`       | ≥ 1 signer or policy — `mod.rs:20-21`; `spending_limit::enforce` needs ≥ 1 authenticated signer — `:232-234` | ✓ (schema v2, D2.5: the signer is emitted, not attached by hand)                                                           |
+| `lifetimeLedgers: 518400`, `validUntilLedger: null` | `valid_until: Option<u32>` — `storage.rs:282`                                                                | u32 ✓ — the installer adds the live head (E1, schema v2); installed as 4983015 = 4464615 + 518400 (D2.5)                   |
+| encoded `Val`                                       | sorted `ScMap { period_ledgers: u32, spending_limit: i128 }`                                                 | `AAAAEQAAAAEAAAACAAAADwAAAA5wZXJpb2RfbGVkZ2VycwAAAAAAAwAAQ4AAAAAPAAAADnNwZW5kaW5nX2xpbWl0AAAAAAAKAAAAAAAAAAAAAAAAAWcXwQ==` |
 
 **The generated contract is stateful and segregated.** All state lives under
 `FrequencyLimitStorageKey::AccountContext(smart_account, context_rule_id)` in
@@ -689,22 +698,181 @@ D2.5 work.
 
 ---
 
+### D2.5 — Testnet smart account with the installed generated policy (fallback path)
+
+**Criterion (approved, verbatim):** "A testnet smart account with an installed
+generated policy; end-to-end demo recorded."
+
+**Delivered 2026-09-02 — fallback signing path; the cohort-wallet track
+remains open.** Everything below ran non-interactively in one session with the
+`.env` testnet key; the human steps that remain are the BLOCKERS at the end
+(the demo recording is the criterion's second clause and is still to do).
+
+**The smart account.** OpenZeppelin ships no deployable account — the
+`stellar-accounts` crate is a library ([FACTS.md §8.1](../docs/FACTS.md)) — so
+the account is OZ's own example contract, vendored verbatim from
+`stellar-contracts` v0.7.2 into
+[contracts/multisig-account](../contracts/multisig-account), built with the
+pinned toolchain, and deployed by
+[scripts/deploy-account.sh](../scripts/deploy-account.sh) (`account:create`)
+with the `.env` public key as its `Delegated` signer and no policies — the
+constructor's `Default` admin rule, id 0.
+
+| Item                                                         | Value                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Smart account (C-address)**                                | [`CBQ6H7ILH54ADWTVS7FCK36W7FY2RJJOWR4VGLZG7D4PZUG5FSA7QHDT`](https://stellar.expert/explorer/testnet/contract/CBQ6H7ILH54ADWTVS7FCK36W7FY2RJJOWR4VGLZG7D4PZUG5FSA7QHDT)                                                                                                                                                                                                                           |
+| Account deploy tx                                            | [`89cec37e…fab458`](https://stellar.expert/explorer/testnet/tx/89cec37e9b2d10f12ebaac094c622dc0255af6f16da37bbd7764873d2bfab458) — wasm `1815dda1b96ea6d23865be8a16ffcbe0b8336d15fc0d3d5ada776c06cb17afde` (= local build), ctor `--signers '[{"Delegated":"GATUKCIM…KS3W"}]' --policies '{}'`                                                                                                    |
+| Admin rule                                                   | id 0, `Default "multisig"`, 1 signer `Delegated(GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W)`, 0 policies (read back by `verify`)                                                                                                                                                                                                                                                    |
+| Stock spending-limit policy (OZ wrapper, vendored)           | [`CCOQPGEYKZVNDRIUFMP6IQRDUONOURWWDJTXP22SJZ7NICJX7VGS4W4E`](https://stellar.expert/explorer/testnet/contract/CCOQPGEYKZVNDRIUFMP6IQRDUONOURWWDJTXP22SJZ7NICJX7VGS4W4E) — deploy tx [`83062a25…bb2204`](https://stellar.expert/explorer/testnet/tx/83062a259699aa45191f992f3b9639efc7146eb880a99fd95f7fe904c8bb2204), wasm `5a45420db383bfc6166519780bdf54cda976f869e441e1a4d98666e4726cbec4`     |
+| Generated FrequencyLimitPolicy (D1.3 instance, **restored**) | [`CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP`](https://stellar.expert/explorer/testnet/contract/CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP) — `stellar contract restore` + extend 518400 ledgers: code entry live until ledger 4982933, instance 4982936 ([scripts/restore-testnet.sh](../scripts/restore-testnet.sh); rows in the [Deployment log](#deployment-log)) |
+| Deployer / signer                                            | `GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W` — the funded testnet identity from the gitignored `.env`; the secret was never printed                                                                                                                                                                                                                                                 |
+
+**The installed generated policy — three rules, one transaction each.** The
+artifact [examples/live/fresh/context-rule.json](../examples/live/fresh/context-rule.json)
+(schema v2, emitted from the real recorded claim→swap sequence with the flags in
+[synth.args](../examples/live/fresh/synth.args)) was consumed **unmodified** by
+`npm run cli -- install` ([src/install.ts](../src/install.ts)) — validated
+against the OZ install signature first ([src/install-shape.ts](../src/install-shape.ts)),
+dry-run simulated in enforcing mode
+([install-dry-run-20260902T105702Z.json](../examples/live/testnet/install-dry-run-20260902T105702Z.json)),
+then signed client-side and submitted
+([install-20260902T105742Z.json](../examples/live/testnet/install-20260902T105742Z.json)):
+
+| Rule (artifact) | Context                                   | Policy bound (address)                                                                       | On-chain rule id | Install tx                                                                                                                       | Ledger  | `valid_until`                   |
+| --------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------- | ------------------------------- |
+| `pw:claim`      | `CallContract(CAPBMXIQ… Blend pool)`      | `custom:FrequencyLimitPolicy { window_secs: 86400, max_calls: 5 }` @ `CDSVPSTS…2ZPP`         | 1                | [`2bd245b6…4b8a6e`](https://stellar.expert/explorer/testnet/tx/2bd245b67925e688a183be50e6d6c75d3d7b4eb98b0be02d23693611f44b8a6e) | 4464616 | 4983015 = head 4464615 + 518400 |
+| `pw:swap`       | `CallContract(CCJUD55A… Soroswap router)` | `custom:FrequencyLimitPolicy { 86400, 5 }` @ `CDSVPSTS…2ZPP`                                 | 2                | [`065bf20b…a33dfa`](https://stellar.expert/explorer/testnet/tx/065bf20b3d6e3b8b3cd9a8e408f009a61c347e0dfaaa4a5bda40b2199aa33dfa) | 4464617 | 4983015                         |
+| `pw:xfer:BLND`  | `CallContract(CB22KRA3… BLND token)`      | `stock:spending_limit { spending_limit: 23533505, period_ledgers: 17280 }` @ `CCOQPGEY…4W4E` | 3                | [`6593a5a0…771a9a`](https://stellar.expert/explorer/testnet/tx/6593a5a0440b02e8679e9f87b7031d915b35b85a6873eb23b18016e827771a9a) | 4464618 | 4983015                         |
+
+Every rule carries the signer `Delegated(GATUKCIM…KS3W)`. The generated
+`FrequencyLimitPolicy` is installed on rules 1 and 2 through **one** instance
+(state keyed on `(account, rule id)` — reuse per (account, rule), RECONCILIATION-T2
+row 52 confirmed on-chain); the composed stock `spending_limit` is installed on
+rule 3 with the exact params D2.4 validated field-by-field.
+
+**Verify output** ([examples/live/testnet/verify.md](../examples/live/testnet/verify.md),
+`npm run cli -- verify … --install-log …`, read at ledger 4464624) — **PASS**, 15/15
+rows: each rule found by `(CallContract contract, name)` as ids 1–3; signers
+`Delegated:GATUKCIM…` = on-chain; policy address sets equal; params read back
+from the policy contracts (`get_frequency_limit_data`: `{ window_secs: 86400,
+max_calls: 5 }`; `get_spending_limit_data`: `{ spending_limit: 23533505,
+period_ledgers: 17280 }`) equal the artifact; `valid_until` 4983015 equals the
+install log for all three. The only installed rule not in the artifact is the
+constructor's admin rule (id 0, `Default "multisig"`), listed as informational.
+
+**Signing mode and why.** `local-fallback` — printed in every install output and
+recorded in the install log: the `.env` key acts as the `Delegated(G)` rule
+signer and the transaction source, so the account's authorization is proven by
+`G`'s nested `__check_auth(auth_digest)` entry with `SourceAccount` credentials,
+covered by the ordinary transaction signature. The primary mode — a wallets-kit +
+Freighter page signing **the same transaction** via SEP-43 `signTransaction` —
+was not built this session (no human with a wallet present); it is the open
+cohort-wallet track and replaces only the `SigningSurface` implementation.
+The recorded unsupported thing stands ([FACTS.md §8.4](../docs/FACTS.md)): no
+SEP-43 wallet can sign an OZ `External` digest (`sha256(payload ‖ rule_ids)`),
+which is why the `Delegated(G)` model is the wallet-compatible one.
+
+**What the run proves that was previously unproven.** The `Delegated(G)`
+nested-entry construction (RECONCILIATION-T2 row 39, "source-supported,
+unproven") passed enforcing simulation and three submitted transactions with
+two authorization entries each — the account's `AuthPayload` entry (fresh nonce,
+expiration head + 120, `context_rule_ids: [0]`) and the hand-built
+`SourceAccount` entry over `account.__check_auth(auth_digest)`. The digest math
+reproduces the independent [FACTS.md §8.3](../docs/FACTS.md) vector exactly
+(`test/install.test.ts`). Details: [docs/smart-account-install.md](../docs/smart-account-install.md);
+facts: [FACTS.md §14](../docs/FACTS.md); rows 71–78 in
+[RECONCILIATION-T2.md](../docs/RECONCILIATION-T2.md).
+
+**Emitted artifacts install as-is (Gate 3).** The emitter fixes E1–E5 are
+closed by schema v2 ([docs/context-rule-schema.md](../docs/context-rule-schema.md)):
+relative `lifetimeLedgers` (the installer adds the live head — the only value
+it computes); signers in the real `Signer` shape from `--signer`; deployed
+policy addresses from `--policy-address`; a duplicate-address guard; corrected
+notes. The install gate refuses anything else with the OZ error it would raise
+(`validateContextRuleDocument(…, { forInstall: true })`). No hand-crafted
+install argument exists in the flow.
+
+**Tests** (network-free, `npm test`, in CI) — [test/install.test.ts](../test/install.test.ts):
+_emitter fixes E1–E5 (schema v2)_ (version bump + `installTargets` echo;
+lifetimeLedgers always and absolute only from a head; signers on every rule;
+addresses or null-with-note; duplicate address caught; notes wording; malformed
+targets rejected); _install-shape v2 — the installable-as-is gate_ (fresh
+artifact accepted; design artifact refused naming each gap; MAX*SIGNERS and
+signer shape); \_artifact → add_context_rule arguments* (Signer / ContextRuleType /
+Option<u32> encodings; policies `Map<Address, Val>` with exact params; key order
+by address; the five arguments in signature order; `planInstall` adds only head +
+lifetime, refuses a design artifact and a stale `valid_until`); _OZ authorization
+payload_ (the FACTS §8.3 vector; `AuthPayload` as the sorted `ScMap` with the
+recorded XDR prefix; External signature as the 64-byte value; the Delegated
+nested entry; the labelled fallback signer exposes no secret); _verify_
+(`ContextRule` decoding; PASS on a matching install; install-log `valid_until`;
+FAIL on a missing rule, wrong param, wrong signer, expired rule). Plus the
+E1 tests in [test/oz-context-rules.test.ts](../test/oz-context-rules.test.ts)
+and the D2.4 boundary tests now reading `synth.args`. Rust: the vendored
+account's own 2 OZ tests run in `cargo test`; CI builds all three wasms and
+asserts their hashes against the deployed ones.
+
+**CI run for this deliverable:** _pending — dispatched after push; run URL
+recorded here once green._
+
+**BLOCKERS — human steps (exact instructions).**
+
+1. **Record the end-to-end demo** (the criterion's second clause). Suggested
+   beats, all reproducible from this repo: `scripts/deploy-account.sh` (or show
+   `examples/live/testnet/account.json` and the explorer page for
+   `CBQ6H7IL…QHDT`); `npm run cli -- synth --input examples/live/recorded-claim-swap-fresh.json --out /tmp/fresh $(cat examples/live/fresh/synth.args)`;
+   `scripts/install-testnet.sh /tmp/fresh/context-rule.json --dry-run` then
+   without `--dry-run` (each run creates three new rules — ids continue from 4);
+   `npm run cli -- verify --artifact /tmp/fresh/context-rule.json --account CBQ6H7ILH54ADWTVS7FCK36W7FY2RJJOWR4VGLZG7D4PZUG5FSA7QHDT`.
+   Needs the `.env` key (present on the author's machine) and ~1 XLM of testnet
+   fees per run. Link the recording here when done.
+2. **Freighter setup for the primary signing mode** (optional for the criterion;
+   required to close the cohort-wallet track without a partner): install
+   Freighter 5.47+, switch it to Testnet, fund its account via friendbot
+   (`https://friendbot.stellar.org?addr=<G…>`), then create an account whose
+   admin signer is that wallet's `G` (`scripts/deploy-account.sh` reads the signer
+   from `.env` — pass the wallet's public key by setting `STELLAR_PUBLIC_KEY` to
+   it for that run, still paying fees with the `.env` secret). The install
+   transaction must then be signed by Freighter (`signTransaction`) as source:
+   this needs the not-yet-built wallets-kit page — the `SigningSurface`
+   interface in `src/install.ts` is where it plugs in.
+3. **The signing approval** — in the primary mode, the human approves the
+   install transaction in Freighter; in the fallback mode used here there is no
+   interactive approval (the `.env` key signs).
+4. **Funding** — the `.env` identity held 9 996 XLM before this run; the three
+   installs cost ~0.08 XLM in resource fees. Refund via friendbot if it drops
+   below ~10 XLM.
+
+**Not done (stated plainly).** (1) The wallet signing page (primary mode) — see
+BLOCKER 2. (2) The **stretch** post-install enforcement demo (an in-scope swap
+through the account succeeding, an over-cap transfer rejected on-chain): not
+attempted, so as not to endanger the core flow; it needs the account's
+`execute` entry point and a `__check_auth` payload selecting rules 1–3 per
+context. (3) The three rules expire at ledger 4983015 (≈ 30 days); the restored
+policy entries at 4982933/4982936 — re-run `scripts/restore-testnet.sh` before
+a later demo if they lapse. (4) `valid_until` for the rules was computed by the
+installer from the live head (E1); the artifact itself carries the relative
+lifetime — the install log is the record of the absolute value.
+
+---
+
 ## Not yet delivered
 
 Stated plainly so no reviewer has to infer it.
 
-| Item                                                             | Tranche | Status                                           |
-| ---------------------------------------------------------------- | ------- | ------------------------------------------------ |
-| Simulated-transaction recording path                             | T1      | **Delivered** (D1.1, 2026-08-03)                 |
-| Compile the generated policy                                     | T1      | **Delivered** (D1.3, 2026-08-03)                 |
-| Deploy a generated policy to testnet                             | T1      | **Delivered** (D1.3, 2026-08-03)                 |
-| Resolve `valid_until` ledger-sequence mismatch                   | T1      | **Delivered** (D1.2, 2026-08-03)                 |
-| Resolve context-rule scope granularity                           | T1      | **Delivered** (D1.2, 2026-08-03)                 |
-| MCP server, Claude skill, wallet integration                     | T2      | Not started ([T2-NOTES.md](../docs/T2-NOTES.md)) |
-| Composed configuration + generated stateful policy, side by side | T2      | **Delivered** (D2.4, 2026-09-02)                 |
-| Net-new policy codegen with storage segregation                  | T2      | **Delivered** (D2.4, 2026-09-02)                 |
-| Dry-run harness + argument-level scope                           | T2      | **Delivered** (D2.3, 2026-09-02)                 |
-| Audit, mainnet, OZ validation, walkthroughs                      | T3      | Not started                                      |
+| Item                                                             | Tranche | Status                                                                                                                                                                                                                                                |
+| ---------------------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Simulated-transaction recording path                             | T1      | **Delivered** (D1.1, 2026-08-03)                                                                                                                                                                                                                      |
+| Compile the generated policy                                     | T1      | **Delivered** (D1.3, 2026-08-03)                                                                                                                                                                                                                      |
+| Deploy a generated policy to testnet                             | T1      | **Delivered** (D1.3, 2026-08-03)                                                                                                                                                                                                                      |
+| Resolve `valid_until` ledger-sequence mismatch                   | T1      | **Delivered** (D1.2, 2026-08-03)                                                                                                                                                                                                                      |
+| Resolve context-rule scope granularity                           | T1      | **Delivered** (D1.2, 2026-08-03)                                                                                                                                                                                                                      |
+| MCP server, Claude skill                                         | T2      | Not started ([T2-NOTES.md](../docs/T2-NOTES.md))                                                                                                                                                                                                      |
+| Wallet integration (testnet, end-to-end)                         | T2      | **Delivered — fallback path** (D2.5, 2026-09-02): OZ smart account on testnet, emitted rules installed as-is and verified on-chain, signed with the labelled local `.env` key; the Freighter/wallets-kit signing page is the open cohort-wallet track |
+| Composed configuration + generated stateful policy, side by side | T2      | **Delivered** (D2.4, 2026-09-02)                                                                                                                                                                                                                      |
+| Net-new policy codegen with storage segregation                  | T2      | **Delivered** (D2.4, 2026-09-02)                                                                                                                                                                                                                      |
+| Dry-run harness + argument-level scope                           | T2      | **Delivered** (D2.3, 2026-09-02)                                                                                                                                                                                                                      |
+| Audit, mainnet, OZ validation, walkthroughs                      | T3      | Not started                                                                                                                                                                                                                                           |
 
 ---
 
@@ -726,15 +894,16 @@ with no credentials at all.
 
 ## Changelog
 
-| Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 2026-08-03 | File created. Recorded D1–D8 with reproduction steps and artefact hashes. Added the "Not yet delivered" table after correcting the README's Tranche 2 completion claim.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| 2026-08-03 | D1.1 delivered: multi-hash recording of the real claim→swap sequence (committed output + reconciliation table above), simulated-path ingestion with a committed real `simulateTransaction` exchange, typed error taxonomy, capture-driven decoder tests (58 total). Superseded D1's "live path untested / simulated path not built" limits.                                                                                                                                                                                                                                                                                                                                                                        |
-| 2026-08-03 | D1.3 delivered: the generated policy as a compiled crate against the real OZ `Policy` trait (25 Rust tests; emitter byte-equality locked in CI), reproducible wasm build, and a hash-verified testnet deployment (`CDSVPSTS…2ZPP`); deploy script + deployment log added; FACTS §1.4–1.6 and §5 record the toolchain, CLI-surface, and deployment facts.                                                                                                                                                                                                                                                                                                                                                           |
-| 2026-08-03 | D1.2 delivered: versioned `context-rule.json` (schema v1) with installable OZ rules and real stock `spending_limit` params, emitted and committed for the real recorded sequence; field-by-field install-signature cross-check kept as a CI test; 28 new network-free tests (86 total). Closed the §4.1/§4.2 divergences.                                                                                                                                                                                                                                                                                                                                                                                          |
-| 2026-09-02 | D2.4 delivered: the compose-first boundary made explicit per policy (`realisePolicies`: composed / generated / offline-only) and documented in `docs/compose-vs-generate.md`; `src/install-shape.ts` validates `context-rule.json` field-by-field against the OZ install signature and encodes install params as the sorted `ScMap` the contracts decode; `synth --out <dir>`; both artifacts for the fresh recording committed side by side under `examples/live/fresh/` and diffed in CI; the dry-run report gains an **Enforced by** column attributing each decision to the artifact that realises it; 30 new tests (145 total); crate re-verified (25 Rust tests, wasm hash reproduced). D3 hashes refreshed. |
-| 2026-09-02 | D2.3 delivered: argument-level scope promoted to supported T2 scope (explicit `swap-path` derivation rule, contract-address-shaped; default off); `simulate --input` and `--probe-token`; the unobserved-route scenario is the REAL recorded swap re-routed through the network's native XLM SAC; deny reasons name the violated constraint, flags say "permitted with a scope gap"; reports carry provenance; both reports for the fresh claim→swap recording committed and diffed in CI; 25 new tests (115 total). D3 hashes refreshed; `examples/live/context-rule.json` regenerated (DELTA note wording only). Scope note updated: T1 closed, T2 in progress.                                                  |
-| 2026-08-03 | D1.4 delivered: license switched Apache-2.0 → MIT per the funded plan; CI gains Rust caching and a pinned stellar-cli wasm build with hash reporting; README corrected (SCF #44 / "Record-to-Policy MCP + Agent skill" — the #43 / "OZ accounts policy builder" attribution was wrong — and the CI badge now points at this repo); completion criteria recorded per D1.x; demo script with really-executed expected outputs; `.env.example`, CONTRIBUTING.md, repo topics.                                                                                                                                                                                                                                         |
+| Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-08-03 | File created. Recorded D1–D8 with reproduction steps and artefact hashes. Added the "Not yet delivered" table after correcting the README's Tranche 2 completion claim.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 2026-08-03 | D1.1 delivered: multi-hash recording of the real claim→swap sequence (committed output + reconciliation table above), simulated-path ingestion with a committed real `simulateTransaction` exchange, typed error taxonomy, capture-driven decoder tests (58 total). Superseded D1's "live path untested / simulated path not built" limits.                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 2026-08-03 | D1.3 delivered: the generated policy as a compiled crate against the real OZ `Policy` trait (25 Rust tests; emitter byte-equality locked in CI), reproducible wasm build, and a hash-verified testnet deployment (`CDSVPSTS…2ZPP`); deploy script + deployment log added; FACTS §1.4–1.6 and §5 record the toolchain, CLI-surface, and deployment facts.                                                                                                                                                                                                                                                                                                                                                                                          |
+| 2026-08-03 | D1.2 delivered: versioned `context-rule.json` (schema v1) with installable OZ rules and real stock `spending_limit` params, emitted and committed for the real recorded sequence; field-by-field install-signature cross-check kept as a CI test; 28 new network-free tests (86 total). Closed the §4.1/§4.2 divergences.                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| 2026-09-02 | D2.5 delivered (fallback path): vendored OZ's example smart account and stock spending-limit wrapper (built from pinned source, hash-verified) and deployed both to testnet; restored the archived D1.3 policy; emitter fixes E1–E5 → `context-rule.json` schema v2 (relative lifetimes, real `Signer` shapes, deployed addresses, `installTargets`); `src/install-shape.ts` install gate; `src/install.ts` (simulate twice, hand-built `AuthPayload` + `Delegated(G)` nested entry, client-side signing, submit) and `src/verify.ts` (on-chain read-back diff) with CLI `install` / `verify`; three rules installed into `CBQ6H7IL…QHDT` (rule ids 1–3) and verified PASS; 29 new tests (174 total). The Delegated(G) path is proven end-to-end. |
+| 2026-09-02 | D2.4 delivered: the compose-first boundary made explicit per policy (`realisePolicies`: composed / generated / offline-only) and documented in `docs/compose-vs-generate.md`; `src/install-shape.ts` validates `context-rule.json` field-by-field against the OZ install signature and encodes install params as the sorted `ScMap` the contracts decode; `synth --out <dir>`; both artifacts for the fresh recording committed side by side under `examples/live/fresh/` and diffed in CI; the dry-run report gains an **Enforced by** column attributing each decision to the artifact that realises it; 30 new tests (145 total); crate re-verified (25 Rust tests, wasm hash reproduced). D3 hashes refreshed.                                |
+| 2026-09-02 | D2.3 delivered: argument-level scope promoted to supported T2 scope (explicit `swap-path` derivation rule, contract-address-shaped; default off); `simulate --input` and `--probe-token`; the unobserved-route scenario is the REAL recorded swap re-routed through the network's native XLM SAC; deny reasons name the violated constraint, flags say "permitted with a scope gap"; reports carry provenance; both reports for the fresh claim→swap recording committed and diffed in CI; 25 new tests (115 total). D3 hashes refreshed; `examples/live/context-rule.json` regenerated (DELTA note wording only). Scope note updated: T1 closed, T2 in progress.                                                                                 |
+| 2026-08-03 | D1.4 delivered: license switched Apache-2.0 → MIT per the funded plan; CI gains Rust caching and a pinned stellar-cli wasm build with hash reporting; README corrected (SCF #44 / "Record-to-Policy MCP + Agent skill" — the #43 / "OZ accounts policy builder" attribution was wrong — and the CI badge now points at this repo); completion criteria recorded per D1.x; demo script with really-executed expected outputs; `.env.example`, CONTRIBUTING.md, repo topics.                                                                                                                                                                                                                                                                        |
 
 ## Deployment log
 
@@ -750,3 +919,32 @@ every row is re-checkable against the testnet explorer links.
 | Upload tx                                     | (wasm already on-chain; no upload tx)                                                                                                                                             |
 | Deploy tx                                     | [`35ddaeaa935af7233dbee577942edfcea2abda1ab12c1cd37d51b4c432236af0`](https://stellar.expert/explorer/testnet/tx/35ddaeaa935af7233dbee577942edfcea2abda1ab12c1cd37d51b4c432236af0) |
 | Deployer                                      | `GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W`                                                                                                                        |
+
+### 2026-09-02T10:51:07Z — restore CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP
+
+| Entry                                                                        | Result                                                                                                           |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| wasm code `42227f2b6150c95a7084bb7c5ff2e7a40793eae39bf0c5dc95bd752d18ee6eed` | restored + extended by 518400 ledgers → live until ledger New ttl ledger: 4982933                                |
+| instance `CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP`          | restored + extended by 518400 ledgers → live until ledger New ttl ledger: 4982936                                |
+| Signer                                                                       | `GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W` (human-initiated `stellar contract restore`, testnet) |
+
+### 2026-09-02T10:51:48Z — spending-limit-policy
+
+| Item                                          | Value                                                                                                                                                                             |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Contract ID                                   | [`CCOQPGEYKZVNDRIUFMP6IQRDUONOURWWDJTXP22SJZ7NICJX7VGS4W4E`](https://stellar.expert/explorer/testnet/contract/CCOQPGEYKZVNDRIUFMP6IQRDUONOURWWDJTXP22SJZ7NICJX7VGS4W4E)           |
+| Wasm hash (= local sha256, = on-chain sha256) | `5a45420db383bfc6166519780bdf54cda976f869e441e1a4d98666e4726cbec4`                                                                                                                |
+| Upload tx                                     | (wasm already on-chain; no upload tx)                                                                                                                                             |
+| Deploy tx                                     | [`83062a259699aa45191f992f3b9639efc7146eb880a99fd95f7fe904c8bb2204`](https://stellar.expert/explorer/testnet/tx/83062a259699aa45191f992f3b9639efc7146eb880a99fd95f7fe904c8bb2204) |
+| Deployer                                      | `GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W`                                                                                                                        |
+
+### 2026-09-02T10:53:50Z — multisig-account
+
+| Item                                          | Value                                                                                                                                                                             |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Contract ID                                   | [`CBQ6H7ILH54ADWTVS7FCK36W7FY2RJJOWR4VGLZG7D4PZUG5FSA7QHDT`](https://stellar.expert/explorer/testnet/contract/CBQ6H7ILH54ADWTVS7FCK36W7FY2RJJOWR4VGLZG7D4PZUG5FSA7QHDT)           |
+| Wasm hash (= local sha256, = on-chain sha256) | `1815dda1b96ea6d23865be8a16ffcbe0b8336d15fc0d3d5ada776c06cb17afde`                                                                                                                |
+| Upload tx                                     | (wasm already on-chain; no upload tx)                                                                                                                                             |
+| Deploy tx                                     | [`89cec37e9b2d10f12ebaac094c622dc0255af6f16da37bbd7764873d2bfab458`](https://stellar.expert/explorer/testnet/tx/89cec37e9b2d10f12ebaac094c622dc0255af6f16da37bbd7764873d2bfab458) |
+| Deployer                                      | `GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W`                                                                                                                        |
+| Constructor args                              | `--signers [{"Delegated":"GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W"}] --policies {}`                                                                              |
