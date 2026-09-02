@@ -79,7 +79,7 @@ network. `record` and `verify` read the chain and are deterministic per
 
 ## The skill
 
-The project skill
+Documented on its own page: [the skill](/reference/skill/). In short, the project skill
 [`policywright-grant`](https://github.com/kunal-drall/policywright/tree/main/.claude/skills/policywright-grant)
 wraps the four tools in a conversation — "grant permission to do X from this
 transaction" — that records, synthesizes, presents the rule in plain
@@ -97,3 +97,10 @@ The conversation to run in Claude Code against the real recorded data and the
 live testnet account — all four tools, including the honest `TX_NOT_FOUND`
 for hashes past the node's retention window — is
 [docs/mcp-reference-session.md](https://github.com/kunal-drall/policywright/blob/main/docs/mcp-reference-session.md).
+Every tool call in it is validated against the committed schemas and executed
+against the real server by the test suite; the six live calls were also made
+from Claude Code on 2026-09-02 (their results are quoted in
+[docs/demo-script-t2.md](https://github.com/kunal-drall/policywright/blob/main/docs/demo-script-t2.md)).
+What remains for D2.1's "a reference session is recorded" clause is the
+human-saved transcript, listed as the open blocker in
+[evidence/EVIDENCE.md](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md).

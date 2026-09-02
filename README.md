@@ -137,8 +137,10 @@ per `(contract, function, argument)`.
 - The address check is a StrKey _shape_ check, not a checksum check.
 - Enforcement lives in the **offline dry-run harness only**: no stock OpenZeppelin policy
   can express argument-value scoping, so `context-rule.json` records the constraint as a
-  `DELTA` note. On-chain enforcement needs a generated policy whose `enforce` reads the
-  argument — that is the remaining T2 policy-codegen deliverable and is not built yet.
+  `DELTA` note. On-chain enforcement would need a generated policy whose `enforce` reads the
+  argument. That policy is **not built**: it is tracked as open design work in
+  [docs/T2-NOTES.md](docs/T2-NOTES.md) and is not one of the five approved Tranche 2 criteria
+  (D2.1–D2.5), so the dry-run harness is where argument scope is enforced today.
 
 **The criterion case on real data.** The recorded testnet claim→swap sequence
 ([examples/live/recorded-claim-swap-fresh.json](examples/live/recorded-claim-swap-fresh.json),
@@ -184,13 +186,17 @@ shapes, deployed policy addresses); `install` validates it against the OZ instal
 signature, simulates twice (the second time in enforcing mode with the hand-built
 authorization entries, including the `Delegated(G)` nested `__check_auth` entry simulation
 never returns), signs client-side, and submits; `verify` reads the rules back and diffs
-them. The signing mode is labelled in every output — this deliverable ran the
+them. The signing mode is labelled in every output — every install so far ran the
 `local-fallback` (`.env` key) because no SEP-43 wallet can sign an OpenZeppelin `External`
-digest and the wallet page is the open cohort-wallet track. The full flow, the signing
-hierarchy, and the one interactive human step:
+digest and the wallet page is the open cohort-wallet track. Installing the same artifact
+again appends new rule ids with the same names; `verify --install-log <log>` selects that
+install. The full flow, the signing hierarchy, and the one interactive human step:
 [docs/smart-account-install.md](docs/smart-account-install.md). Live testnet account,
-transactions, and verify output: [examples/live/testnet/](examples/live/testnet/) and
-[evidence/EVIDENCE.md](evidence/EVIDENCE.md) § D2.5.
+transactions, install logs, and verify outputs: [examples/live/testnet/](examples/live/testnet/)
+and [evidence/EVIDENCE.md](evidence/EVIDENCE.md) § D2.5. The recordable end-to-end flow —
+agent tool calls, the skill conversation, both harness modes, the install with its
+client-side signing moment, and the verify — with real outputs at every step is
+[docs/demo-script-t2.md](docs/demo-script-t2.md).
 
 ## Driving it from an agent (MCP)
 
@@ -238,11 +244,15 @@ the same note.
 | `npm run build`                           | Emit `dist/` (`tsconfig.build.json`).                        |
 
 CI ([ci.yml](.github/workflows/ci.yml)) is configured for pushes to `main` and pull
-requests, with three jobs: **build** (npm ci → lint → format:check → typecheck → test →
-MCP schema drift check → demo), **site** (docs-site build), and **contracts** (pinned Rust 1.97.1: `cargo fmt
---check` → `clippy -D warnings` → `cargo test`, then a `stellar contract build` of the
-policy crate with the same pinned stellar-cli 27.1.0 used for the testnet deploy). Both
-toolchains are cached. Because this repository is a GitHub fork, runs are currently
+requests, with three jobs: **build** (npm ci → lint → format:check → typecheck → test —
+including the stdio MCP suite and the skill walkthrough — → MCP schema drift check →
+`skills-ref validate` of the packaged skill → `tsc` build of `dist/` → demo → the committed
+dry-run reports, side-by-side artifacts and demo artifact regenerated and diffed), **site**
+(docs-site build), and **contracts** (pinned Rust 1.97.1: `cargo fmt --check` →
+`clippy -D warnings` → `cargo test`, then `stellar contract build` of the policy crate and
+of the vendored OpenZeppelin account and spending-limit wrapper with the same pinned
+stellar-cli 27.1.0 used for the testnet deploys, each wasm hash asserted against the
+deployed one). Both toolchains are cached. Because this repository is a GitHub fork, runs are currently
 dispatched manually and cited per deliverable in
 [evidence/EVIDENCE.md](evidence/EVIDENCE.md) (see the CI-trigger note there).
 
@@ -269,6 +279,7 @@ dispatched manually and cited per deliverable in
 | `contracts/`                                                                            | Rust workspace: the compiled-and-tested frequency-limit-policy crate (source of truth for the emitted template).                                                                                      |
 | `scripts/deploy-testnet.sh`                                                             | Testnet-only build + upload + deploy + hash-verify; appends the deployment log to evidence/EVIDENCE.md.                                                                                               |
 | `scripts/deploy-account.sh`, `scripts/restore-testnet.sh`, `scripts/install-testnet.sh` | Testnet-only: create the OZ smart account with the `.env` key as Delegated signer; restore archived entries; install an artifact signing with the `.env` key (labelled fallback).                     |
+| `examples/live/testnet/`, `examples/live/demo/`                                         | The live testnet account record, every install log and verify output, and the demo-script artifact (7-day, route-enforced) with the flags that regenerate it.                                         |
 
 See [docs/architecture.md](docs/architecture.md) for the design in depth.
 
@@ -315,11 +326,11 @@ This project is built for Stellar SCF #44 — the awarded submission
 what is actually verifiable in this repository today — see
 [the roadmap](https://policywright.lemmalabs.space/roadmap/) for the full plan.
 
-| Tranche                    | Target      | Deliverables                                                                                                                          | Status                               |
-| -------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| **T1 — MVP (testnet)**     | 31 Aug 2026 | Recording layer (live + simulated); least-privilege synthesizer; generated-policy compile + testnet deploy; open-source CLI + CI      | ✅ Delivered (D1.1–D1.4)             |
-| **T2 — Testnet expansion** | 15 Oct 2026 | MCP server; Claude skill; dry-run harness + argument-level scope; net-new policy codegen with storage segregation; wallet integration | 🚧 In progress (D2.1–D2.5 delivered) |
-| **T3 — Mainnet launch**    | 30 Nov 2026 | Three end-to-end walkthroughs; OpenZeppelin validation; production release; mainnet demonstration; audit readiness (SCF Audit Bank)   | ⏳ Not started                       |
+| Tranche                    | Target      | Deliverables                                                                                                                          | Status                                                                     |
+| -------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| **T1 — MVP (testnet)**     | 31 Aug 2026 | Recording layer (live + simulated); least-privilege synthesizer; generated-policy compile + testnet deploy; open-source CLI + CI      | ✅ Delivered (D1.1–D1.4)                                                   |
+| **T2 — Testnet expansion** | 15 Oct 2026 | MCP server; Claude skill; dry-run harness + argument-level scope; net-new policy codegen with storage segregation; wallet integration | 🟡 D2.1–D2.5 built and evidenced (2026-09-02); three human recordings open |
+| **T3 — Mainnet launch**    | 30 Nov 2026 | Three end-to-end walkthroughs; OpenZeppelin validation; production release; mainnet demonstration; audit readiness (SCF Audit Bank)   | ⏳ Not started                                                             |
 
 **Shipped and verifiable today**: the recording layer from the
 offline fixture, from a live Soroban RPC node (multi-hash sequences with authorization
@@ -341,19 +352,22 @@ is deployed to testnet — contract ID and hash-verification trail in the deploy
 [evidence/EVIDENCE.md](evidence/EVIDENCE.md). The deployed instance is testnet-only and
 unaudited.
 
-**Tranche 2 so far:** D2.3 (the dry-run harness with supported argument-level scope),
-D2.4 (the composed configuration and the generated stateful policy, side by side, both
-compiling and passing simulation), and D2.5 (a testnet OpenZeppelin smart account with the
-emitted rules installed as-is and verified on-chain — signed through the labelled
-local-key fallback; the cohort-wallet track stays open) are delivered — evidence sections
-D2.3–D2.5 in [evidence/EVIDENCE.md](evidence/EVIDENCE.md). D2.1, the MCP server (`record` /
-`synthesize` / `simulate` / `verify` over stdio, no install/deploy tool, network-free stdio test
-suite, committed schemas, Claude Code registration) and D2.2, the Claude skill
-(`policywright-grant`: the "grant permission to do X from this transaction" conversation with
-clarification questions and guardrails, validated and walked through by machine), are delivered
-too — evidence sections D2.1 and D2.2; the human-recorded reference session and demo
-conversation are their open blockers. What remains in T2 is tracked in
-[docs/T2-NOTES.md](docs/T2-NOTES.md).
+**Tranche 2, as of 2026-09-02** — each row's criterion, what shipped, and how to verify it are
+in [evidence/EVIDENCE.md](evidence/EVIDENCE.md):
+
+| Deliverable                                             | Shipped                                                                                                                                                                                                                                                                                                | Open                                                                                                   |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| D2.1 MCP server                                         | `npm run mcp` serves `record` / `synthesize` / `simulate` / `verify` over stdio; no install/deploy tool; versioned [schemas](schemas/mcp/); [`.mcp.json`](.mcp.json) registration; the real server driven end to end by [test/mcp.test.ts](test/mcp.test.ts); [docs/mcp-server.md](docs/mcp-server.md) | human-recorded [reference session](docs/mcp-reference-session.md) transcript                           |
+| D2.2 Claude skill                                       | [`.claude/skills/policywright-grant/`](.claude/skills/policywright-grant/) validated by `skills-ref` and walked through by machine against the real server ([test/skill.test.ts](test/skill.test.ts)); [demo script](docs/skill-demo-script.md)                                                        | human-recorded demo conversation transcript                                                            |
+| D2.3 Dry-run harness + argument-level scope             | Both committed reports for the real recording ([flag](examples/live/simulation-report.md) / [deny](examples/live/simulation-report.constrained.md)), regenerated and diffed in CI                                                                                                                      | —                                                                                                      |
+| D2.4 Composed configuration + generated stateful policy | Side by side under [examples/live/fresh/](examples/live/fresh/); the configuration validated field-by-field against the OZ install signature, the crate compiled and tested, both attributed in the report's **Enforced by** column ([docs/compose-vs-generate.md](docs/compose-vs-generate.md))       | —                                                                                                      |
+| D2.5 Testnet smart account with the installed policy    | OZ's example account `CBQ6H7IL…QHDT` on testnet with the emitted rules installed as-is (ids 1–3 on 2026-09-02, ids 4–6 by the demo-script run) and read back to PASS ([examples/live/testnet/](examples/live/testnet/)); signed through the labelled local-key fallback                                | the end-to-end [demo recording](docs/demo-script-t2.md); the wallet signing page (cohort-wallet track) |
+
+Not built, stated plainly: the Freighter/wallets-kit signing page (the primary signing mode;
+it replaces only the `SigningSurface`), an on-chain argument-scoping policy (the harness
+enforces argument scope offline), and the optional post-install enforcement demo. Each is
+tracked in [docs/T2-NOTES.md](docs/T2-NOTES.md); Tranche 3 items are parked in
+[docs/T3-NOTES.md](docs/T3-NOTES.md).
 
 ## Acknowledgements
 
@@ -371,6 +385,9 @@ Stated plainly:
   adds the missing step of _deriving the least-privilege authorization from a transaction
   the user already performed_, plus an offline dry-run to verify it before installing.
 - **Replaces** — nothing in pollywallet. This is a complementary authoring/verification
-  tool, not a wallet; it does not sign, deploy, or relay user transactions — the only
-  on-chain action in the repo is the opt-in, testnet-only deployment of the generated
-  policy contract itself ([scripts/deploy-testnet.sh](scripts/deploy-testnet.sh)).
+  tool, not a wallet; it never relays user transactions and its agent surface never signs.
+  The only on-chain actions in the repo are opt-in, testnet-only, human-initiated CLI steps
+  signed with the operator's own key: deploying the generated policy and OpenZeppelin's
+  example account ([scripts/deploy-testnet.sh](scripts/deploy-testnet.sh),
+  [scripts/deploy-account.sh](scripts/deploy-account.sh)) and installing an emitted
+  artifact into that account ([docs/smart-account-install.md](docs/smart-account-install.md)).

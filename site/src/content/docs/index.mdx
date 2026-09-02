@@ -17,10 +17,13 @@ installed on-chain.
 The project is **in development**, built for Stellar SCF #44 as the awarded
 submission
 ["Record-to-Policy MCP + Agent skill"](https://communityfund.stellar.org/project/policywright-j8x),
-against a three-tranche plan (see the [Roadmap](/roadmap/)). This site
+against a three-tranche plan (see the [Roadmap](/roadmap/)). Tranche 1 is
+delivered and approved; the five Tranche 2 deliverables are built and
+evidenced as of 2026-09-02, with three human recordings still open. This site
 documents version 0 (`0.1.0` in
 [package.json](https://github.com/kunal-drall/policywright/blob/main/package.json)),
-an offline-first pipeline you can run today.
+an offline-first pipeline you can run today, plus its agent surface and the
+testnet install step.
 
 ## The pipeline
 
@@ -45,9 +48,11 @@ an offline-first pipeline you can run today.
 See [Architecture](/architecture/) for the design in depth, and
 [Getting Started](/getting-started/) to run it.
 
-## What exists in v0
+## What exists today
 
-Everything below is in the repository today; the demo and tests run offline:
+Everything below is in the repository; the demo, the tests — including the
+MCP stdio suite and the skill walkthrough — and CI run offline, with no
+secret:
 
 - **Recording layer** — offline fixture loader; a live Soroban RPC adapter
   that fetches one or more transactions by hash and merges them into a single
@@ -59,12 +64,16 @@ Everything below is in the repository today; the demo and tests run offline:
   [examples/live/](https://github.com/kunal-drall/policywright/tree/main/examples/live),
   [test/recorder.test.ts](https://github.com/kunal-drall/policywright/blob/main/test/recorder.test.ts)
 - **Least-privilege synthesizer** — scope binding, gross-outflow spend caps,
-  minimal-permission inflow handling, frequency limits, and config-gated
-  argument-level scope —
-  [src/synthesizer.ts](https://github.com/kunal-drall/policywright/blob/main/src/synthesizer.ts)
-- **Emitter** — `spec.json`, `context-rule.json` (installable OZ context rules
-  with real stock-policy install params and explicit composition-delta notes),
-  `summary.txt`, and a clearly-stamped illustrative Rust policy —
+  minimal-permission inflow handling, frequency limits, argument-level scope
+  (derived always, enforced on request), and the explicit compose-vs-generate
+  boundary per policy —
+  [src/synthesizer.ts](https://github.com/kunal-drall/policywright/blob/main/src/synthesizer.ts),
+  [compose-first](/concepts/compose-first/)
+- **Emitter** — `spec.json`, `context-rule.json` (schema v2: installable OZ
+  context rules with real stock-policy install params, real `Signer` shapes,
+  deployed policy addresses, relative lifetimes, and explicit
+  composition-delta notes), `summary.txt`, and a clearly-stamped illustrative
+  Rust policy —
   [src/emitter.ts](https://github.com/kunal-drall/policywright/blob/main/src/emitter.ts),
   [docs/context-rule-schema.md](https://github.com/kunal-drall/policywright/blob/main/docs/context-rule-schema.md)
 - **Compiled, tested, testnet-deployed generated policy** — the emitted Rust
@@ -75,22 +84,38 @@ Everything below is in the repository today; the demo and tests run offline:
   hash-verified instance deployed on testnet — deployment log and contract ID
   in
   [evidence/EVIDENCE.md](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md)
-- **Dry-run simulator** — permit/deny/flag evaluation with auto-generated deny
-  cases —
-  [src/simulate.ts](https://github.com/kunal-drall/policywright/blob/main/src/simulate.ts)
-- **CLI, tests, and CI** — `demo`, `synth`, `simulate`, and `record` commands;
-  a Vitest suite (90 tests) with coverage thresholds; CI with three jobs
-  (build, docs site, contracts) configured for pushes to `main` and pull
-  requests, with runs cited per deliverable in the evidence pack —
+- **Dry-run harness** — permit/deny/flag evaluation with auto-generated deny
+  cases and the argument-constrained case (BLND→XLM flagged by default, denied
+  with `--constrain-arguments`) on the real recorded claim→swap sequence; both
+  reports committed and diffed in CI — [dry-run harness](/reference/dry-run-harness/)
+- **Install and verify** — an OpenZeppelin example smart account on testnet
+  (`CBQ6H7IL…QHDT`), the emitted rules installed **as-is** from the committed
+  artifact by an explicit, human-initiated CLI step that signs client-side,
+  and a read-only `verify` that reads the rules back to a PASS —
+  [smart-account install](/reference/smart-account-install/)
+- **MCP server** — `record` / `synthesize` / `simulate` / `verify` served to
+  an agent over stdio with versioned schemas and typed errors; no install or
+  deploy tool, by design — [MCP tools](/reference/mcp-tools/)
+- **Claude skill** — `policywright-grant`: "grant permission to do X from
+  this transaction" as a conversation that asks before assuming and never
+  installs — [the skill](/reference/skill/)
+- **CLI, tests, and CI** — `demo`, `synth`, `simulate`, `record`, `install`,
+  `verify`, and `mcp` commands; a Vitest suite (215 tests) with coverage
+  thresholds; CI with three jobs (build, docs site, contracts) configured for
+  pushes to `main` and pull requests, with runs cited per deliverable in the
+  evidence pack —
   [src/cli.ts](https://github.com/kunal-drall/policywright/blob/main/src/cli.ts),
   [CI workflow](https://github.com/kunal-drall/policywright/actions/workflows/ci.yml)
 
-v0 does **not** sign, deploy, or relay user transactions — the only on-chain
-action in the repository is the opt-in, testnet-only deployment of the
-generated policy contract itself
-([scripts/deploy-testnet.sh](https://github.com/kunal-drall/policywright/blob/main/scripts/deploy-testnet.sh)).
-There is no MCP server, Claude skill, or wallet integration yet; those are
-planned — see the [Roadmap](/roadmap/).
+The agent surface never signs, deploys, or relays anything. The only
+on-chain actions in the repository are opt-in, **testnet-only**,
+human-initiated CLI steps signed with the operator's own key: deploying the
+generated policy and OpenZeppelin's example account, and installing an
+emitted artifact into that account
+([smart-account install](/reference/smart-account-install/)). The wallet
+signing page — Freighter signing the same install transaction — is the open
+cohort-wallet track; see the [Roadmap](/roadmap/) for what is delivered,
+what is open, and what is Tranche 3.
 
 ## The worked example and its assets
 

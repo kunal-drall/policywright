@@ -11,10 +11,10 @@ import Mermaid from '../../components/Mermaid.astro';
 :::note
 This page is the repository's
 [docs/architecture.md](https://github.com/kunal-drall/policywright/blob/main/docs/architecture.md),
-ported verbatim. Formatting changes only: the ASCII pipeline diagram is rendered
+ported with formatting changes only: the ASCII pipeline diagram is rendered
 as a Mermaid flowchart with the same nodes and edges, relative source links
-point at GitHub, and the plain-text README mention is linked to the
-corresponding README section.
+point at GitHub, the plain-text README mention is linked to the
+corresponding README section, and the skill is linked to its site page.
 :::
 
 policywright is a small, single-direction pipeline. Each stage is a pure-ish function over
@@ -173,6 +173,25 @@ If every check passes the call is permitted. `buildScenarios` derives the standa
 permit/deny/flag set generically from a spec, and `renderReport` formats results as
 Markdown.
 
+### 5. Agent surface (`src/mcp/`)
+
+The same pipeline, exposed to an agent over the Model Context Protocol (stdio) as exactly four
+tools — `record`, `synthesize`, `simulate`, `verify` — that wrap the library entry points above
+and nothing else
+([src/mcp/tools.ts](https://github.com/kunal-drall/policywright/blob/main/src/mcp/tools.ts);
+the reuse audit is in
+[docs/mcp-server.md](https://github.com/kunal-drall/policywright/blob/main/docs/mcp-server.md#reuse-audit--what-each-tool-wraps)).
+`src/mcp/schemas.ts` holds the versioned Zod contracts the server advertises as JSON Schema
+(committed under
+[schemas/mcp/](https://github.com/kunal-drall/policywright/tree/main/schemas/mcp)), and
+every failure is a typed envelope mapped from the existing `RecorderError` / `InstallError` /
+`SynthError` codes. `synthesize` and `simulate` stay pure; `record` and `verify` are deterministic
+per chain state
+([determinism map](https://github.com/kunal-drall/policywright/blob/main/docs/mcp-server.md#determinism-map)).
+**Stage 3b is not reachable from here**: there is no install or deploy tool, the server never
+signs, and it needs no secret — the artifact an agent produces is what the human installs with
+the CLI. The [skill](/reference/skill/) is a conversation over these four tools.
+
 ## Design choices
 
 - **`bigint` everywhere for token amounts** — no float rounding in money math; formatting
@@ -181,3 +200,6 @@ Markdown.
   the clock, keeping it deterministic and testable.
 - **Offline-first** — the fixture is the default source; the live RPC adapter is opt-in, so
   the demo, tests, and CI never depend on network state or RPC retention windows.
+- **Code-first, deploy-second, structurally** — the agent surface can produce and check
+  artifacts but cannot install them; installation is a separate, explicit, human-initiated
+  CLI/signing step. A design that needed the agent to deploy would be a design error.

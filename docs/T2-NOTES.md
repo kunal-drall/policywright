@@ -13,6 +13,18 @@ codegen with storage segregation, wallet integration (testnet, end-to-end).
 
 ## Delivered
 
+### Close-out pass (2026-09-02)
+
+The truthfulness pass over README and the docs site (every T2 item in
+present tense with proof links; T3 under Planned), the recordable T2 demo
+script with real outputs at every beat
+([demo-script-t2.md](demo-script-t2.md) — its install run added rule ids
+4–6 to the testnet account), the `verify --install-log` fix that makes a
+re-installed artifact verify against its own log, and the Tranche 2
+completion-form draft (`evidence/TRANCHE2-FORM.md`). The three open items
+are all human recordings: the MCP reference-session transcript, the skill
+demo transcript, and the end-to-end video.
+
 ### D2.2 — Claude skill (2026-09-02)
 
 Criterion: _"Skill packaged; a demo shows 'grant permission to do X from
@@ -104,7 +116,11 @@ installable needs:
 
 That generated policy is also the natural home for argument-level constraints
 (the `swap-path` allow-set D2.3 enforces offline), which is why the two are
-grouped here; generalising derivation beyond `path` belongs with it. **The T1 decision was made in D1.2
+grouped here; generalising derivation beyond `path` belongs with it. Stated
+plainly: this policy is **not built**, and it is not one of the five approved
+Tranche 2 completion criteria (D2.1–D2.5) — it is open design work that the
+approved D2.3 (offline harness) and D2.4 (one generated policy, the frequency
+limit) do not require. **The T1 decision was made in D1.2
 (2026-08-03): the emitted shape is fixed** — `context-rule.json` emits one
 `CallContract` rule per contract with observed function names carried as
 advisory `observedFns` ([schema](context-rule-schema.md)). What remains here
@@ -141,9 +157,10 @@ D2.5). The `valid_until` unit problem is closed by emitter fix E1 (relative
 `lifetimeLedgers`; the installer adds the live head). What remains open is the
 **primary signing mode**: a wallets-kit + Freighter page that signs the same
 install transaction through SEP-43 `signTransaction` (the `Delegated(G)` model
-needs nothing more — proven with the local key as `G`). The installer's
-`SigningSurface` interface is the plug point; the cohort-wallet track replaces
-only that row.
+needs nothing more — proven with the local key as `G`, twice: rules 1–3 and,
+by the demo-script run, rules 4–6). The installer's `SigningSurface`
+interface is the plug point; the cohort-wallet track replaces only that row.
+Not built as of 2026-09-02.
 
 ### Simulated-transaction recording path
 

@@ -79,12 +79,18 @@ The mapping is honest about what the on-chain model can and cannot carry:
   function names. The observed functions are included as advisory
   `observedFns`, function-level narrowing stays the offline dry run's job, and
   the gap is recorded as a composition-delta note.
-- **`valid_until` is a ledger sequence on-chain,** not a Unix time. The spec's
-  Unix `validUntil` is converted at OZ's own estimated 5 s/ledger basis, and
-  the conversion is recorded in a note.
-- **Rules are emitted without signers** — the smart account's signers are
-  attached at install, and `add_context_rule` requires at least one signer or
-  policy per rule.
+- **`valid_until` is a ledger sequence on-chain,** not a Unix time. The
+  configured lifetime is converted at OZ's own estimated 5 s/ledger basis into
+  a relative `lifetimeLedgers` (schema v2); the installer adds the live ledger
+  head at install time — the only value it computes — and the conversion is
+  recorded in a note.
+- **Signers and policy addresses are deploy-time facts.** `synth --signer` and
+  `--policy-address` put them into the artifact in the real OZ `Signer` shape
+  and as deployed contract addresses; without them the artifact is a design
+  document and the install gate refuses it (`add_context_rule` requires at
+  least one signer or policy per rule, and the stock `spending_limit` needs an
+  authenticated signer). The MCP `synthesize` tool reports the same verdict as
+  `installable.asIs` — see [smart-account install](/reference/smart-account-install/).
 
 Read the `notes` array before installing: it lists every unit conversion,
 every constraint the stock policies cannot express, and every install-time

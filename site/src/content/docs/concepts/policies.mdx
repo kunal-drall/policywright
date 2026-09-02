@@ -104,9 +104,12 @@ bounds are the spending limit's job
 ([README: argument-level scope](https://github.com/kunal-drall/policywright#argument-level-scope---constrain-arguments)).
 This enforcement exists in the **offline dry run only**: no stock OZ policy can
 express argument-value scoping, so `context-rule.json` records it as a delta
-note; on-chain enforcement needs the generated policy codegen still ahead in
-Tranche 2
-([docs/T2-NOTES.md](https://github.com/kunal-drall/policywright/blob/main/docs/T2-NOTES.md)).
+note. On-chain enforcement would need a generated policy whose `enforce` reads
+the argument; that policy is **not built** — it is tracked as open design work
+in
+[docs/T2-NOTES.md](https://github.com/kunal-drall/policywright/blob/main/docs/T2-NOTES.md)
+and is not one of the approved Tranche 2 criteria (see the
+[Roadmap](/roadmap/)).
 
 ## The five-policy budget
 

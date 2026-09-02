@@ -98,7 +98,24 @@ The sequence is:
 
 **Proven on testnet 2026-09-02** (the first end-to-end proof of the Delegated
 path; it had been source-supported but unproven): three rules installed with two
-auth entries each — see EVIDENCE.md § D2.5 for the transaction hashes.
+auth entries each — see EVIDENCE.md § D2.5 for the transaction hashes — and
+again the same day by the demo-script run ([demo-script-t2.md](demo-script-t2.md)):
+the 7-day, route-enforced artifact under [examples/live/demo/](../examples/live/demo/)
+installed as rule ids 4–6 (install log
+[install-20260902T153356Z.json](../examples/live/testnet/install-20260902T153356Z.json),
+verify PASS [verify-demo-20260902T153356Z.md](../examples/live/testnet/verify-demo-20260902T153356Z.md)).
+
+## Installing the same artifact twice
+
+Every install appends new rule ids; the names repeat. `verify` matches an
+artifact rule by (context type, contract, name) and, when an install log is
+supplied, prefers the installed rule whose `valid_until` equals the one the
+log recorded — so `verify --install-log <that install's log>` compares the
+install you mean (`findInstalledRule` in [src/verify.ts](../src/verify.ts);
+`test/install.test.ts` "matches a re-installed artifact through the install
+log"). Without a log the earliest matching rule is compared, and an artifact
+whose parameters differ from that earlier install fails honestly on the
+params row. Pass the log.
 
 ## The signing hierarchy and its honest labelling
 
@@ -116,11 +133,12 @@ install log records only the public key, nonce, expiration ledger, and digest.
 
 ## The one interactive human step
 
-The demo recording. Everything above ran non-interactively in one session with
-the `.env` key; the human steps that remain are listed as **BLOCKERS** in
-EVIDENCE.md § D2.5: recording the end-to-end demo, and — for the primary
-signing mode — installing Freighter, funding its testnet account, and approving
-the same transaction there.
+The demo recording — scripted beat by beat, with the real outputs of every
+command, in [demo-script-t2.md](demo-script-t2.md). Everything above ran
+non-interactively with the `.env` key; the human steps that remain are listed
+as **BLOCKERS** in EVIDENCE.md § D2.5: recording the end-to-end demo, and —
+for the primary signing mode — installing Freighter, funding its testnet
+account, and approving the same transaction there.
 
 ## Post-install enforcement (not required by the criterion)
 

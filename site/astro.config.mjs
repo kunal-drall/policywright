@@ -37,7 +37,10 @@ export default defineConfig({
           label: 'Reference',
           items: [
             { label: 'CLI', slug: 'reference/cli' },
+            { label: 'Dry-run harness', slug: 'reference/dry-run-harness' },
+            { label: 'Smart-account install', slug: 'reference/smart-account-install' },
             { label: 'MCP tools', slug: 'reference/mcp-tools' },
+            { label: 'The skill', slug: 'reference/skill' },
           ],
         },
         { label: 'Changelog', slug: 'changelog' },

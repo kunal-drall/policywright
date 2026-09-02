@@ -1,0 +1,100 @@
+---
+title: Dry-run harness
+description: The offline permit/deny/flag harness — the standard scenarios, argument-level scope both ways on the real recording, the Enforced-by column, and what it does not enforce.
+---
+
+import StatusBadge from '../../../components/StatusBadge.astro';
+
+<StatusBadge status="shipped" />
+
+The harness evaluates candidate calls against a synthesized policy set before
+anything is installed and reports whether each would be **permitted, denied,
+or flagged** — and why. It is Tranche 2 deliverable D2.3 — _"The harness
+outputs a permit/deny/flag report for a generated policy including an
+argument-constrained case (BLND→XLM denied when enabled); tests green."_ —
+implemented in
+[src/simulate.ts](https://github.com/kunal-drall/policywright/blob/main/src/simulate.ts)
+and reachable from the CLI (`simulate`), the demo, and the MCP `simulate`
+tool.
+
+## The standard scenarios
+
+`buildScenarios` derives them from any spec: the recorded flow replayed (must
+permit), one deny per enforced check, and — when an argument constraint was
+derived — the **real** observed swap re-routed through a probe token: the
+network's native XLM Stellar Asset Contract, derived from the network
+passphrase and never present in the recording (`--probe-token` overrides).
+Checks run in a fixed order; the first failure decides:
+
+| Scenario                                     | Check                             | Expected                                              |
+| -------------------------------------------- | --------------------------------- | ----------------------------------------------------- |
+| replay recorded flow                         | all                               | ✅ permit                                             |
+| over the spend cap                           | spending-limit                    | ⛔ deny                                               |
+| call to an unseen function                   | scope                             | ⛔ deny                                               |
+| call after rule expiry                       | lifetime                          | ⛔ deny                                               |
+| over the frequency limit                     | frequency-limit                   | ⛔ deny                                               |
+| BLND→XLM swap (route through unobserved XLM) | argument-constraint               | ⚠️ flag (default) / ⛔ deny (`--constrain-arguments`) |
+
+A **flag** means: every enforced check passed — the call would be permitted —
+but an advisory argument constraint was violated; the report says so and how
+to close the gap. There is no on-chain flag.
+
+## The criterion case, on real data
+
+```bash
+npm run cli -- simulate --input examples/live/recorded-claim-swap-fresh.json
+npm run cli -- simulate --input examples/live/recorded-claim-swap-fresh.json --constrain-arguments
+```
+
+The two committed reports —
+[simulation-report.md](https://github.com/kunal-drall/policywright/blob/main/examples/live/simulation-report.md)
+(flag) and
+[simulation-report.constrained.md](https://github.com/kunal-drall/policywright/blob/main/examples/live/simulation-report.constrained.md)
+(deny) — are regenerated and diffed by CI on every run. The criterion row,
+verbatim from each:
+
+```
+| BLND→XLM swap (route through unobserved XLM) | ⚠️ flag (argument-constraint) | dry-run harness only — advisory, no on-chain artifact | permitted with a scope gap (constrainArguments is off, so this constraint is advisory): swap_exact_tokens_for_tokens arg[2] path (rule swap-path) must stay within the observed token set {BLND CB22KRA3…, USDC CAQCFVLO…}; candidate routes through unobserved XLM CDLZFC3S…; enable --constrain-arguments to deny it |
+| BLND→XLM swap (route through unobserved XLM) | ⛔ deny (argument-constraint) | dry-run harness only — no on-chain artifact yet | argument constraint violated: swap_exact_tokens_for_tokens arg[2] path (rule swap-path) must stay within the observed token set {BLND CB22KRA3…, USDC CAQCFVLO…}; candidate routes through unobserved XLM CDLZFC3S… |
+```
+
+## Self-describing reports
+
+Every report carries its provenance: the recording (network, source, hashes,
+subject), the **generated policy set** it was evaluated against — each policy
+annotated with how it is realised on-chain (composed stock binding, generated
+contract, or offline-only) — the mode, a decision legend, an **Enforced by**
+column that attributes each decision to the artifact realising the deciding
+check, and a token legend. For the real recording the over-cap deny is
+attributed to the composed `stock:spending_limit` on rule `pw:xfer:BLND`, and
+the over-frequency deny to the generated `FrequencyLimitPolicy` on rules
+`pw:claim` and `pw:swap` — the two artifacts of D2.4, side by side
+([compose-first](/concepts/compose-first/)).
+
+## Argument-level scope, and its limits
+
+Constraints come from an explicit rule table — one rule, `swap-path`: for any
+call whose name contains `swap`, the first contract-address vector argument
+(the Soroswap `path`) yields the **set** of token addresses observed. They are
+derived on every run and recorded on the spec; enforcement is a config
+decision, **off by default** — an opt-in tightening, never a silent widening.
+
+Stated plainly: set semantics only (no ordering, hop count, or amounts);
+`swap-path` is the only rule; the address check is a StrKey shape check;
+and **enforcement lives in the offline harness only** — no stock
+OpenZeppelin policy can express argument-value scoping, so the installed rule
+would permit BLND→XLM until an argument-checking policy exists. That policy
+is not built and is not one of the approved Tranche 2 criteria; it is tracked
+in
+[docs/T2-NOTES.md](https://github.com/kunal-drall/policywright/blob/main/docs/T2-NOTES.md).
+
+## Tests
+
+[test/harness.test.ts](https://github.com/kunal-drall/policywright/blob/main/test/harness.test.ts)
+(native XLM SAC per network; derivation on the real sequence; the criterion
+both ways; probe-token defaults, fallback and override; every scenario on the
+real sequence; report rendering; both committed reports byte-equal to the
+harness output) and
+[test/recorder.test.ts](https://github.com/kunal-drall/policywright/blob/main/test/recorder.test.ts)
+(the recording re-assembles byte-for-byte from its raw captures). Evidence:
+[EVIDENCE.md § D2.3](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#d23--dry-run-harness--argument-level-scope).

@@ -17,7 +17,7 @@ going through a real agent host, with the two network tools (`record`,
 ```bash
 git clone https://github.com/kunal-drall/policywright && cd policywright
 npm ci
-npm test                      # 205 tests incl. the stdio MCP suite — must be green
+npm test                      # 215 tests incl. the stdio MCP suite and the skill walkthrough — must be green
 claude mcp list               # → "policywright: … ✓ Connected" (from the committed .mcp.json)
 ```
 
@@ -195,9 +195,12 @@ Expected tool call — `mcp__policywright__verify`:
 
 Expected result while the D2.5 rules are live (they expire at ledger
 4 983 015, ≈ 2026-10-02): `pass: true`, 15 rows all `ok`, rules found as ids
-1–3, `extraRules` = the admin rule id 0 `multisig`, and a `report` matching
+1–3 (the install log's `valid_until` 4983015 selects them), `extraRules` =
+the admin rule id 0 `multisig` plus any later installs of the same artifact
+names — ids 4–6 from the demo-script run of 2026-09-02 until ledger 4 588 890
+(≈ 2026-09-09), and whatever a demo recording adds — and a `report` matching
 [examples/live/testnet/verify.md](../examples/live/testnet/verify.md) except
-for the `read at ledger` number. After expiry the `valid_until` rows fail
+for the `read at ledger` number and that informational list. After expiry the `valid_until` rows fail
 (`pass: false`) and the agent should say so plainly; if the RPC endpoint is
 unreachable the result is a `NETWORK` error envelope.
 
@@ -212,6 +215,11 @@ then without `--dry-run` — which signs with the operator's own key. If the
 agent attempts anything else, that is a finding.
 
 ## Recording it
+
+The six tool calls above were made from Claude Code 2.0.76 on 2026-09-02
+and returned exactly the expected shapes (results quoted in
+[demo-script-t2.md](demo-script-t2.md), Beat 1); what the criterion still
+needs is the saved transcript of a human-run session.
 
 1. Run the seven turns in one session.
 2. Save the transcript: in Claude Code, copy the conversation (or use the

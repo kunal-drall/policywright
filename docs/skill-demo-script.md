@@ -201,6 +201,12 @@ to install, sign, or submit is a finding.
 
 ## 4. Recording it
 
+The tool calls of Turns 2–4 were made from Claude Code 2.0.76 on 2026-09-02
+and returned exactly the expected results (quoted in
+[demo-script-t2.md](demo-script-t2.md), Beat 2; the same artifact was then
+installed into the testnet account as rule ids 4–6 and verified). What the
+criterion still needs is the saved transcript of a human-run conversation.
+
 Run the turns in one Claude Code session from the repository root, save the
 unedited transcript as `evidence/sessions/skill-demo-<YYYY-MM-DD>.md` (or a
 screen recording), note the Claude Code version and date, and link it from

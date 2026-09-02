@@ -18,12 +18,16 @@ linked to its source) from what is **planned**.
 ## Protections in v0
 
 - **No custody of user keys.** Policywright never asks for or holds a user's
-  keys, and it does not sign, deploy, or relay **user** transactions. The only
-  on-chain action in the repository is the opt-in, **testnet-only** deployment
-  of the generated policy contract itself, signed with a gitignored testnet
-  identity
-  ([scripts/deploy-testnet.sh](https://github.com/kunal-drall/policywright/blob/main/scripts/deploy-testnet.sh);
-  the script refuses any network other than testnet).
+  keys, never relays **user** transactions, and its agent surface — the MCP
+  server and the skill — never signs anything and needs no secret. The only
+  on-chain actions in the repository are opt-in, **testnet-only**,
+  human-initiated CLI steps signed with the operator's own gitignored testnet
+  identity: deploying the generated policy and OpenZeppelin's example smart
+  account
+  ([scripts/deploy-testnet.sh](https://github.com/kunal-drall/policywright/blob/main/scripts/deploy-testnet.sh),
+  [scripts/deploy-account.sh](https://github.com/kunal-drall/policywright/blob/main/scripts/deploy-account.sh);
+  both refuse any network other than testnet) and installing an emitted
+  artifact into that account (below).
 - **Code-first, deploy-second.** Every output is a file written locally for
   review — `spec.json`, `context-rule.json`, `summary.txt`, the generated
   Rust, and the dry-run report. Nothing installs automatically
