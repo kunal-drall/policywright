@@ -1,10 +1,82 @@
 ---
 title: MCP tools
-description: MCP tool schemas for Policywright.
+description: The four MCP tools Policywright serves to an agent over stdio — record, synthesize, simulate, verify — with their schemas, error codes, and registration.
 ---
 
 import StatusBadge from '../../../components/StatusBadge.astro';
 
-<StatusBadge status="planned" />
+<StatusBadge status="shipped" />
 
-Planned — Tranche 2.
+Policywright runs as a local
+[Model Context Protocol](https://modelcontextprotocol.io) server over stdio
+(`npm run mcp`) and exposes **exactly four tools**. There is no install or
+deploy tool, by design: an agent can record, synthesize, dry-run, and verify,
+and then hands the artifact to the human `install` step. The server never
+signs and needs no secret.
+
+Everything on this page is implemented in
+[src/mcp/](https://github.com/kunal-drall/policywright/tree/main/src/mcp)
+and exercised end to end — the real server spawned over stdio, every tool
+called against committed fixtures, no network — by
+[test/mcp.test.ts](https://github.com/kunal-drall/policywright/blob/main/test/mcp.test.ts).
+The full document is
+[docs/mcp-server.md](https://github.com/kunal-drall/policywright/blob/main/docs/mcp-server.md).
+
+## The tools
+
+| Tool         | Purpose                                                                                                                                   | Network?                       | Output carries                                                                                      |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------- |
+| `record`     | Fetch transaction hash(es) from Soroban RPC (merged in ledger order) or ingest a saved `simulateTransaction` exchange into one recording. | yes (read-only)                | the `RecordedTx`, a summary of calls and token flows, the recorder's warnings                       |
+| `synthesize` | Derive the least-privilege authorization and emit the reviewable artifacts.                                                               | no — pure                      | `spec`, `contextRule` (schema v2), `summary`, the generated Rust **with its unaudited banner**, notes/warnings/scope notes, an installable-as-is verdict |
+| `simulate`   | Dry-run the standard scenarios plus any candidate calls.                                                                                  | no — pure                      | the permit/deny/flag table as data, counts, the Markdown report                                     |
+| `verify`     | Read a smart account's installed rules and policy params and diff them against an artifact.                                               | yes (read-only, nothing signed) | `pass`, the diff rows, extra rules, the Markdown report                                             |
+
+Tools are callable as `mcp__policywright__<tool>` once registered.
+
+## Structured I/O
+
+Every input accepts and every output carries `schemaVersion: 1` (the MCP I/O
+schema version); the embedded `contextRule` keeps the `context-rule.json`
+schema version (2). The Zod definitions in `src/mcp/schemas.ts` are the source
+of truth; the JSON Schemas the server advertises are committed under
+[schemas/mcp/](https://github.com/kunal-drall/policywright/tree/main/schemas/mcp)
+and CI fails if they drift.
+
+Failures are MCP tool-execution errors (`isError: true`) whose structured
+content is
+
+```json
+{ "schemaVersion": 1, "ok": false, "error": { "code": "TX_NOT_FOUND", "message": "…", "source": "RecorderError" } }
+```
+
+with `code` ∈ `BAD_INPUT | TX_NOT_FOUND | NETWORK | DECODE_FAILED | SHAPE_INVALID | INTERNAL`,
+mapped from the CLI's existing typed errors.
+
+## Registration
+
+- **Claude Code** — the committed
+  [`.mcp.json`](https://github.com/kunal-drall/policywright/blob/main/.mcp.json)
+  registers the server for the project; `claude mcp list` shows it connected.
+  Any other scope: `claude mcp add --transport stdio policywright -- npm run --silent mcp`
+  from the repository root.
+- **Claude Desktop** — add the absolute-path entry from
+  [docs/mcp-server.md](https://github.com/kunal-drall/policywright/blob/main/docs/mcp-server.md#registering-it-with-an-agent)
+  to `claude_desktop_config.json` and restart.
+
+Configuration is three optional environment variables —
+`POLICYWRIGHT_NETWORK`, `POLICYWRIGHT_RPC_URL`, `POLICYWRIGHT_ROOT` — and no
+secret, ever.
+
+## Determinism
+
+`synthesize` and `simulate` are pure: same input, same output, no clock, no
+network. `record` and `verify` read the chain and are deterministic per
+(input, chain state). The full map, written before the code, is in
+[docs/mcp-server.md](https://github.com/kunal-drall/policywright/blob/main/docs/mcp-server.md#determinism-map).
+
+## The reference session
+
+The conversation to run in Claude Code against the real recorded data and the
+live testnet account — all four tools, including the honest `TX_NOT_FOUND`
+for hashes past the node's retention window — is
+[docs/mcp-reference-session.md](https://github.com/kunal-drall/policywright/blob/main/docs/mcp-reference-session.md).

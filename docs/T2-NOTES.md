@@ -13,6 +13,19 @@ codegen with storage segregation, wallet integration (testnet, end-to-end).
 
 ## Delivered
 
+### D2.1 — MCP server (2026-09-02)
+
+Criterion: _"The server runs locally and an agent calls each tool end to end;
+a reference session is recorded."_ The server, the four tools, the versioned
+schemas, the network-free stdio test suite, the Claude Code registration, and
+the reference-session script are delivered
+([EVIDENCE.md § D2.1](../evidence/EVIDENCE.md#d21--mcp-server); design and
+determinism map in [mcp-server.md](mcp-server.md)). The human-recorded session
+is the BLOCKER listed there. Three CLI-only compositions moved into the
+library on the way (`verifyArtifact`, `recordedTxToJson`,
+`evaluateScenarios`; RECONCILIATION-T2 rows 79–81). Not built, by rule: any
+install/deploy tool.
+
 ### D2.5 — Testnet smart account with the installed generated policy (2026-09-02, fallback path)
 
 Criterion: _"A testnet smart account with an installed generated policy;
@@ -97,9 +110,9 @@ policy (the argument/function-scoping policy above).
 
 ### MCP server
 
-Tools: `record`, `synthesize`, `simulate`, `verify`. Not started. The CLI
-surface in [src/cli.ts](../src/cli.ts) is the obvious thing to wrap; keeping the
-core modules free of I/O side effects makes that cheap.
+Delivered as **D2.1** (2026-09-02) — see the Delivered section above. What
+remains here is only the human-recorded reference session (the EVIDENCE
+blocker) and the Claude skill that wraps the tools.
 
 ### Claude skill
 

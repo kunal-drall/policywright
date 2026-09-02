@@ -159,6 +159,19 @@ artifact that realises the deciding check, and a token legend, so a committed re
 self-describing. The realisation itself comes from `realisePolicies` in the synthesizer
 ([compose vs. generate](compose-vs-generate.md)).
 
+### 5. Agent surface (`src/mcp/`)
+
+The same pipeline, exposed to an agent over the Model Context Protocol (stdio) as exactly four
+tools — `record`, `synthesize`, `simulate`, `verify` — that wrap the library entry points above
+and nothing else (`src/mcp/tools.ts`; the reuse audit is in
+[mcp-server.md](mcp-server.md#reuse-audit--what-each-tool-wraps)). `src/mcp/schemas.ts` holds the
+versioned Zod contracts the server advertises as JSON Schema (committed under `schemas/mcp/`), and
+every failure is a typed envelope mapped from the existing `RecorderError` / `InstallError` /
+`SynthError` codes. `synthesize` and `simulate` stay pure; `record` and `verify` are deterministic
+per chain state ([determinism map](mcp-server.md#determinism-map)). **Stage 3b is not reachable
+from here**: there is no install or deploy tool, the server never signs, and it needs no secret —
+the artifact an agent produces is what the human installs with the CLI.
+
 ## Design choices
 
 - **`bigint` everywhere for token amounts** — no float rounding in money math; formatting
@@ -167,3 +180,6 @@ self-describing. The realisation itself comes from `realisePolicies` in the synt
   the clock, keeping it deterministic and testable.
 - **Offline-first** — the fixture is the default source; the live RPC adapter is opt-in, so
   the demo, tests, and CI never depend on network state or RPC retention windows.
+- **Code-first, deploy-second, structurally** — the agent surface can produce and check
+  artifacts but cannot install them; installation is a separate, explicit, human-initiated
+  CLI/signing step. A design that needed the agent to deploy would be a design error.

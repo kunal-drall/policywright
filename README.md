@@ -68,6 +68,7 @@ any scenario deviates, so it doubles as a smoke test. It needs no network access
 | `npm run record -- <txHash>... [--account <G\|C>] [--network testnet\|mainnet\|futurenet] [--rpc-url <url>]` | Fetch live transaction(s) by hash and print one merged recording. `record --from-simulation <file>` ingests a saved simulation instead.                                                                                                                                             |
 | `npm run cli -- install --artifact <context-rule.json> --account <C…> [--dry-run]`                           | Build, simulate (twice — recording, then enforcing with the hand-built auth entries), sign client-side, and submit the `add_context_rule` transactions for an emitted artifact into a testnet smart account. Signer = `STELLAR_SECRET_KEY` from the environment, never an argument. |
 | `npm run cli -- verify --artifact <context-rule.json> --account <C…> [--install-log <json>]`                 | Read the account's installed rules and policy params from chain and diff them against the artifact (PASS/FAIL). Read-only.                                                                                                                                                          |
+| `npm run mcp`                                                                                                | Serve the four tools — `record`, `synthesize`, `simulate`, `verify` — to an agent over stdio (MCP). No install/deploy tool by design; see [docs/mcp-server.md](docs/mcp-server.md).                                                                                                 |
 
 The live `record` path is optional: the network fetch itself is not exercised by the demo
 or tests, but its decoders and multi-hash merge logic run network-free in
@@ -191,6 +192,19 @@ hierarchy, and the one interactive human step:
 transactions, and verify output: [examples/live/testnet/](examples/live/testnet/) and
 [evidence/EVIDENCE.md](evidence/EVIDENCE.md) § D2.5.
 
+## Driving it from an agent (MCP)
+
+`npm run mcp` serves the same four operations to an MCP client over stdio — Claude Code
+picks it up from the committed [`.mcp.json`](.mcp.json) (`claude mcp list` → `✓ Connected`);
+Claude Desktop needs the absolute-path config in [docs/mcp-server.md](docs/mcp-server.md).
+Every tool has a versioned JSON Schema under [schemas/mcp/](schemas/mcp/), errors carry the
+CLI's typed codes, and every output that contains generated code carries the unaudited banner.
+**There is no install or deploy tool**: an agent can record, synthesize, dry-run and verify,
+and then hands the artifact to the human `install` step above. The network-free stdio test
+suite ([test/mcp.test.ts](test/mcp.test.ts)) drives the real server against the committed
+recordings and the testnet account's recorded state; the conversation to run and record by
+hand is [docs/mcp-reference-session.md](docs/mcp-reference-session.md).
+
 ## The generated Rust policy is illustrative
 
 The emitted `FrequencyLimitPolicy.rs` implements OpenZeppelin's real `Policy` trait
@@ -216,7 +230,7 @@ the same note.
 
 CI ([ci.yml](.github/workflows/ci.yml)) is configured for pushes to `main` and pull
 requests, with three jobs: **build** (npm ci → lint → format:check → typecheck → test →
-demo), **site** (docs-site build), and **contracts** (pinned Rust 1.97.1: `cargo fmt
+MCP schema drift check → demo), **site** (docs-site build), and **contracts** (pinned Rust 1.97.1: `cargo fmt
 --check` → `clippy -D warnings` → `cargo test`, then a `stellar contract build` of the
 policy crate with the same pinned stellar-cli 27.1.0 used for the testnet deploy). Both
 toolchains are cached. Because this repository is a GitHub fork, runs are currently
@@ -236,6 +250,9 @@ dispatched manually and cited per deliverable in
 | `src/network.ts`                                                                        | Network passphrases, the native XLM SAC address per network, the contract-address shape check.                                                                                                        |
 | `src/install-shape.ts`                                                                  | Validates `context-rule.json` field-by-field against the OZ install signature; encodes install params as `ScVal`.                                                                                     |
 | `src/install.ts`, `src/verify.ts`                                                       | The install (artifact → simulated, client-signed `add_context_rule` transactions) and verify (on-chain read-back diff) libraries; the CLI wraps them.                                                 |
+| `src/mcp/`                                                                              | The MCP server: `schemas.ts` (versioned Zod I/O contracts), `tools.ts` (the four tools wrapping the library + typed error envelope), `server.ts` (stdio entry). No install/deploy tool.               |
+| `schemas/mcp/`, `.mcp.json`                                                             | The committed JSON Schemas the server advertises (`npm run mcp:schemas -- --check` in CI) and the project-scope Claude Code registration.                                                             |
+| `test/mcp.test.ts`, `test/stub-rpc.ts`                                                  | Spawns the real server over stdio and calls every tool against a local stub RPC that replays the committed captures and the testnet account's recorded state.                                         |
 | `contracts/multisig-account`, `contracts/spending-limit-policy`                         | OpenZeppelin's example smart account and stock `spending_limit` wrapper, vendored verbatim from v0.7.2 — the account policywright installs into and the deployable form of the composed stock policy. |
 | `src/demo.ts`, `src/cli.ts`                                                             | Demo orchestration and CLI.                                                                                                                                                                           |
 | `fixtures/recorded-tx.json`                                                             | The committed offline recording.                                                                                                                                                                      |
@@ -288,11 +305,11 @@ This project is built for Stellar SCF #44 — the awarded submission
 what is actually verifiable in this repository today — see
 [the roadmap](https://policywright.lemmalabs.space/roadmap/) for the full plan.
 
-| Tranche                    | Target      | Deliverables                                                                                                                          | Status                               |
-| -------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| **T1 — MVP (testnet)**     | 31 Aug 2026 | Recording layer (live + simulated); least-privilege synthesizer; generated-policy compile + testnet deploy; open-source CLI + CI      | ✅ Delivered (D1.1–D1.4)             |
-| **T2 — Testnet expansion** | 15 Oct 2026 | MCP server; Claude skill; dry-run harness + argument-level scope; net-new policy codegen with storage segregation; wallet integration | 🚧 In progress (D2.3–D2.5 delivered) |
-| **T3 — Mainnet launch**    | 30 Nov 2026 | Three end-to-end walkthroughs; OpenZeppelin validation; production release; mainnet demonstration; audit readiness (SCF Audit Bank)   | ⏳ Not started                       |
+| Tranche                    | Target      | Deliverables                                                                                                                          | Status                                     |
+| -------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| **T1 — MVP (testnet)**     | 31 Aug 2026 | Recording layer (live + simulated); least-privilege synthesizer; generated-policy compile + testnet deploy; open-source CLI + CI      | ✅ Delivered (D1.1–D1.4)                   |
+| **T2 — Testnet expansion** | 15 Oct 2026 | MCP server; Claude skill; dry-run harness + argument-level scope; net-new policy codegen with storage segregation; wallet integration | 🚧 In progress (D2.1, D2.3–D2.5 delivered) |
+| **T3 — Mainnet launch**    | 30 Nov 2026 | Three end-to-end walkthroughs; OpenZeppelin validation; production release; mainnet demonstration; audit readiness (SCF Audit Bank)   | ⏳ Not started                             |
 
 **Shipped and verifiable today**: the recording layer from the
 offline fixture, from a live Soroban RPC node (multi-hash sequences with authorization
@@ -319,8 +336,11 @@ D2.4 (the composed configuration and the generated stateful policy, side by side
 compiling and passing simulation), and D2.5 (a testnet OpenZeppelin smart account with the
 emitted rules installed as-is and verified on-chain — signed through the labelled
 local-key fallback; the cohort-wallet track stays open) are delivered — evidence sections
-D2.3–D2.5 in [evidence/EVIDENCE.md](evidence/EVIDENCE.md). The MCP server and Claude skill
-are tracked in [docs/T2-NOTES.md](docs/T2-NOTES.md).
+D2.3–D2.5 in [evidence/EVIDENCE.md](evidence/EVIDENCE.md). D2.1, the MCP server (`record` /
+`synthesize` / `simulate` / `verify` over stdio, no install/deploy tool, network-free stdio test
+suite, committed schemas, Claude Code registration), is delivered too — evidence section D2.1;
+the human-recorded reference session is its open blocker. The Claude skill is tracked in
+[docs/T2-NOTES.md](docs/T2-NOTES.md).
 
 ## Acknowledgements
 
