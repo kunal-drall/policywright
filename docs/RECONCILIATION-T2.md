@@ -201,6 +201,21 @@ footnotes implied; actuals are what was found and what D2.3 changed.
 
 ---
 
+## GATE 8 — D2.4: compose vs. generate, as implemented vs. as claimed (2026-09-02)
+
+Criterion: _"Generates both a composed-policy configuration and a net-new
+stateful policy contract; both compile and pass simulation."_
+
+| #   | Assumption                                                 | Actual (verified 2026-09-02)                                                                                                                                                                                                                                                                                                                                                | Consequence                                           | Source                                                  |
+| --- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------- |
+| 66  | The compose-vs-generate decision is a documented rule      | ✗ It was implicit in `deriveOzContextRules` (compose iff a subject-authorized direct `transfer` exists; frequency always custom) with no per-policy statement. **D2.4:** `realisePolicies` returns `composed` / `generated` / `offline-only` per policy with the reason; documented in `docs/compose-vs-generate.md`; invariant asserted in `test/compose-boundary.test.ts` | The boundary is predictable and testable              | `src/synthesizer.ts`                                    |
+| 67  | "Both compile" has one meaning                             | ✗ Only the Rust compiles. For the configuration, "compiles" = validates field-by-field against the OZ install signature AND encodes to the exact `ScVal` the contracts decode. **D2.4:** `src/install-shape.ts` (each check cites its OZ line; encoder pinned to the SDK's sorted-map XDR — FACTS §13.1)                                                                    | The installer (D2.5) consumes the artifact unmodified | FACTS §2.4, §2.5, §13.1                                 |
+| 68  | The dry-run report shows which artifact enforced each deny | ✗ It did not name the artifact. **D2.4:** an "Enforced by" column — composed `stock:spending_limit` on `pw:xfer:BLND`, generated `custom:FrequencyLimitPolicy`, the context rule itself, or the harness alone — plus the realisation on every policy-set line                                                                                                               | "pass simulation" is attributable per artifact        | `src/simulate.ts`; `examples/live/simulation-report.md` |
+| 69  | The harness models `spending_limit` exactly                | ✗ Approximation: the harness caps a candidate's outflow within a seconds window; the stock policy meters `transfer` amounts (`args[2]`) per ledger window and rejects non-`transfer` contexts. Equivalent for the single-call over-cap scenario; stated as a limit                                                                                                          | No over-claim in the evidence                         | FACTS §2.4; `docs/compose-vs-generate.md`               |
+| 70  | The frequency binding is attached to every rule            | ✓/✗ It is attached to every **called-contract** rule (`pw:claim`, `pw:swap`); a token rule that carries a composed spending limit (`pw:xfer:BLND`) does not also get it, and a token rule without a cap gets it only so the rule is non-empty (`mod.rs:20-21`)                                                                                                              | The report's "on rules …" list is exact               | `src/synthesizer.ts` `deriveOzContextRules`             |
+
+---
+
 ## Summary of discrepancies (inputs to the T2 prompts)
 
 1. **No prebuilt account** (row 28): build the OZ example / Wizard-shaped
@@ -232,10 +247,14 @@ footnotes implied; actuals are what was found and what D2.3 changed.
 --input`, address-shaped derivation as an explicit rule, flag = permitted +
     advisory gap, self-naming deny reasons, self-describing reports; on-chain
     argument enforcement explicitly not claimed (row 65).
+12. **D2.4 boundary made explicit** (rows 66–70): per-policy realisation,
+    install-shape validation + ScVal encoding as the configuration's
+    "compile", per-artifact attribution in the report, the spending-limit
+    approximation stated.
 
 ## Self-validation
 
-- No gated field is "unknown"/"TODO": rows 28–65 each carry an actual value
+- No gated field is "unknown"/"TODO": rows 28–70 each carry an actual value
   and a source; every source was read or executed this session (FACTS §7–§11
   give the commands/URLs and dates).
 - The emitter-fix list is explicit (E1–E5).

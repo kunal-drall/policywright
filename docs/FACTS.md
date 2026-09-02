@@ -1179,6 +1179,48 @@ and the committed files were produced by redirecting exactly that command.
 
 ---
 
+## GATE 13 — D2.4 compose-vs-generate facts (verified 2026-09-02)
+
+### 13.1 Install params encode as sorted `ScMap`s (pinned SDK 15.1.0)
+
+`#[contracttype]` structs cross the host boundary as `ScVal::Map` keyed by
+field-name `Symbol`s in sorted order. With the pinned `@stellar/stellar-sdk`
+15.1.0, `nativeToScVal(obj, { type: { field: ['symbol', '<type>'] } })`
+produces exactly that, independent of JS insertion order (verified by
+encoding both key orders → identical XDR):
+
+| Struct                                   | Encoded keys (in order)                             | Example XDR (base64) for the fresh recording's values                                                                                                                              |
+| ---------------------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SpendingLimitAccountParams` (OZ)        | `period_ledgers: scvU32`, `spending_limit: scvI128` | `{ spending_limit: 23533505, period_ledgers: 17280 }` → `AAAAEQAAAAEAAAACAAAADwAAAA5wZXJpb2RfbGVkZ2VycwAAAAAAAwAAQ4AAAAAPAAAADnNwZW5kaW5nX2xpbWl0AAAAAAAKAAAAAAAAAAAAAAAAAWcXwQ==` |
+| `FrequencyLimitParams` (generated crate) | `max_calls: scvU32`, `window_secs: scvU64`          | `{ window_secs: 86400, max_calls: 5 }` round-trips through `scValToNative`                                                                                                         |
+
+`src/install-shape.ts` encodes bindings this way and validates them first;
+`test/compose-boundary.test.ts` pins the spending-limit XDR above. This is
+the `Val` half of `add_context_rule`'s `policies: Map<Address, Val>` (§2.5).
+
+### 13.2 The generated crate still builds and tests against the pinned toolchain
+
+Re-run 2026-09-02 (`contracts/`, rustc 1.97.1, `cargo test --locked`): 25
+integration tests pass. `stellar contract build --package
+frequency-limit-policy` (stellar-cli 27.1.0) reproduces SHA-256
+`42227f2b6150c95a7084bb7c5ff2e7a40793eae39bf0c5dc95bd752d18ee6eed` — the
+D1.3 hash (§1.5). `examples/live/fresh/FrequencyLimitPolicy.rs` (emitted for
+the fresh recording at the default config) is byte-identical to the crate's
+`src/lib.rs` (`cmp` empty; locked in `test/compose-boundary.test.ts`).
+
+### 13.3 The decision boundary as implemented
+
+`realisePolicies` (`src/synthesizer.ts`) classifies every synthesised
+policy: spend cap on a token the subject directly `transfer`red → **composed**
+(`stock:spending_limit` on the token rule; the fresh recording's BLND cap →
+rule `pw:xfer:BLND`, params `{ 23533505, 17280 }`); spend cap without such a
+transfer → **offline-only** (the fixture's BLND); frequency → **generated**
+(`custom:FrequencyLimitPolicy` on `pw:claim`, `pw:swap`); argument
+constraints → **offline-only**. There is no code path that emits a spend cap
+into Rust. Documented in `docs/compose-vs-generate.md`.
+
+---
+
 ## Changelog
 
 | Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
@@ -1189,3 +1231,4 @@ and the committed files were produced by redirecting exactly that command.
 | 2026-08-03 | D1.3 session: added §1.4 (soroban-sdk 26.1.0 declares rust-version 1.91.0 → rustc ≥ 1.92 required alongside §1.3's ==1.91.0 rejection; toolchain pinned 1.97.1; upstream `ed25519-dalek >=2.0.0` range resolves to a 3.0.0 that breaks soroban-env-host 26.1.3 testutils — locked to 2.2.0; `stellar-accounts` published on crates.io through 0.7.2), §1.5 (exact build command; two clean builds reproduce SHA-256 `42227f2b…6eed`), §1.6 (upload/deploy/fetch CLI surface: wasm hash & contract id on stdout, submitted-tx explorer links on stderr, `STELLAR_ACCOUNT` accepts a raw secret, `--network` vs `STELLAR_RPC_URL` exclusivity plus the cwd-`.env` dotenv pitfall, `contract fetch` for on-chain wasm).                                                                                                                                                                                                                                                                                 |
 | 2026-09-02 | T2 pre-flight session: added §7 (toolchain drift: stellar-cli v28.0.0 released, stellar-sdk 17.0.1, OZ still v0.7.2; testnet protocol 28 / RPC 28.0.1; `minPersistentTTL` 120960; archived entries read as `liveUntilLedgerSeq: 0`), §8 (OZ account side: no prebuilt account, constructor + `Signer` shapes, `add_context_rule` internals and self-authorized management surface, `AuthPayload`/digest, hand-built entry XDR proven with SDK 15.1.0, wallets-kit 2.6.0 + Freighter 5.47.0 sign the raw payload — `External` signing unsupported, `Delegated` path source-supported/unproven, CAP-71 status), §9 (MCP: v2 `@modelcontextprotocol/server@2.0.0` on spec `2026-07-28`, dual-era stdio, tool/result/error conventions, Claude Code + Desktop registration), §10 (agent-skill format from agentskills.io, platform.claude.com, code.claude.com), §11 (frequency policy reusable per (account, rule); T1 instances + wasm archived; `.env` identity funded). Notes added to §1.1, §3, §5. |
 | 2026-09-02 | D2.3 session: added §12 — native XLM SAC addresses per network computed with the pinned SDK and cross-checked against the live-resolved `native` token; the fresh claim→swap recording proven byte-identical to its raw captures offline (decoded args, ledgers, flows; XLM absent); the `swap-path` derivation rule as implemented (contract-address shape, arg[2] on the Soroswap signature); `npm run --silent` stdout diffability. Also regenerated `examples/live/context-rule.json` (DELTA note wording only) and the fixture artefacts under `examples/`.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| 2026-09-02 | D2.4 session: added §13 — install params encode as sorted `ScMap`s with the pinned SDK (spending-limit XDR pinned), the generated crate re-verified (25 tests, wasm hash `42227f2b…` reproduced, emitted source byte-identical), and the compose/generate decision boundary as implemented.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
