@@ -259,7 +259,13 @@ sentence render as typed.
   and the skill's refusal rule; "audited" only as "unaudited" / "NOT been
   audited" / "Nothing is audited" / the planned audit.
 - Every `Shipped` badge has ≥ 1 proof link on the page (a repo file, an
-  EVIDENCE section, an explorer page, a CI run or a committed artifact).
+  EVIDENCE section, an explorer page, a CI run or a committed artifact). This
+  was **measured** over the built HTML, not asserted: the first measurement
+  found one failure — the bounded-trading brief carried a
+  `Shipped (capability — testnet)` badge with only internal site links — and
+  it now carries eight (the two committed reports, the derivation-rule source,
+  the emitted artifact, the deployed policy, EVIDENCE § D2.3, the harness
+  tests, the CI run). Per-page proof-link counts run from 3 to 98.
 
 ## Part F — audit-workflow results
 
@@ -313,7 +319,10 @@ check confirms every anchor resolves.
    | banner sentence       | 19/19 | verbatim                                                                                                                                                                                                                                                                                                                                             |
    | provenance sentence   | 2     | Overview, Roadmap — verbatim, straight quotes (smartypants off)                                                                                                                                                                                                                                                                                      |
 
-4. **Ten claims cross-checked against the repo**, each now one hop from
+4. **Proof-link rule measured.** For each of the 19 content pages, the number
+   of links to the repository, an explorer page or a CI run was counted in the
+   built HTML; the minimum on a page carrying a Shipped badge is 3.
+5. **Ten claims cross-checked against the repo**, each now one hop from
    proof on its page: (1) "215 tests" — `npm test`; `vitest.config.ts` linked.
    (2) rule ids 1–3, `valid_until` 4983015 — today's `verify`; install log
    linked. (3) "9 files" schema check — `npm run mcp:schemas -- --check`.
@@ -326,7 +335,7 @@ read-properties`. (5) `install` refuses non-testnet — `src/cli.ts:382`.
    lines 17–18. (9) the `TX_NOT_FOUND` window text — today's run. (10) rule
    ids 4–6 and their three transactions — install log
    `install-20260902T153356Z.json`; explorer pages HTTP 200.
-5. **Links.** Over the final build's 19 content pages: **0** internal problems (every
+6. **Links.** Over the final build's 19 content pages: **0** internal problems (every
    `/slug/`, every `#anchor` and every anchor into another page resolves in
    `dist/`), **0** GitHub local-path problems (every
    `github.com/kunal-drall/policywright/blob|tree/main/<path>` exists in the
@@ -334,5 +343,5 @@ read-properties`. (5) `install` refuses non-testnet — `src/cli.ts:382`.
    under GitHub's slug rule), and **232 external URLs → 194 distinct bases,
    all HTTP 200** (`curl -L`, browser UA). An earlier pass over the
    pre-audit build checked 174 bases with the same result.
-6. **Delta rows.** Every row in Part C is marked ✔; Part D's four pages
+7. **Delta rows.** Every row in Part C is marked ✔; Part D's four pages
    exist and build; Part E's sweep is satisfied per item 3.

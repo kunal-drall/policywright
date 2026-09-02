@@ -53,8 +53,10 @@ stock policies cannot express, and every install-time obligation
 Where a stock policy exists it is configured, not re-implemented; the one
 generated contract is stamped illustrative and unaudited on every emitted
 Rust file, and it is byte-identical to a crate that compiles and passes its
-tests
-([compose vs. generate](/concepts/compose-first/)). Installing is a separate,
+tests ([contracts/frequency-limit-policy](https://github.com/kunal-drall/policywright/tree/main/contracts/frequency-limit-policy);
+[compose vs. generate](/concepts/compose-first/)). Every claim here is
+evidenced deliverable by deliverable in
+[EVIDENCE.md](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#delivered--tranche-2). Installing is a separate,
 human-initiated, testnet-only CLI step that signs client-side; the MCP server
 and the skill have no install tool, structurally
 ([MCP server](/reference/mcp-tools/); [smart-account install](/reference/smart-account-install/)).
@@ -66,6 +68,7 @@ and the skill have no install tool, structurally
   argument-scoping policy is not built.
 - The install so far was signed with the operator's local key; the wallet
   signing page is not built.
-- Nothing is audited. The audit of the synthesizer and the generated
-  templates is a Tranche 3 item via the SCF Audit Bank ([Security](/security/)).
+- Nothing is audited. Audit readiness — the audit scope for the synthesizer
+  and the generated templates, submitted to the SCF Audit Bank — is a
+  Tranche 3 item ([Security](/security/)).
 - Everything is testnet.
