@@ -7,19 +7,24 @@ Every row is checkable without trusting this document. Where a claim cannot be
 verified from the repository, it says so instead of claiming completion.
 
 **Scope note.** Tranche 1 (D1.1–D1.4 below) was delivered on 2026-08-03 and is
-closed. Tranche 2 is in progress: D2.3 (dry-run harness + argument-level
-scope), D2.4 (composed configuration + generated stateful policy), D2.5
-(testnet smart account with the installed generated policy — fallback signing
-path), D2.1 (the MCP server) and D2.2 (the Claude skill) are delivered as of
-2026-09-02 — see
-[Delivered — Tranche 2](#delivered--tranche-2); the remaining T2 items are
-listed under [Not yet delivered](#not-yet-delivered). Since D1.3 exactly one
-real testnet deployment exists — the generated frequency-limit policy contract
-(see [Deployment log](#deployment-log)); D2.5 restored it and added two more
-testnet deployments — OpenZeppelin's example smart account and stock
-spending-limit wrapper, built from vendored pinned source ([FACTS.md
-§14](../docs/FACTS.md)). Every address inside the committed fixture remains
-synthetic ([FACTS.md §5](../docs/FACTS.md)).
+closed. Tranche 2: D2.3 (dry-run harness + argument-level scope), D2.4
+(composed configuration + generated stateful policy), D2.5 (testnet smart
+account with the installed generated policy — fallback signing path), D2.1
+(the MCP server) and D2.2 (the Claude skill) are built and evidenced as of
+2026-09-02 — see [Delivered — Tranche 2](#delivered--tranche-2). What each
+criterion still needs is a **human recording**: the MCP reference-session
+transcript (D2.1), the skill demo transcript (D2.2), and the end-to-end video
+(D2.5) — the three BLOCKERS below, all scripted with real outputs in
+[docs/demo-script-t2.md](../docs/demo-script-t2.md) so one recording session
+yields all three ([Tranche 2 close-out](#tranche-2-close-out--truthfulness-pass-demo-script-form)).
+The remaining T2 items are listed under [Not yet delivered](#not-yet-delivered).
+Since D1.3 exactly one real testnet deployment exists — the generated
+frequency-limit policy contract (see [Deployment log](#deployment-log)); D2.5
+restored it and added two more testnet deployments — OpenZeppelin's example
+smart account and stock spending-limit wrapper, built from vendored pinned
+source ([FACTS.md §14](../docs/FACTS.md)) — and the account now carries two
+installs of the synthesised rules (ids 1–3 and 4–6). Every address inside the
+committed fixture remains synthetic ([FACTS.md §5](../docs/FACTS.md)).
 
 **Where the completion criteria come from.** The public SCF project page
 ([SCF #44 — "Record-to-Policy MCP + Agent skill"](https://communityfund.stellar.org/project/policywright-j8x),
@@ -59,6 +64,14 @@ claude mcp list          # → policywright … ✓ Connected (from the committe
 # D2.2 — the skill package and the machine walkthrough of its demo script (in `npm test`):
 npx vitest run test/skill.test.ts
 npx --yes skills-ref@0.1.5 validate .claude/skills/policywright-grant
+# Close-out — the demo-script artifact (7-day, route enforced) regenerates from its pinned flags,
+# and its install (rule ids 4-6) verifies on-chain through its own install log (read-only):
+npm run cli -- synth --input examples/live/recorded-claim-swap-fresh.json --out /tmp/demo $(cat examples/live/demo/synth.args)
+cp examples/live/demo/synth.args /tmp/demo/ && diff -r /tmp/demo examples/live/demo
+npm run cli -- verify --artifact examples/live/demo/context-rule.json \
+  --account CBQ6H7ILH54ADWTVS7FCK36W7FY2RJJOWR4VGLZG7D4PZUG5FSA7QHDT \
+  --install-log examples/live/testnet/install-20260902T153356Z.json
+npm run build           # the CLI, library and MCP server compile under the build config (dist/)
 ```
 
 `npm run demo` is a self-checking smoke test: it asserts each dry-run scenario
@@ -831,15 +844,17 @@ three wasm builds asserted against the deployed hashes `42227f2b…`,
 
 **BLOCKERS — human steps (exact instructions).**
 
-1. **Record the end-to-end demo** (the criterion's second clause). Suggested
-   beats, all reproducible from this repo: `scripts/deploy-account.sh` (or show
-   `examples/live/testnet/account.json` and the explorer page for
-   `CBQ6H7IL…QHDT`); `npm run cli -- synth --input examples/live/recorded-claim-swap-fresh.json --out /tmp/fresh $(cat examples/live/fresh/synth.args)`;
-   `scripts/install-testnet.sh /tmp/fresh/context-rule.json --dry-run` then
-   without `--dry-run` (each run creates three new rules — ids continue from 4);
-   `npm run cli -- verify --artifact /tmp/fresh/context-rule.json --account CBQ6H7ILH54ADWTVS7FCK36W7FY2RJJOWR4VGLZG7D4PZUG5FSA7QHDT`.
-   Needs the `.env` key (present on the author's machine) and ~1 XLM of testnet
-   fees per run. Link the recording here when done.
+1. **Record the end-to-end demo** (the criterion's second clause). The
+   script is [docs/demo-script-t2.md](../docs/demo-script-t2.md) — five
+   beats ≤ 5:00, every `[EXPECT]` block a real output of 2026-09-02: the
+   agent's live tool calls, the skill conversation with its clarification,
+   the BLND→XLM case both ways, the install with the client-side signing
+   moment, and the verify. Its install step was executed for real while
+   writing it (rule ids 4–6, txs `6fee5fc8…`, `7763c0f6…`, `cdb5266d…`;
+   see the [close-out section](#tranche-2-close-out--truthfulness-pass-demo-script-form));
+   each recording appends the next three ids and verifies them through its
+   own install log. Needs the `.env` key (present on the author's machine)
+   and ~0.04 XLM of testnet fees per run. Link the recording here when done.
 2. **Freighter setup for the primary signing mode** (optional for the criterion;
    required to close the cohort-wallet track without a partner): install
    Freighter 5.47+, switch it to Testnet, fund its account via friendbot
@@ -862,9 +877,10 @@ BLOCKER 2. (2) The **stretch** post-install enforcement demo (an in-scope swap
 through the account succeeding, an over-cap transfer rejected on-chain): not
 attempted, so as not to endanger the core flow; it needs the account's
 `execute` entry point and a `__check_auth` payload selecting rules 1–3 per
-context. (3) The three rules expire at ledger 4983015 (≈ 30 days); the restored
-policy entries at 4982933/4982936 — re-run `scripts/restore-testnet.sh` before
-a later demo if they lapse. (4) `valid_until` for the rules was computed by the
+context. (3) The three rules expire at ledger 4983015 (≈ 30 days) and the demo-script
+run's rules 4–6 at 4588890 (≈ 2026-09-09); the restored policy entries at
+4982933/4982936 — re-run `scripts/restore-testnet.sh` before a later demo if
+they lapse. (4) `valid_until` for the rules was computed by the
 installer from the live head (E1); the artifact itself carries the relative
 lifetime — the install log is the record of the absolute value.
 
@@ -938,7 +954,11 @@ live reports and side-by-side artefacts diffed; `site`: docs build;
 `contracts`: fmt → clippy → Rust tests → three wasm builds asserted against
 the deployed hashes). Dispatched manually (fork).
 
-**BLOCKER — human step (exact instructions).** Run
+**BLOCKER — human step (exact instructions).** The six tool calls of the
+session were made from Claude Code 2.0.76 on 2026-09-02 and returned the
+expected results ([FACTS.md §17.6](../docs/FACTS.md); quoted in
+[docs/demo-script-t2.md](../docs/demo-script-t2.md) Beat 1); the criterion's
+"recorded" clause needs the human-saved transcript. Run
 [docs/mcp-reference-session.md](../docs/mcp-reference-session.md) in Claude
 Code from the repository root (`npm ci`; `claude`; approve the project server),
 save the unedited transcript as
@@ -1046,7 +1066,12 @@ artefacts diffed; `site`: docs build; `contracts`: fmt → clippy → Rust tests
 → three wasm builds asserted against the deployed hashes). Dispatched
 manually (fork).
 
-**BLOCKER — human step (exact instructions).** Run
+**BLOCKER — human step (exact instructions).** The demo's tool calls were
+made from Claude Code 2.0.76 on 2026-09-02 with the expected results, and the
+artifact they produced was installed into the testnet account as rule ids
+4–6 and verified ([FACTS.md §17.2, §17.6](../docs/FACTS.md);
+[docs/demo-script-t2.md](../docs/demo-script-t2.md) Beat 2); the criterion's
+"a demo shows" clause needs the human-saved conversation. Run
 [docs/skill-demo-script.md](../docs/skill-demo-script.md) in Claude Code
 from the repository root (`npm ci`; `claude`; approve the project MCP
 server; say Turn 1 verbatim — the skill activates on it). Expect Turn 1 to
@@ -1068,24 +1093,49 @@ ceilings in one run (T3 says so and offers separate delegations).
 
 ---
 
+### Tranche 2 close-out — truthfulness pass, demo script, form
+
+**Not a numbered deliverable; the supporting work of 2026-09-02** that puts
+the five T2 sections above in front of a reviewer honestly and makes the
+three human recordings a single scripted session.
+
+| Item                       | What shipped                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Verify                                                                                                                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Truthfulness pass          | README and the docs site say in present tense what T2 shipped, with proof links, and keep T3 under Planned: the site overview no longer says "there is no MCP server, Claude skill, or wallet integration yet"; the roadmap carries a per-deliverable D2.1–D2.5 table (status, open item, evidence link) and a "Planned — Tranche 3" section; three new site pages — [the skill](https://policywright.lemmalabs.space/reference/skill/), [smart-account install](https://policywright.lemmalabs.space/reference/smart-account-install/), [dry-run harness](https://policywright.lemmalabs.space/reference/dry-run-harness/); the security page and README no longer claim the policy deploy is the only on-chain action; the on-chain argument-scoping policy is called what it is — not built, not an approved criterion (RECONCILIATION-T2 rows 102, 104)                                                                                                                                                                                                                                                                                                                                                                                                                     | `git grep -n "no MCP server\|planned — Tranche 2\|T2-early" README.md docs site/src` → nothing; the site builds (`site` CI job)                                              |
+| Demo script from real runs | [docs/demo-script-t2.md](../docs/demo-script-t2.md): five beats ≤ 5:00, each `[SAY]`/`[DO]`/`[EXPECT]` with the real output of 2026-09-02 — six live MCP calls from Claude Code ([FACTS.md §17.6](../docs/FACTS.md)), the skill's clarification turn, both harness modes, the install dry run and the install itself, the verify. The install was executed: artifact [examples/live/demo/](../examples/live/demo/) (7-day lifetime and spend window, route enforced; flags in `synth.args`, diffed in CI) → rule ids **4–6**, txs [`6fee5fc8…`](https://stellar.expert/explorer/testnet/tx/6fee5fc8ab46cd221c6b807ee22c12e216d1d072e2179b4f6964c6c646e22ed6) (ledger 4467932), [`7763c0f6…`](https://stellar.expert/explorer/testnet/tx/7763c0f6a30a3e9a24944d685b5faaab2b4360e5b1a136f2f0386b5d2bb9007a) (4467933), [`cdb5266d…`](https://stellar.expert/explorer/testnet/tx/cdb5266d038768a7a7bf9e3130e5c6efdcdaf04a3e1a574e6d13e34eb459893d) (4467934), `valid_until` 4588890, `local-fallback`, 2 auth entries each — [install log](../examples/live/testnet/install-20260902T153356Z.json), [dry-run log](../examples/live/testnet/install-dry-run-20260902T153120Z.json), [verify PASS 15/15](../examples/live/testnet/verify-demo-20260902T153356Z.md) at ledger 4467941 | the "Close-out" lines of [How to verify everything at once](#how-to-verify-everything-at-once); the transaction links; `grep -c "\*\*\[EXPECT\]\*\*" docs/demo-script-t2.md` |
+| `verify` re-install fix    | Installing the same artifact again appends rule ids with the same names; `verify` matched the first name hit, so the demo's verify with its own log would have failed. `findInstalledRule` ([src/verify.ts](../src/verify.ts)) now prefers the installed rule whose `valid_until` equals the install log's; proven live both ways (ids 4–6 with the new log, ids 1–3 with the D2.5 log — [FACTS.md §17.2–17.3](../docs/FACTS.md)); committed outputs unchanged                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | `npx vitest run test/install.test.ts` — "matches a re-installed artifact through the install log, not the first name hit"; the two live verify commands above                |
+| Retention re-check         | Every cited hash re-fetched from the public node ([FACTS.md §17.1](../docs/FACTS.md)): the T1 claim→swap hashes and the D1.3 deploy are past the ~7-day window (`TX_NOT_FOUND`); the D2.5 deploys/installs and the demo-run installs are live until ≈ 2026-09-09. The demo script records the committed real simulation exchange live and shows the honest `TX_NOT_FOUND`; a fresh claim→swap is an optional human sub-step of the video (RECONCILIATION-T2 row 103)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | `curl` `getTransaction` per hash; the MCP `record` envelope quoted in the demo script                                                                                        |
+| CI                         | `build` job gains `npm run build` (the MCP server entry compiles under the build config) and the demo-artifact diff; the MCP suite, the skill walkthrough, the schema drift check and `skills-ref validate` were already in it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | [ci.yml](../.github/workflows/ci.yml); the run cited below                                                                                                                   |
+| Tranche 2 completion form  | `evidence/TRANCHE2-FORM.md` — every field's paste-ready answer with every link, hash and number verified in-session; `[BLOCKER: …]` tokens exactly where a human recording is missing; Support Needed asks for the OpenZeppelin accounts-package contact for the Tranche 3 technical-reviewer relationship                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `grep -c "\[BLOCKER" evidence/TRANCHE2-FORM.md`; `grep -n "\[link\]" evidence/TRANCHE2-FORM.md` → nothing                                                                    |
+
+**CI run for this work:** dispatched after these commits land on `main`; cited here by the follow-up commit (fork — manual dispatch, see the D1.2 CI-trigger note).
+
+**Not done (stated plainly).** The three human recordings (above); the
+wallet signing page; the on-chain argument-scoping policy; the optional
+post-install enforcement demo; GitHub Issues remain disabled on the
+repository and push-triggered CI still does not fire on this fork
+([FACTS.md §17.4](../docs/FACTS.md)).
+
+---
+
 ## Not yet delivered
 
 Stated plainly so no reviewer has to infer it.
 
-| Item                                                             | Tranche | Status                                                                                                                                                                                                                                                |
-| ---------------------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Simulated-transaction recording path                             | T1      | **Delivered** (D1.1, 2026-08-03)                                                                                                                                                                                                                      |
-| Compile the generated policy                                     | T1      | **Delivered** (D1.3, 2026-08-03)                                                                                                                                                                                                                      |
-| Deploy a generated policy to testnet                             | T1      | **Delivered** (D1.3, 2026-08-03)                                                                                                                                                                                                                      |
-| Resolve `valid_until` ledger-sequence mismatch                   | T1      | **Delivered** (D1.2, 2026-08-03)                                                                                                                                                                                                                      |
-| Resolve context-rule scope granularity                           | T1      | **Delivered** (D1.2, 2026-08-03)                                                                                                                                                                                                                      |
-| MCP server                                                       | T2      | **Delivered** (D2.1, 2026-09-02); the human-recorded reference session is the open blocker                                                                                                                                                            |
-| Claude skill                                                     | T2      | **Delivered** (D2.2, 2026-09-02); the human-recorded demo conversation is the open blocker                                                                                                                                                            |
-| Wallet integration (testnet, end-to-end)                         | T2      | **Delivered — fallback path** (D2.5, 2026-09-02): OZ smart account on testnet, emitted rules installed as-is and verified on-chain, signed with the labelled local `.env` key; the Freighter/wallets-kit signing page is the open cohort-wallet track |
-| Composed configuration + generated stateful policy, side by side | T2      | **Delivered** (D2.4, 2026-09-02)                                                                                                                                                                                                                      |
-| Net-new policy codegen with storage segregation                  | T2      | **Delivered** (D2.4, 2026-09-02)                                                                                                                                                                                                                      |
-| Dry-run harness + argument-level scope                           | T2      | **Delivered** (D2.3, 2026-09-02)                                                                                                                                                                                                                      |
-| Audit, mainnet, OZ validation, walkthroughs                      | T3      | Not started                                                                                                                                                                                                                                           |
+| Item                                                             | Tranche | Status                                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Simulated-transaction recording path                             | T1      | **Delivered** (D1.1, 2026-08-03)                                                                                                                                                                                                                                                                                                                                        |
+| Compile the generated policy                                     | T1      | **Delivered** (D1.3, 2026-08-03)                                                                                                                                                                                                                                                                                                                                        |
+| Deploy a generated policy to testnet                             | T1      | **Delivered** (D1.3, 2026-08-03)                                                                                                                                                                                                                                                                                                                                        |
+| Resolve `valid_until` ledger-sequence mismatch                   | T1      | **Delivered** (D1.2, 2026-08-03)                                                                                                                                                                                                                                                                                                                                        |
+| Resolve context-rule scope granularity                           | T1      | **Delivered** (D1.2, 2026-08-03)                                                                                                                                                                                                                                                                                                                                        |
+| MCP server                                                       | T2      | **Built and evidenced** (D2.1, 2026-09-02); the human-saved reference-session transcript is the open blocker                                                                                                                                                                                                                                                            |
+| Claude skill                                                     | T2      | **Built and evidenced** (D2.2, 2026-09-02); the human-saved demo-conversation transcript is the open blocker                                                                                                                                                                                                                                                            |
+| Wallet integration (testnet, end-to-end)                         | T2      | **Built and evidenced — fallback path** (D2.5, 2026-09-02): OZ smart account on testnet, emitted rules installed as-is (twice) and verified on-chain, signed with the labelled local `.env` key; the end-to-end recording ([script](../docs/demo-script-t2.md)) is the open blocker; the Freighter/wallets-kit signing page is the open cohort-wallet track (not built) |
+| Composed configuration + generated stateful policy, side by side | T2      | **Delivered** (D2.4, 2026-09-02)                                                                                                                                                                                                                                                                                                                                        |
+| Net-new policy codegen with storage segregation                  | T2      | **Delivered** (D2.4, 2026-09-02)                                                                                                                                                                                                                                                                                                                                        |
+| Dry-run harness + argument-level scope                           | T2      | **Delivered** (D2.3, 2026-09-02)                                                                                                                                                                                                                                                                                                                                        |
+| Audit, mainnet, OZ validation, walkthroughs                      | T3      | Not started                                                                                                                                                                                                                                                                                                                                                             |
 
 ---
 
@@ -1113,6 +1163,7 @@ with no credentials at all.
 | 2026-08-03 | D1.1 delivered: multi-hash recording of the real claim→swap sequence (committed output + reconciliation table above), simulated-path ingestion with a committed real `simulateTransaction` exchange, typed error taxonomy, capture-driven decoder tests (58 total). Superseded D1's "live path untested / simulated path not built" limits.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | 2026-08-03 | D1.3 delivered: the generated policy as a compiled crate against the real OZ `Policy` trait (25 Rust tests; emitter byte-equality locked in CI), reproducible wasm build, and a hash-verified testnet deployment (`CDSVPSTS…2ZPP`); deploy script + deployment log added; FACTS §1.4–1.6 and §5 record the toolchain, CLI-surface, and deployment facts.                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | 2026-08-03 | D1.2 delivered: versioned `context-rule.json` (schema v1) with installable OZ rules and real stock `spending_limit` params, emitted and committed for the real recorded sequence; field-by-field install-signature cross-check kept as a CI test; 28 new network-free tests (86 total). Closed the §4.1/§4.2 divergences.                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 2026-09-02 | Tranche 2 close-out: truthfulness pass over README and the docs site (per-deliverable T2 roadmap rows, three new reference pages, stale "planned" claims removed); `docs/demo-script-t2.md` with real outputs at every beat, including a second real install of the synthesised rules (ids 4–6, `examples/live/demo/`, install log, verify PASS); `verify` made re-install safe through the install log (`findInstalledRule`, +1 test → 215); CI gains `npm run build` and the demo-artifact diff; retention and URL re-checks recorded (FACTS §17); `evidence/TRANCHE2-FORM.md` drafted with the three human recordings as the only blockers.                                                                                                                                                         |
 | 2026-09-02 | D2.2 delivered: the `policywright-grant` skill packaged in the verified format (`.claude/skills/policywright-grant/`, six spec fields, `allowed-tools` = the four MCP tools, references one level deep) with the clarification-trigger list written first, guardrails (never install/deploy, always dry-run, always the banner, never invent values), `docs/skill-demo-script.md` (the "grant permission to claim my Blend yield and swap it to USDC" conversation with expected tool calls per turn), `skills-ref validate` in CI, and `test/skill.test.ts` (structure, guardrails, triggers, and a machine walkthrough of the demo script and the reference session against the real server; shared `test/mcp-harness.ts`); 9 new tests (214 total).                                                 |
 | 2026-09-02 | D2.1 delivered: the MCP server (`@modelcontextprotocol/server` 2.0.0, stdio, dual-era) with exactly four tools — `record`, `synthesize`, `simulate`, `verify` — wrapping the library; versioned Zod/JSON schemas (`schemas/mcp/`, drift-checked in CI); typed error envelope; unaudited banner on every generated-code output; `synthesize` notes/warnings/scope-notes/installable channel; env-only config, no secret; project-scope `.mcp.json`; `docs/mcp-server.md` (determinism map, reuse audit) and `docs/mcp-reference-session.md`; `verifyArtifact`, `recordedTxToJson`, `evaluateScenarios` extracted from the CLI; `verify` maps transport failures to `NETWORK` and rejects checksum-invalid accounts; 31 new stdio tests against a stub RPC replaying the committed captures (205 total). |
 | 2026-09-02 | D2.5 delivered (fallback path): vendored OZ's example smart account and stock spending-limit wrapper (built from pinned source, hash-verified) and deployed both to testnet; restored the archived D1.3 policy; emitter fixes E1–E5 → `context-rule.json` schema v2 (relative lifetimes, real `Signer` shapes, deployed addresses, `installTargets`); `src/install-shape.ts` install gate; `src/install.ts` (simulate twice, hand-built `AuthPayload` + `Delegated(G)` nested entry, client-side signing, submit) and `src/verify.ts` (on-chain read-back diff) with CLI `install` / `verify`; three rules installed into `CBQ6H7IL…QHDT` (rule ids 1–3) and verified PASS; 29 new tests (174 total). The Delegated(G) path is proven end-to-end.                                                      |
