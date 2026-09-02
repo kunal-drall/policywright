@@ -547,13 +547,23 @@ build/render facts from headless Chrome in both themes, the 174-URL link
 check, every command re-run); reconciliation rows 107–113 in
 [RECONCILIATION-T2.md](../docs/RECONCILIATION-T2.md).
 
+**CI run for this work:**
+[run 33679049443](https://github.com/kunal-drall/policywright/actions/runs/33679049443)
+— all three jobs green on commit `659ebe5` (`build`: lint → format →
+typecheck → 215 tests → MCP schema drift check → `skills-ref validate` →
+`tsc` build → demo → live reports, side-by-side artefacts and the demo-script
+artifact diffed; `site`: the docs build with the four new pages;
+`contracts`: fmt → clippy → Rust tests → three wasm builds asserted against
+the deployed hashes). Dispatched manually (fork).
+
 **Not done (stated plainly).** The live site is not redeployed by this work:
 the Vercel project has no git integration and the CLI here has no
 credentials, so <https://policywright.lemmalabs.space> serves the 2026-08-06
-build until a human runs `cd site && vercel login && vercel --prod` and checks
-the Overview badge reads `Status: Shipped (testnet)` in an incognito window,
-desktop and mobile, both themes. The CI run for this work is cited in the
-[Changelog](#changelog) row below once dispatched.
+build — `/use-cases/agent-yield-operations/` and `/reference/skill/` return
+404 there and the Overview still reads `Status: In development` (re-checked
+after the push). A human closes this with `cd site && vercel login && vercel --prod`,
+then confirms the Overview badge reads `Status: Shipped (testnet)` in an
+incognito window, desktop and mobile, both themes.
 
 ### D8 — Verified-facts record
 
