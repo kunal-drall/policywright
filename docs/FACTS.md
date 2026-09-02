@@ -1221,6 +1221,65 @@ into Rust. Documented in `docs/compose-vs-generate.md`.
 
 ---
 
+## GATE 14 — D2.5 testnet smart account, install, verify (verified 2026-09-02)
+
+### 14.1 What was built and deployed (all hash-verified by `scripts/deploy-testnet.sh`)
+
+| Artifact                                                                                                                        | Wasm SHA-256 (local = on-chain)                                    | Testnet address / tx                                                                                                                                                                                             |
+| ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `contracts/multisig-account` — OZ `examples/multisig-smart-account/account` vendored verbatim (v0.7.2)                          | `1815dda1b96ea6d23865be8a16ffcbe0b8336d15fc0d3d5ada776c06cb17afde` | account `CBQ6H7ILH54ADWTVS7FCK36W7FY2RJJOWR4VGLZG7D4PZUG5FSA7QHDT`, deploy tx `89cec37e9b2d10f12ebaac094c622dc0255af6f16da37bbd7764873d2bfab458`, ctor `--signers '[{"Delegated":"GATUKCIM…"}]' --policies '{}'` |
+| `contracts/spending-limit-policy` — OZ `…/spending-limit-policy` wrapper vendored verbatim (the stock module's deployable form) | `5a45420db383bfc6166519780bdf54cda976f869e441e1a4d98666e4726cbec4` | `CCOQPGEYKZVNDRIUFMP6IQRDUONOURWWDJTXP22SJZ7NICJX7VGS4W4E`, deploy tx `83062a259699aa45191f992f3b9639efc7146eb880a99fd95f7fe904c8bb2204`                                                                         |
+| `contracts/frequency-limit-policy` — the D1.3 generated policy (unchanged wasm)                                                 | `42227f2b6150c95a7084bb7c5ff2e7a40793eae39bf0c5dc95bd752d18ee6eed` | instance `CDSVPSTS…2ZPP` **restored** (`stellar contract restore --ledgers-to-extend 518400`): code entry live until ledger 4982933, instance until 4982936                                                      |
+
+Both new wasms reported "Skipping install because wasm already installed"
+at upload: identical OZ example code had been uploaded to testnet before by
+someone else (same hash ⇒ same code entry). Builds of the two crates need
+`stellar contract build` (the crates.io `stellar-contract-utils` 0.7.2 enables
+soroban-sdk's `experimental_spec_shaking_v2`, whose build script requires
+stellar-cli ≥ 25.2 — plain `cargo build --target wasm32v1-none` of those two
+packages fails with that message; `cargo test`/`clippy` on the host target are
+unaffected, and `--package frequency-limit-policy` builds are unaffected, hash
+unchanged). `multisig-account`'s own OZ tests (2) pass under `cargo test`.
+
+### 14.2 The constructor call shape stellar-cli 27.1.0 accepts
+
+`stellar contract deploy --wasm-hash … -- --signers '[{"Delegated":"G…"}]' --policies '{}'`
+deploys and initialises in one transaction: a single-field tuple variant is
+`{"Variant": value}` (OZ's README shows the two-field `External` as
+`{"External": [addr, hex]}`), an empty `Map<Address, Val>` is `{}`. The
+resulting rule 0 reads back as `Default "multisig"`, 1 signer, 0 policies,
+`valid_until None` (verify output, EVIDENCE § D2.5).
+
+### 14.3 The Delegated(G) path is proven end-to-end
+
+`src/install.ts` (D2.5) — one transaction per rule, source `G` = the `.env`
+key, two authorization entries: the account's own address-credential entry
+whose `signature` is `AuthPayload { signers: {Delegated(G): Bytes()}, context_rule_ids: [0] }`
+(nonce random i64, expiration head + 120), plus the hand-built
+`SourceAccount` entry over `account.__check_auth(auth_digest)` for `G`.
+Recording-mode simulation returned the account entry skeleton (root
+invocation `add_context_rule`, **no sub-invocations** — the policies'
+`smart_account.require_auth()` inside `install` is satisfied by invoker auth,
+§8.2); enforcing-mode simulation with both entries succeeded for all three
+rules (min resource fees 413 823 / 413 824 / 422 253 stroops in the dry run);
+the submitted transactions succeeded at ledgers 4464616–4464618
+(`2bd245b6…8a6e`, `065bf20b…3dfa`, `6593a5a0…1a9a`), returning rule ids 1, 2, 3.
+`rpc.assembleTransaction` keeps caller-supplied auth entries
+(`lib/rpc/transaction.js:55-59`). This closes RECONCILIATION-T2 row 39
+("source-supported, unproven"). The digest math reproduces the §8.3 vector
+exactly (`test/install.test.ts`: payload `a5b01cb5…9ed0`, digest
+`ad363bc7…c6f5`).
+
+### 14.4 Read-back shapes (`src/verify.ts`, simulated getters)
+
+`get_context_rules_count` → `u32`; `get_context_rule(id)` → `ContextRule`
+decoded by `scValToNative` as `{ id, context_type: ["CallContract", "C…"] | "Default", name, signers: [["Delegated","G…"]], signer_ids, policies: ["C…"], policy_ids, valid_until: number | null }`.
+`get_frequency_limit_data(rule_id, account)` → `{ window_secs: bigint, max_calls, call_history }`;
+`get_spending_limit_data(rule_id, account)` → `{ spending_limit: bigint, period_ledgers, … }`.
+Read at ledger 4464624: rules 1–3 exactly as emitted (`examples/live/testnet/verify.md`).
+
+---
+
 ## Changelog
 
 | Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
@@ -1232,3 +1291,4 @@ into Rust. Documented in `docs/compose-vs-generate.md`.
 | 2026-09-02 | T2 pre-flight session: added §7 (toolchain drift: stellar-cli v28.0.0 released, stellar-sdk 17.0.1, OZ still v0.7.2; testnet protocol 28 / RPC 28.0.1; `minPersistentTTL` 120960; archived entries read as `liveUntilLedgerSeq: 0`), §8 (OZ account side: no prebuilt account, constructor + `Signer` shapes, `add_context_rule` internals and self-authorized management surface, `AuthPayload`/digest, hand-built entry XDR proven with SDK 15.1.0, wallets-kit 2.6.0 + Freighter 5.47.0 sign the raw payload — `External` signing unsupported, `Delegated` path source-supported/unproven, CAP-71 status), §9 (MCP: v2 `@modelcontextprotocol/server@2.0.0` on spec `2026-07-28`, dual-era stdio, tool/result/error conventions, Claude Code + Desktop registration), §10 (agent-skill format from agentskills.io, platform.claude.com, code.claude.com), §11 (frequency policy reusable per (account, rule); T1 instances + wasm archived; `.env` identity funded). Notes added to §1.1, §3, §5. |
 | 2026-09-02 | D2.3 session: added §12 — native XLM SAC addresses per network computed with the pinned SDK and cross-checked against the live-resolved `native` token; the fresh claim→swap recording proven byte-identical to its raw captures offline (decoded args, ledgers, flows; XLM absent); the `swap-path` derivation rule as implemented (contract-address shape, arg[2] on the Soroswap signature); `npm run --silent` stdout diffability. Also regenerated `examples/live/context-rule.json` (DELTA note wording only) and the fixture artefacts under `examples/`.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | 2026-09-02 | D2.4 session: added §13 — install params encode as sorted `ScMap`s with the pinned SDK (spending-limit XDR pinned), the generated crate re-verified (25 tests, wasm hash `42227f2b…` reproduced, emitted source byte-identical), and the compose/generate decision boundary as implemented.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 2026-09-02 | D2.5 session: added §14 — vendored OZ account + spending-limit wrapper built and deployed to testnet (hashes, addresses, txs), the D1.3 policy restored, the stellar-cli constructor JSON form, the Delegated(G) install path proven end-to-end (two auth entries, enforcing simulation, three successful transactions), the getter read-back shapes; `stellar contract build` requirement for the two vendored crates.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |

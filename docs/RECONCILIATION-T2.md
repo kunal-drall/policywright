@@ -110,7 +110,7 @@ did not produce — forbidden downstream, hence an emitter fix.
 | _(absent)_ target smart-account address, admin rule id                                                   | `credentials.address`, `context_rule_ids[0]`                                       | ✓ Not emitter facts — they are deploy-time facts the install command takes as explicit arguments. Recorded so they are not mistaken for gaps.                                                                                                                                                                                                                                           |
 | _(absent)_ `AuthPayload` / signatures                                                                    | `credentials.signature`                                                            | ✓ Signing-surface output, by design outside the artifact.                                                                                                                                                                                                                                                                                                                               |
 
-### Emitter-fix list (explicit; empty would have been a valid finding)
+### Emitter-fix list (explicit; empty would have been a valid finding) — **closed by D2.5, rows 72–75**
 
 - **E1 — `validUntilLedger` from a past ledger.** Emit `lifetimeLedgers`
   (relative) alongside, and emit an absolute `validUntilLedger` only when
@@ -216,6 +216,26 @@ stateful policy contract; both compile and pass simulation."_
 
 ---
 
+## GATE 9 — D2.5: install into a testnet smart account, as executed (2026-09-02)
+
+Criterion: _"A testnet smart account with an installed generated policy;
+end-to-end demo recorded."_ The rows below record what the pre-flight
+predicted against what the testnet run showed; the emitter-fix list (Gate 3)
+is closed here.
+
+| #   | Assumption (pre-flight)                                                                     | Actual (executed 2026-09-02)                                                                                                                                                                                                                                                                                                                                          | Consequence                                                                                                                                 | Source                                                             |
+| --- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| 71  | The `Delegated(G)` nested `__check_auth` entry is source-supported, unproven (row 39)       | ✓ **Proven.** Recording simulation returns the account entry skeleton; a hand-built `SourceAccount` entry over `account.__check_auth(auth_digest)` for `G` (= tx source) passes enforcing simulation and three submitted transactions (rule ids 1–3). No sub-invocations were needed for the policies' `install` (invoker auth)                                       | The primary (wallet) mode reduces to `signTransaction` of the same transaction; row 39's "first T2 proof" is done with the local key as `G` | FACTS §14.3; `examples/live/testnet/install-20260902T105742Z.json` |
+| 72  | E1 — `validUntilLedger` from a past ledger                                                  | ✓ Fixed: relative `lifetimeLedgers` always; absolute only from `--ledger-head`; the installer adds the live head. Installed `valid_until` 4983015 = head 4464615 + 518400                                                                                                                                                                                             | `PastValidUntil` cannot occur from a stale recording                                                                                        | `src/synthesizer.ts`; `src/install.ts` `planInstall`; schema v2    |
+| 73  | E2 — signers in the real `Signer` shape; refuse a signer-less `spending_limit` rule at emit | ✓/deviation: `--signer delegated:G…` / `external:C…:hex` emitted on every rule. The refusal lives in the **install gate**, not the emitter: a signer-less artifact is still emitted (as a design document, its notes saying so) and `validateContextRuleDocument(…, {forInstall: true})` refuses it with `NotAllowed (at enforce)` citing `spending_limit.rs:232-234` | Signer-less artifacts stay useful for review and keep D2.4's boundary tests meaningful; nothing signer-less can be installed                | `src/install-shape.ts`; `test/install.test.ts`                     |
+| 74  | E3 — policy addresses emitted, not null                                                     | ✓ Fixed: `--policy-address <kind>=<C…>`; null + note when not supplied; the install gate refuses null. No silent testnet default — addresses are explicit inputs pinned in `examples/live/fresh/synth.args`                                                                                                                                                           | Reviewers see exactly which deployments the artifact binds                                                                                  | `src/synthesizer.ts`; `examples/live/fresh/synth.args`             |
+| 75  | E4 / E5 — duplicate-address guard; notes wording                                            | ✓ Fixed: `SynthError` at emit and `DuplicatePolicy (3009)` at the gate; "one RULE per token, the same instance serves every rule"                                                                                                                                                                                                                                     | —                                                                                                                                           | `src/synthesizer.ts`; `test/install.test.ts`                       |
+| 76  | The T1 policy instance is archived (row 53)                                                 | ✓ Restored + extended 518400 ledgers (code entry live until 4982933, instance 4982936) by `scripts/restore-testnet.sh` before the install; reused as the `custom:FrequencyLimitPolicy` address on rules 1 and 2 (row 52's reuse-per-(account, rule) confirmed on-chain: two rules, one instance)                                                                      | No redeploy of the generated policy                                                                                                         | FACTS §14.1; verify output                                         |
+| 77  | The stock `spending_limit` has a deployable form                                            | ✗ Not shipped by OZ as a contract (§2.4); the deployable form is OZ's example **wrapper**, vendored verbatim and deployed (`CCOQPGEY…4W4E`). Composing a stock policy therefore includes deploying OZ's wrapper — still no policywright-generated enforcement logic                                                                                                   | Stated in `docs/compose-vs-generate.md` and the crate README                                                                                | `contracts/spending-limit-policy/README.md`                        |
+| 78  | Wallet signing surface (primary mode) built this session                                    | ✗ Not built: no human with Freighter in the session; the labelled `local-fallback` surface ran the flow, its reason printed in every output. The installer's `SigningSurface` interface is the plug point; the cohort-wallet track stays open                                                                                                                         | D2.5 is marked "fallback path; cohort-wallet track remains open"                                                                            | `src/install.ts` `SigningSurface`; EVIDENCE § D2.5 BLOCKERS        |
+
+---
+
 ## Summary of discrepancies (inputs to the T2 prompts)
 
 1. **No prebuilt account** (row 28): build the OZ example / Wizard-shaped
@@ -251,10 +271,14 @@ stateful policy contract; both compile and pass simulation."_
     install-shape validation + ScVal encoding as the configuration's
     "compile", per-artifact attribution in the report, the spending-limit
     approximation stated.
+13. **D2.5 executed** (rows 71–78): Delegated(G) path proven on testnet;
+    E1–E5 closed (E2's refusal at the install gate); T1 instance restored and
+    reused; the stock wrapper is OZ's example contract; wallet surface not
+    built — fallback labelled.
 
 ## Self-validation
 
-- No gated field is "unknown"/"TODO": rows 28–70 each carry an actual value
+- No gated field is "unknown"/"TODO": rows 28–78 each carry an actual value
   and a source; every source was read or executed this session (FACTS §7–§11
   give the commands/URLs and dates).
 - The emitter-fix list is explicit (E1–E5).
