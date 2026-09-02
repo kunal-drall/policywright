@@ -926,9 +926,13 @@ timestamp; existing output files are never replaced without `overwrite`;
 RPC URLs are redacted; no output contains the fake secret; environment files
 are refused and non-JSON files are not echoed. Suite total: 205 tests.
 
-**CI run for this deliverable:** dispatched after this commit is pushed and
-cited in the follow-up commit (fork: runs are dispatched manually — see the
-D1.2 note).
+**CI run for this deliverable:**
+[run 33631174115](https://github.com/kunal-drall/policywright/actions/runs/33631174115)
+— all three jobs green on commit `98f9271` (`build`: lint → format → typecheck
+→ 205 tests incl. the 31 stdio MCP tests → MCP schema drift check → demo →
+live reports and side-by-side artefacts diffed; `site`: docs build;
+`contracts`: fmt → clippy → Rust tests → three wasm builds asserted against
+the deployed hashes). Dispatched manually (fork).
 
 **BLOCKER — human step (exact instructions).** Run
 [docs/mcp-reference-session.md](../docs/mcp-reference-session.md) in Claude
