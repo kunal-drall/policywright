@@ -10,7 +10,8 @@ verified from the repository, it says so instead of claiming completion.
 closed. Tranche 2 is in progress: D2.3 (dry-run harness + argument-level
 scope), D2.4 (composed configuration + generated stateful policy), D2.5
 (testnet smart account with the installed generated policy — fallback signing
-path) and D2.1 (the MCP server) are delivered as of 2026-09-02 — see
+path), D2.1 (the MCP server) and D2.2 (the Claude skill) are delivered as of
+2026-09-02 — see
 [Delivered — Tranche 2](#delivered--tranche-2); the remaining T2 items are
 listed under [Not yet delivered](#not-yet-delivered). Since D1.3 exactly one
 real testnet deployment exists — the generated frequency-limit policy contract
@@ -55,6 +56,9 @@ npm run cli -- verify --artifact examples/live/fresh/context-rule.json \
 npx vitest run test/mcp.test.ts
 npm run mcp:schemas -- --check
 claude mcp list          # → policywright … ✓ Connected (from the committed .mcp.json)
+# D2.2 — the skill package and the machine walkthrough of its demo script (in `npm test`):
+npx vitest run test/skill.test.ts
+npx --yes skills-ref@0.1.5 validate .claude/skills/policywright-grant
 ```
 
 `npm run demo` is a self-checking smoke test: it asserts each dry-run scenario
@@ -957,6 +961,108 @@ Turn 2 (and Turn 1's live token-metadata resolution).
 
 ---
 
+### D2.2 — Claude skill
+
+**Criterion (approved, verbatim):** "Skill packaged; a demo shows 'grant
+permission to do X from this transaction' producing a reviewed policy."
+
+**Delivered 2026-09-02 — the packaged skill, its demo script, and a
+machine-executed walkthrough of that script.** The human recording of the
+demo conversation is the BLOCKER at the end.
+
+**Package.** [.claude/skills/policywright-grant/](../.claude/skills/policywright-grant/)
+— `SKILL.md` (frontmatter with the six spec fields only: `name`,
+`description`, `license`, `compatibility`, `metadata`, `allowed-tools`;
+195-line body) plus `references/clarifications.md` (the trigger list and
+question templates, written before the skill — pre-flight gate 3) and
+`references/tool-io.md` (the tool I/O cheat-sheet and CLI-flag mapping).
+Format per [FACTS.md §10](../docs/FACTS.md) (agentskills.io +
+Anthropic's rules, fetched 2026-09-02) and §16; loadable by the installed
+Claude Code (2.0.76 carries the `.claude/skills` / `SKILL.md` loader and the
+`allowed-tools` handling — [FACTS.md §16](../docs/FACTS.md)).
+
+```bash
+npx --yes skills-ref@0.1.5 validate .claude/skills/policywright-grant   # → Valid skill: …
+npx --yes skills-ref@0.1.5 read-properties .claude/skills/policywright-grant
+```
+
+**What the skill does.** Conversational entry point over the four MCP
+tools: the user describes the delegation and supplies hashes → `record` →
+`synthesize` with defaults → the rule in plain language (scope, caps,
+lifetime, warnings, installable-as-is) → the clarification questions →
+re-`synthesize` with the chosen config and install targets → `simulate` and
+the permit/deny/flag table → hand-over of the reviewable artifacts and the
+one human install command; `verify` only after the human installed.
+
+**Clarification triggers (must ask, never assume).** T1 ambiguous cap (the
+funded plan's own example: "this transferred 50 USDC — cap at 50, or allow
+up to 100 over a week?"), T2 ambiguous lifetime, T3 multi-asset outflows,
+T4 argument-constraint on/off, T5 any synthesize warning / `DELTA` note /
+not-installable verdict, T6 assumed subject —
+[docs/skill-demo-script.md § 1](../docs/skill-demo-script.md) and the
+skill's `references/clarifications.md`.
+
+**Guardrails written into the skill.** Never install, deploy, sign, or
+submit (the human step is handed over verbatim); always dry-run before
+"reviewed" and require `deviations: 0`; always show the unaudited banner
+with generated code; never invent hashes, addresses, amounts, or windows;
+surface every warning, note, and scope note; testnet only.
+
+**Demo script.** [docs/skill-demo-script.md](../docs/skill-demo-script.md)
+— "grant permission to claim my Blend yield and swap it to USDC, here are
+the transactions" → the plain-language rule → clarifications T1/T2/T4/T5 →
+the re-synthesis with the answers (10 % headroom over a week, 7-day
+lifetime, route enforced, the D2.5 signer and policy addresses) → the dry
+run (1 permit / 5 deny / 0 flag, `deviations: 0`) → hand-over → "just
+install it" answered with no tool call. Expected tool calls at every turn,
+with the honest live-vs-replay note for Turn 1 (the hashes are past the
+node's retention window today; the script branches to the committed
+recording).
+
+**Tests (network-free, `npm test`, in CI)** —
+[test/skill.test.ts](../test/skill.test.ts), 9 tests: the package structure
+(name = directory, `[a-z0-9-]`, ≤ 64, no reserved words; description ≤ 1024,
+no XML, says what and when; only the six spec fields; references one level
+deep; body < 500 lines), `allowed-tools` = exactly the four MCP tools and no
+install/deploy/sign/submit reference, the four tools driven in order, every
+guardrail phrase and the banner verbatim, all six triggers with the cap first
+and the funded plan's example; then the **scripted walkthrough**: every
+"Expected tool call" block in the demo script and in
+docs/mcp-reference-session.md is validated against the committed input
+schemas and executed, in order, against the real MCP server over stdio
+(shared harness [test/mcp-harness.ts](../test/mcp-harness.ts), stub RPC
+replaying the committed captures) — the demo hits record → synthesize →
+synthesize → simulate, is not installable before the answers and installable
+after, writes the four artifacts, and ends with the dry-run table; the
+reference session's six calls all succeed (record from the real simulation
+exchange, synthesize, both simulations, verify PASS). Suite total: 214 tests.
+
+**CI run for this deliverable:** dispatched after this commit is pushed and
+cited in the follow-up commit (fork: manual dispatch). The `build` job also
+runs the external validator (`skills-ref validate`).
+
+**BLOCKER — human step (exact instructions).** Run
+[docs/skill-demo-script.md](../docs/skill-demo-script.md) in Claude Code
+from the repository root (`npm ci`; `claude`; approve the project MCP
+server; say Turn 1 verbatim — the skill activates on it). Expect Turn 1 to
+return `TX_NOT_FOUND` today and answer with the committed recording as the
+script says (or perform a fresh claim→swap on testnet first for the live
+path). Check the skill asks at least T1 (cap), T2, T4 and T5 before
+re-synthesizing, shows the dry-run table, shows the banner, and answers
+"just install it" with the human command and no tool call. Save the
+unedited transcript as `evidence/sessions/skill-demo-<YYYY-MM-DD>.md`, note
+the Claude Code version and date, and link it here.
+
+**Not done (stated plainly).** (1) The demo conversation has not been run
+by a human yet — the criterion's "a demo shows" clause. (2) Whether Claude
+Code 2.0.76 loads the project skill was verified statically (the loader
+markers in its bundle) and by the reference validator, not by an
+interactive run; the human demo is that run. (3) The skill cannot express a
+cap in a different asset, a per-function cap, or differing per-asset
+ceilings in one run (T3 says so and offers separate delegations).
+
+---
+
 ## Not yet delivered
 
 Stated plainly so no reviewer has to infer it.
@@ -969,7 +1075,7 @@ Stated plainly so no reviewer has to infer it.
 | Resolve `valid_until` ledger-sequence mismatch                   | T1      | **Delivered** (D1.2, 2026-08-03)                                                                                                                                                                                                                      |
 | Resolve context-rule scope granularity                           | T1      | **Delivered** (D1.2, 2026-08-03)                                                                                                                                                                                                                      |
 | MCP server                                                       | T2      | **Delivered** (D2.1, 2026-09-02); the human-recorded reference session is the open blocker                                                                                                                                                            |
-| Claude skill                                                     | T2      | Not started ([T2-NOTES.md](../docs/T2-NOTES.md))                                                                                                                                                                                                      |
+| Claude skill                                                     | T2      | **Delivered** (D2.2, 2026-09-02); the human-recorded demo conversation is the open blocker                                                                                                                                                            |
 | Wallet integration (testnet, end-to-end)                         | T2      | **Delivered — fallback path** (D2.5, 2026-09-02): OZ smart account on testnet, emitted rules installed as-is and verified on-chain, signed with the labelled local `.env` key; the Freighter/wallets-kit signing page is the open cohort-wallet track |
 | Composed configuration + generated stateful policy, side by side | T2      | **Delivered** (D2.4, 2026-09-02)                                                                                                                                                                                                                      |
 | Net-new policy codegen with storage segregation                  | T2      | **Delivered** (D2.4, 2026-09-02)                                                                                                                                                                                                                      |
@@ -1002,6 +1108,7 @@ with no credentials at all.
 | 2026-08-03 | D1.1 delivered: multi-hash recording of the real claim→swap sequence (committed output + reconciliation table above), simulated-path ingestion with a committed real `simulateTransaction` exchange, typed error taxonomy, capture-driven decoder tests (58 total). Superseded D1's "live path untested / simulated path not built" limits.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | 2026-08-03 | D1.3 delivered: the generated policy as a compiled crate against the real OZ `Policy` trait (25 Rust tests; emitter byte-equality locked in CI), reproducible wasm build, and a hash-verified testnet deployment (`CDSVPSTS…2ZPP`); deploy script + deployment log added; FACTS §1.4–1.6 and §5 record the toolchain, CLI-surface, and deployment facts.                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | 2026-08-03 | D1.2 delivered: versioned `context-rule.json` (schema v1) with installable OZ rules and real stock `spending_limit` params, emitted and committed for the real recorded sequence; field-by-field install-signature cross-check kept as a CI test; 28 new network-free tests (86 total). Closed the §4.1/§4.2 divergences.                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 2026-09-02 | D2.2 delivered: the `policywright-grant` skill packaged in the verified format (`.claude/skills/policywright-grant/`, six spec fields, `allowed-tools` = the four MCP tools, references one level deep) with the clarification-trigger list written first, guardrails (never install/deploy, always dry-run, always the banner, never invent values), `docs/skill-demo-script.md` (the "grant permission to claim my Blend yield and swap it to USDC" conversation with expected tool calls per turn), `skills-ref validate` in CI, and `test/skill.test.ts` (structure, guardrails, triggers, and a machine walkthrough of the demo script and the reference session against the real server; shared `test/mcp-harness.ts`); 9 new tests (214 total).                                                 |
 | 2026-09-02 | D2.1 delivered: the MCP server (`@modelcontextprotocol/server` 2.0.0, stdio, dual-era) with exactly four tools — `record`, `synthesize`, `simulate`, `verify` — wrapping the library; versioned Zod/JSON schemas (`schemas/mcp/`, drift-checked in CI); typed error envelope; unaudited banner on every generated-code output; `synthesize` notes/warnings/scope-notes/installable channel; env-only config, no secret; project-scope `.mcp.json`; `docs/mcp-server.md` (determinism map, reuse audit) and `docs/mcp-reference-session.md`; `verifyArtifact`, `recordedTxToJson`, `evaluateScenarios` extracted from the CLI; `verify` maps transport failures to `NETWORK` and rejects checksum-invalid accounts; 31 new stdio tests against a stub RPC replaying the committed captures (205 total). |
 | 2026-09-02 | D2.5 delivered (fallback path): vendored OZ's example smart account and stock spending-limit wrapper (built from pinned source, hash-verified) and deployed both to testnet; restored the archived D1.3 policy; emitter fixes E1–E5 → `context-rule.json` schema v2 (relative lifetimes, real `Signer` shapes, deployed addresses, `installTargets`); `src/install-shape.ts` install gate; `src/install.ts` (simulate twice, hand-built `AuthPayload` + `Delegated(G)` nested entry, client-side signing, submit) and `src/verify.ts` (on-chain read-back diff) with CLI `install` / `verify`; three rules installed into `CBQ6H7IL…QHDT` (rule ids 1–3) and verified PASS; 29 new tests (174 total). The Delegated(G) path is proven end-to-end.                                                      |
 | 2026-09-02 | D2.4 delivered: the compose-first boundary made explicit per policy (`realisePolicies`: composed / generated / offline-only) and documented in `docs/compose-vs-generate.md`; `src/install-shape.ts` validates `context-rule.json` field-by-field against the OZ install signature and encodes install params as the sorted `ScMap` the contracts decode; `synth --out <dir>`; both artifacts for the fresh recording committed side by side under `examples/live/fresh/` and diffed in CI; the dry-run report gains an **Enforced by** column attributing each decision to the artifact that realises it; 30 new tests (145 total); crate re-verified (25 Rust tests, wasm hash reproduced). D3 hashes refreshed.                                                                                     |
