@@ -1,106 +1,315 @@
 ---
-title: MCP tools
-description: The four MCP tools Policywright serves to an agent over stdio — record, synthesize, simulate, verify — with their schemas, error codes, and registration.
+title: MCP server
+description: The four MCP tools Policywright serves to an agent over stdio — record, synthesize, simulate, verify — with their committed schemas, machine-readable error codes, the determinism map, and the stdio registration exactly as verified. No install or deploy tool, by design.
 ---
 
 import StatusBadge from '../../../components/StatusBadge.astro';
+import UnauditedBanner from '../../../components/UnauditedBanner.astro';
 
-<StatusBadge status="shipped" />
+<StatusBadge status="shipped" note="testnet" />
 
 Policywright runs as a local
 [Model Context Protocol](https://modelcontextprotocol.io) server over stdio
-(`npm run mcp`) and exposes **exactly four tools**. There is no install or
-deploy tool, by design: an agent can record, synthesize, dry-run, and verify,
-and then hands the artifact to the human `install` step. The server never
-signs and needs no secret.
+(`npm run mcp`) and exposes **exactly four tools**: `record`, `synthesize`,
+`simulate`, `verify`. **The server has no install or deploy tool, by design.**
+Installation is always an explicit, separate, human-signed step — the CLI
+`install` command, testnet-only, which signs with the operator's own key. The
+server never signs anything, never reads a secret, and cannot submit a
+transaction. It is Tranche 2 deliverable D2.1 — _"The server runs locally and
+an agent calls each tool end to end; a reference session is recorded."_
 
 Everything on this page is implemented in
 [src/mcp/](https://github.com/kunal-drall/policywright/tree/main/src/mcp)
 and exercised end to end — the real server spawned over stdio, every tool
 called against committed fixtures, no network — by
-[test/mcp.test.ts](https://github.com/kunal-drall/policywright/blob/main/test/mcp.test.ts).
-The full document is
-[docs/mcp-server.md](https://github.com/kunal-drall/policywright/blob/main/docs/mcp-server.md).
+[test/mcp.test.ts](https://github.com/kunal-drall/policywright/blob/main/test/mcp.test.ts)
+(31 tests). The design document is
+[docs/mcp-server.md](https://github.com/kunal-drall/policywright/blob/main/docs/mcp-server.md);
+the field-by-field contracts are the committed JSON Schemas under
+[schemas/mcp/](https://github.com/kunal-drall/policywright/tree/main/schemas/mcp),
+from which the tables below are derived. The `synthesize` output contains
+generated Rust:
 
-## The tools
+<UnauditedBanner />
 
-| Tool         | Purpose                                                                                                                                   | Network?                       | Output carries                                                                                      |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------- |
-| `record`     | Fetch transaction hash(es) from Soroban RPC (merged in ledger order) or ingest a saved `simulateTransaction` exchange into one recording. | yes (read-only)                | the `RecordedTx`, a summary of calls and token flows, the recorder's warnings                       |
-| `synthesize` | Derive the least-privilege authorization and emit the reviewable artifacts.                                                               | no — pure                      | `spec`, `contextRule` (schema v2), `summary`, the generated Rust **with its unaudited banner**, notes/warnings/scope notes, an installable-as-is verdict |
-| `simulate`   | Dry-run the standard scenarios plus any candidate calls.                                                                                  | no — pure                      | the permit/deny/flag table as data, counts, the Markdown report                                     |
-| `verify`     | Read a smart account's installed rules and policy params and diff them against an artifact.                                               | yes (read-only, nothing signed) | `pass`, the diff rows, extra rules, the Markdown report                                             |
+## The four tools
 
-Tools are callable as `mcp__policywright__<tool>` once registered.
+| Tool         | Purpose                                                                                                                                   | Network?                        | Output carries                                                                                                                                   |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `record`     | Fetch transaction hash(es) from Soroban RPC (merged in ledger order) or ingest a saved `simulateTransaction` exchange into one recording. | yes (read-only)                 | the `RecordedTx`, a summary of calls and token flows, the recorder's warnings                                                                    |
+| `synthesize` | Derive the least-privilege authorization and emit the reviewable artifacts.                                                               | no — pure                       | `spec`, `contextRule` (schema v2), `summary`, the generated Rust **with its unaudited banner**, notes/warnings/scope notes, an installable-as-is verdict |
+| `simulate`   | Dry-run the standard scenarios plus any candidate calls.                                                                                  | no — pure                       | the permit/deny/flag table as data, counts, the Markdown report                                                                                  |
+| `verify`     | Read a smart account's installed rules and policy params and diff them against an artifact.                                               | yes (read-only, nothing signed) | `pass`, the diff rows, extra rules, the Markdown report                                                                                          |
 
-## Structured I/O
+Tools are callable as `mcp__policywright__<tool>` once registered. Inputs that
+name files (`recordingPath`, `artifactPath`, …) are read by the server
+process — absolute paths as given, relative paths against the repository root
+(`POLICYWRIGHT_ROOT`); only `.json` files are read and `.env*` names are
+refused. The two tools that can write (`record.outPath`, `synthesize.outDir`)
+never replace an existing file unless the call says `overwrite: true`.
+
+## Input and output schemas
 
 Every input accepts and every output carries `schemaVersion: 1` (the MCP I/O
 schema version); the embedded `contextRule` keeps the `context-rule.json`
-schema version (2). The Zod definitions in `src/mcp/schemas.ts` are the source
-of truth; the JSON Schemas the server advertises are committed under
-[schemas/mcp/](https://github.com/kunal-drall/policywright/tree/main/schemas/mcp)
-and CI fails if they drift.
+schema version (2). The Zod definitions in
+[src/mcp/schemas.ts](https://github.com/kunal-drall/policywright/blob/main/src/mcp/schemas.ts)
+are the source of truth; the server advertises them as JSON Schema (draft
+2020-12) and CI fails if the committed copies drift
+(`npm run mcp:schemas -- --check` → `schemas/mcp/ matches src/mcp/schemas.ts (9 files)`
+on 2026-09-02). Bigints travel as decimal strings; byte arguments as `hex:…`
+strings.
 
-Failures are MCP tool-execution errors (`isError: true`) whose single text
-block is the JSON envelope
+### `record`
+
+| Input field                        | Type / constraint                                                                                                              |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `hashes`                           | array (≥ 1) of 64-hex transaction hashes, merged into one recording; exclusive with `simulation` / `simulationPath`             |
+| `simulation` / `simulationPath`    | a saved `simulateTransaction` exchange (object, or path to a `.json`)                                                          |
+| `account`                          | `G…` or `C…` the token movements are attributed to; without it the first transaction's source is assumed and a warning says so |
+| `network`, `rpcUrl`                | Stellar network name, default `testnet` (the schema accepts the three Stellar network names; the toolkit is testnet-only until the Tranche 3 audit); RPC endpoint override (defaults: the server configuration) |
+| `outPath`, `overwrite`             | also write the recording (`.json`); an existing file is a `BAD_INPUT` unless `overwrite: true`                                |
+
+| Output field  | Content                                                                                                                                                          |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `source`      | `rpc` \| `simulation`                                                                                                                                            |
+| `recording`   | the `RecordedTx` — pass it (or the written file as `recordingPath`) to `synthesize` and `simulate`                                                                |
+| `summary`     | `hash`, `ledger`, `timestamp`, `subject`; `calls[]` (`contract`, `fnName`, `sourceHash`); `flows[]` (`contractId`, `symbol`, `decimals`, `resolved`, `direction`, `amount`, `amountFormatted`) |
+| `warnings[]`  | recorder caveats (assumed subject, unresolved token metadata, skipped events)                                                                                     |
+
+### `synthesize`
+
+| Input field                  | Type / constraint                                                                                                                                                                                       |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `recording` / `recordingPath` | the `RecordedTx` as `record` returns it, or a path to a saved recording                                                                                                                                |
+| `config`                     | `lifetimeSecs` (2592000), `spendWindowSecs` (86400), `capMultiplier` (1.1), `frequencyWindowSecs` (86400), `frequencyMaxCalls` (5), `constrainArguments` (false) — omitted fields keep their defaults |
+| `installTargets`             | `signers[]` (`{ type: "Delegated", address }` or `{ type: "External", verifier, keyData }`, ≤ 15), `policyAddresses` (`custom:FrequencyLimitPolicy`, `stock:spending_limit`), `ledgerHead`            |
+| `now`                        | Unix seconds for the lifetime base; defaults to the recording timestamp, keeping the output deterministic                                                                                              |
+| `outDir`, `overwrite`, `includeRustSource` | also write `summary.txt`, `spec.json`, `context-rule.json`, `FrequencyLimitPolicy.rs`; inline the Rust source or not                                                                      |
+
+| Output field          | Content                                                                                                                                                                  |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `unauditedBanner`     | the constant sentence shown at the top of this page — show it whenever generated code is shown                                                                           |
+| `spec`, `contextRule`, `summary` | `spec.json`; `context-rule.json` (schema 2 — what the human installs); `summary.txt`                                                                          |
+| `rustPolicy`          | `fileName` (`FrequencyLimitPolicy.rs`), `banner` (the `ILLUSTRATIVE / UNAUDITED` header, verbatim), `unaudited: true`, `sourceBytes`, `source` or `path`                 |
+| `notes[]`, `warnings[]`, `recordingWarnings[]`, `scopeNotes[]` | composition deltas and install-time obligations; synthesis advisories; the recorder's caveats; plain-language minimal-permission decisions and scope gaps |
+| `realisations[]`      | per policy: `kind` ∈ `composed` \| `generated` \| `offline-only`, `via`, `rules[]`, `because` ([compose vs. generate](/concepts/compose-first/))                            |
+| `installable`         | `asIs` (would the CLI install this unmodified?) and `violations[]` (`path`, `ozError`, `message`, `source`)                                                              |
+| `config`, `installTargets`, `now`, `files[]` | the effective values; paths written when `outDir` was given                                                                                                  |
+
+### `simulate`
+
+| Input field                  | Type / constraint                                                                                                                                                                                                      |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `recording` / `recordingPath`, `config`, `now` | as for `synthesize` — use the **same** recording and config the policy was synthesized with                                                                                                            |
+| `probeToken`                 | `C…` the unobserved-route scenario routes through; default: the network's native XLM Stellar Asset Contract                                                                                                            |
+| `candidates[]`               | extra calls to evaluate: `label`, `contract`, `fnName`, `args[]` (copy `recording.calls[i].args` and edit the constrained argument), `outflows[]` (`contractId`, `amount`, `symbol`, `decimals`), `timestamp`, `priorCallTimestamps[]` |
+| `standardScenarios`          | include the standard set (replay, over-cap, unseen fn, expiry, frequency, unobserved route); default `true`                                                                                                           |
+
+| Output field                      | Content                                                                                                                                              |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `constrainArguments`, `probeToken` | whether constraints were enforced; the probe token with `label` and `provenance`                                                                    |
+| `results[]`                       | `label`, `decision` ∈ `permit` \| `deny` \| `flag`, `reasonCode` (`scope` \| `lifetime` \| `argument-constraint` \| `spending-limit` \| `frequency-limit` \| `permit`), `reason`, `enforcedBy`, `expected`, `asExpected` |
+| `counts`, `deviations`            | `{ permit, deny, flag }`; standard scenarios whose decision deviated from expectation — `0` means the harness self-check passed                         |
+| `report`, `tokens[]`, `warnings[]`, `config` | the Markdown report; the token legend; candidates whose constraint could not be evaluated; the effective config                              |
+
+### `verify`
+
+| Input field                    | Type / constraint                                                                                              |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `artifact` / `artifactPath`    | the emitted `context-rule.json` (object or path)                                                              |
+| `account`                      | **required** — the OpenZeppelin smart account `C…` to read                                                    |
+| `installLog` / `installLogPath` | a Policywright install log; when given, `valid_until` is compared with what that install computed             |
+| `network`, `rpcUrl`            | as for `record`                                                                                                |
+
+| Output field                       | Content                                                                                                                                            |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pass`, `latestLedger`             | every diff row matched; the ledger the state was read at                                                                                           |
+| `rows[]`                           | one per (rule, field): `rule`, `field`, `expected`, `actual`, `ok`                                                                                 |
+| `extraRules[]`                     | installed rules the artifact does not describe — `id`, `contextType`, `name`, `signers[]`, `policies[]`, `validUntil` (e.g. the admin rule id 0)   |
+| `report`, `warnings[]`, `artifactViolations[]` | the Markdown PASS/FAIL report; params that could not be read back; shape issues in the artifact itself                                 |
+
+## Error codes
+
+A tool failure is an MCP tool-execution error (`isError: true`) whose single
+text block is the JSON envelope
+([schemas/mcp/error.json](https://github.com/kunal-drall/policywright/blob/main/schemas/mcp/error.json)):
 
 ```json
 { "schemaVersion": 1, "ok": false, "error": { "code": "TX_NOT_FOUND", "message": "…", "source": "RecorderError" } }
 ```
 
-with `code` ∈ `BAD_INPUT | TX_NOT_FOUND | NETWORK | DECODE_FAILED | SHAPE_INVALID | INTERNAL`,
-mapped from the CLI's existing typed errors. Error results carry no
-`structuredContent` on purpose: clients validate it against the tool's
-output schema whenever it is present, and an error envelope cannot match a
-success schema.
+| `code`          | Mapped from                                                    | Meaning                                                                                                                                                                        |
+| --------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `BAD_INPUT`     | `RecorderError`, `InstallError`, `SynthError`, the server's own checks | invalid arguments or files: unknown `schemaVersion`, both `hashes` and a simulation, a malformed recording or install log, a bad config value, an unreadable or non-JSON file, an existing output without `overwrite`, a checksum-invalid account |
+| `TX_NOT_FOUND`  | `RecorderError`                                                | the node has no record of the hash; the `message` states the node's retention window (public nodes keep about 7 days)                                                          |
+| `NETWORK`       | `RecorderError`, `InstallError`                                | the RPC endpoint could not be reached, or a simulated getter failed                                                                                                            |
+| `DECODE_FAILED` | `RecorderError` (`error.section` names the XDR part)           | fetched data did not match the verified shapes                                                                                                                                 |
+| `SHAPE_INVALID` | the `verify` artifact gate                                     | the document given to `verify` is not a context-rule document; OZ install-signature **violations are not errors** — they come back as data in `synthesize.installable.violations` and `verify.artifactViolations` |
+| `INTERNAL`      | anything else                                                  | an unexpected failure; the message is the error's message                                                                                                                      |
 
-## Registration
+Error results carry no `structuredContent` on purpose: clients validate it
+against the tool's output schema whenever it is present, and an error envelope
+cannot match a success schema. Two failures never reach a tool: an
+input-schema violation comes back as the SDK's plain-text
+`Input validation error: …` result, and an unknown tool is a JSON-RPC `-32602`
+protocol error. The install-only codes `NO_SIGNING_SURFACE`,
+`SIMULATION_FAILED`, `SUBMIT_FAILED` are unreachable from this server.
 
-- **Claude Code** — the committed
-  [`.mcp.json`](https://github.com/kunal-drall/policywright/blob/main/.mcp.json)
-  registers the server for the project; `claude mcp list` shows it connected.
-  Any other scope: `claude mcp add --transport stdio policywright -- npm run --silent mcp`
-  from the repository root.
-- **Claude Desktop** — add the absolute-path entry from
-  [docs/mcp-server.md](https://github.com/kunal-drall/policywright/blob/main/docs/mcp-server.md#registering-it-with-an-agent)
-  to `claude_desktop_config.json` and restart.
+## Determinism map
+
+Written before the code
+([docs/mcp-server.md](https://github.com/kunal-drall/policywright/blob/main/docs/mcp-server.md#determinism-map)),
+and honest about the network tools:
+
+| Tool         | Pure? | Same input → same output when…                                                                                                                   | Reads the clock?                                    | Touches the network?                                                                                                    | Writes files?                |
+| ------------ | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `record`     | No    | …the chain state seen by the node is the same: the transactions are inside the retention window and the tokens' `symbol()`/`decimals()` simulate to the same values | No — `timestamp`/`ledger` come from the chain        | Yes: `getTransaction` per hash; `simulateTransaction` of the SEP-41 getters per token (also for the simulation input) | only when `outPath` is given |
+| `synthesize` | Yes   | always — `now` defaults to `recording.timestamp`; no clock, no network, no randomness, no environment                                            | No                                                  | No                                                                                                                      | only when `outDir` is given  |
+| `simulate`   | Yes   | always — scenario timestamps derive from the spec; the probe token derives from the network passphrase                                            | No                                                  | No                                                                                                                      | No                           |
+| `verify`     | No    | …the account's installed rules, the policies' stored parameters and `latestLedger` are unchanged; the `diffRules` core is pure                    | No                                                  | Yes: simulated read-only getters — nothing is signed or submitted                                                       | No                           |
+
+The server holds no state between calls.
+
+## Registration (stdio), exactly as verified
+
+**Claude Code — project scope.** The committed
+[`.mcp.json`](https://github.com/kunal-drall/policywright/blob/main/.mcp.json)
+at the repository root registers the server for anyone who opens the project
+in Claude Code (it asks for approval the first time); `npm ci` is the only
+prerequisite:
+
+```json title=".mcp.json"
+{
+  "mcpServers": {
+    "policywright": {
+      "command": "node",
+      "args": ["node_modules/tsx/dist/cli.mjs", "src/mcp/server.ts"],
+      "env": { "POLICYWRIGHT_NETWORK": "testnet" }
+    }
+  }
+}
+```
+
+Checked from the repository root on 2026-09-02
+([FACTS §15.3](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md#153-agent-registration-as-observed)):
+
+```text
+$ claude mcp list
+Checking MCP server health...
+
+policywright: node node_modules/tsx/dist/cli.mjs src/mcp/server.ts - ✓ Connected
+```
+
+**Claude Code — any other scope**, from the repository root:
+
+```bash
+claude mcp add --transport stdio policywright -- npm run --silent mcp
+```
+
+**Claude Desktop** — add the absolute-path entry from
+[docs/mcp-server.md](https://github.com/kunal-drall/policywright/blob/main/docs/mcp-server.md#registering-it-with-an-agent)
+to `claude_desktop_config.json` and restart Desktop fully.
 
 Configuration is three optional environment variables —
-`POLICYWRIGHT_NETWORK`, `POLICYWRIGHT_RPC_URL`, `POLICYWRIGHT_ROOT` — and no
-secret, ever.
+`POLICYWRIGHT_NETWORK` (default `testnet`), `POLICYWRIGHT_RPC_URL`,
+`POLICYWRIGHT_ROOT` — and no secret, ever: `STELLAR_SECRET_KEY` is never read
+(the test suite starts the server with a fake secret and asserts no output
+contains it). Packages: `@modelcontextprotocol/server` 2.0.0, `zod` 4.5.4,
+pinned exactly in
+[package.json](https://github.com/kunal-drall/policywright/blob/main/package.json).
 
-## Determinism
+## Real tool results
 
-`synthesize` and `simulate` are pure: same input, same output, no clock, no
-network. `record` and `verify` read the chain and are deterministic per
-(input, chain state). The full map, written before the code, is in
-[docs/mcp-server.md](https://github.com/kunal-drall/policywright/blob/main/docs/mcp-server.md#determinism-map).
+Made from Claude Code 2.0.76 on 2026-09-02 through the committed `.mcp.json`
+server, against the public testnet RPC — quoted in
+[docs/demo-script-t2.md Beat 1](https://github.com/kunal-drall/policywright/blob/main/docs/demo-script-t2.md#beat-1--an-agent-calls-the-mcp-tools-live-000055)
+(the `record` results with fields elided, the `verify` result summarised) and
+recorded in
+[FACTS §17.6](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md#176-six-live-mcp-tool-calls-from-the-agent-host):
 
-## The skill
+`record` on `examples/live/simulated-soroswap-swap.json` — the simulation
+path, token metadata resolved live (fields elided):
 
-Documented on its own page: [the skill](/reference/skill/). In short, the project skill
+```json
+{
+  "ok": true,
+  "source": "simulation",
+  "network": "testnet",
+  "summary": {
+    "calls": [
+      { "contract": "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD", "fnName": "swap_exact_tokens_for_tokens" }
+    ],
+    "flows": [
+      { "symbol": "native", "resolved": true, "direction": "out", "amountFormatted": "1" },
+      { "symbol": "USDC", "resolved": true, "direction": "in", "amountFormatted": "0.0316046" }
+    ]
+  },
+  "warnings": []
+}
+```
+
+`record` on the two real claim→swap hashes of 2026-08-08 — an `isError`
+result, honest about the node's ~7-day retention window (the ledger numbers
+move with the node):
+
+```json
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "error": {
+    "code": "TX_NOT_FOUND",
+    "message": "[TX_NOT_FOUND] transaction 9fff676c46c5b00afb124cd4f59f63d76177c7b4585bde31a518acf923f0a0b6 not found on testnet. Public RPC nodes only retain recent history (this node: ledgers 4346894–4467853, oldest closed 2026-08-26T15:24:29.000Z, about 7 days); older transactions must be recorded from a saved capture or an archival node. Also check the hash is on the right network.",
+    "source": "RecorderError"
+  }
+}
+```
+
+`synthesize` with the skill demo's inputs → `installable.asIs: true`,
+`config: { lifetimeSecs: 604800, spendWindowSecs: 604800, capMultiplier: 1.1, constrainArguments: true }`;
+`simulate` with the same config → `counts: { permit: 1, deny: 5, flag: 0 }`,
+`deviations: 0`; `verify` of the D2.5 artifact against the testnet account →
+`pass: true`, 15 rows `ok`, rules found as ids 1–3 (read at ledger 4467855).
+The same `verify` was re-run from the CLI later on 2026-09-02 at ledger
+4469061 with the same result
+([FACTS §18.4](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md#184-every-link-and-every-command-on-the-site-gate-g3);
+full output on the
+[smart-account install](/reference/smart-account-install/#the-read-only-verify-anyone-can-run)
+page).
+
+## Code-first, deploy-second — structurally
+
+The server registers exactly four tools; there is no `install`, no `deploy`,
+no `sign`, no `submit`, and the test suite asserts the tool list. `synthesize`
+tells the agent whether the artifact would install as-is (`installable`), and
+the server's instructions tell the agent what the human does next:
+
+```bash
+npm run cli -- install --artifact <context-rule.json> --account <C…> --dry-run   # simulate only
+npm run cli -- install --artifact <context-rule.json> --account <C…>             # sign + submit (testnet only, operator's key)
+```
+
+That step reads the artifact the agent produced, unmodified, and refuses
+anything that would not install as-is
+([smart-account install](/reference/smart-account-install/)).
+
+## The skill and the reference session
+
+The project skill
 [`policywright-grant`](https://github.com/kunal-drall/policywright/tree/main/.claude/skills/policywright-grant)
 wraps the four tools in a conversation — "grant permission to do X from this
-transaction" — that records, synthesizes, presents the rule in plain
-language, asks the clarification questions (cap, lifetime, route
-constraint, signer and policy addresses, anything that changes scope),
-re-synthesizes, dry-runs, and hands over the artifacts. It never installs.
-The demo conversation is
-[docs/skill-demo-script.md](https://github.com/kunal-drall/policywright/blob/main/docs/skill-demo-script.md);
-the package and the script are validated and executed by
+transaction" — documented on [its own page](/reference/skill/). The
+conversation to run in Claude Code against the real recorded data and the
+live testnet account — all four tools, including the honest `TX_NOT_FOUND` —
+is
+[docs/mcp-reference-session.md](https://github.com/kunal-drall/policywright/blob/main/docs/mcp-reference-session.md);
+its six JSON-block tool calls (Turn 4's re-synthesis is described in prose)
+are validated against the committed schemas and executed against the real
+server by
 [test/skill.test.ts](https://github.com/kunal-drall/policywright/blob/main/test/skill.test.ts).
-
-## The reference session
-
-The conversation to run in Claude Code against the real recorded data and the
-live testnet account — all four tools, including the honest `TX_NOT_FOUND`
-for hashes past the node's retention window — is
-[docs/mcp-reference-session.md](https://github.com/kunal-drall/policywright/blob/main/docs/mcp-reference-session.md).
-Every tool call in it is validated against the committed schemas and executed
-against the real server by the test suite; the six live calls were also made
-from Claude Code on 2026-09-02 (their results are quoted in
-[docs/demo-script-t2.md](https://github.com/kunal-drall/policywright/blob/main/docs/demo-script-t2.md)).
 What remains for D2.1's "a reference session is recorded" clause is the
-human-saved transcript, listed as the open blocker in
-[evidence/EVIDENCE.md](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md).
+human-saved transcript, listed as the open item in
+[evidence/EVIDENCE.md § D2.1](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#d21--mcp-server).
+CI run for this deliverable:
+[33631174115](https://github.com/kunal-drall/policywright/actions/runs/33631174115)
+(dispatched manually — the repository is a fork).

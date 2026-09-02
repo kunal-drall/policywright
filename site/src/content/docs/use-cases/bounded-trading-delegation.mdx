@@ -1,0 +1,66 @@
+---
+title: Bounded trading delegation (Soroswap)
+description: Concept brief — letting an agent swap on Soroswap only along observed routes, under a per-asset cap, a call budget and a lifetime, using the shipped argument-level scope. The executed walkthrough is a Tranche 3 deliverable.
+---
+
+import StatusBadge from '../../../components/StatusBadge.astro';
+import UnauditedBanner from '../../../components/UnauditedBanner.astro';
+
+<StatusBadge status="planned" note="walkthrough — Tranche 3, target 30 Nov 2026" />
+<StatusBadge status="shipped" note="capability — testnet" />
+
+A user wants an agent to trade on their behalf on Soroswap — but only between
+the tokens they chose, only up to an amount they set, only so often, and only
+for a while. This page describes the delegation shape using features that are
+shipped — in particular **argument constraints**, which are shipped and
+proven on real data. It is a concept brief: the swap half of the executed
+[agent yield operations](/use-cases/agent-yield-operations/) walkthrough
+exercises every feature below, but no trading-only recording, artifact or
+install exists in the repository. **A full executed walkthrough of this use
+case is a Tranche 3 deliverable (target 30 Nov 2026).**
+
+<UnauditedBanner />
+
+## The delegation shape
+
+Record one swap the user performed on the Soroswap router and synthesize:
+
+| Constraint     | Derived from the recording                                                                                                                   | Realisation today                                                                                                                                                                                                                                                                      |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Scope          | `(router, swap_exact_tokens_for_tokens)` — one `CallContract` rule for the router                                                             | on-chain context rule; the function name is advisory on-chain (rules are contract-level), enforced by the offline harness ([context rules](/concepts/context-rules/))                                                                                                                  |
+| Route          | the **set** of token addresses in the observed `path` argument — the `swap-path` derivation rule, always derived, enforced on request         | **offline-only** — flagged by default, denied with `--constrain-arguments` / `config.constrainArguments: true`; proven on the real recording (BLND→XLM flagged, then denied — [dry run & argument scope](/reference/dry-run-harness/#the-criterion-case-on-real-data)) |
+| Spend cap      | the gross outflow of the sold token, × 1.1 by default, or the ceiling and window the user chooses                                            | **composed** — stock `spending_limit` on the sold token's rule when the recording proves the subject authorized the `transfer` inside the swap (as the BLND transfer was in the executed example)                                                                                    |
+| Frequency      | a rolling call cap, default 5 per 86400 s                                                                                                    | **generated** — `FrequencyLimitPolicy` (unaudited; deployed on testnet)                                                                                                                                                                                                              |
+| Lifetime       | `--lifetime`, default 30 days                                                                                                                | on-chain `valid_until`                                                                                                                                                                                                                                                                 |
+
+## What the route constraint does and does not do
+
+Argument-level scope is a Tranche 2 deliverable (D2.3) and is shipped: the
+swap `path` is read from every observed swap call, the token addresses in it
+become an allow-set, and a candidate swap through any other token is flagged
+(default) or denied (enforced). Stated plainly, from the harness page:
+
+- set semantics only — a route through only-observed tokens is allowed in any
+  order and hop count; amounts are the spending limit's job;
+- `swap-path` is the only derivation rule; a swap whose route is not an
+  address vector derives nothing;
+- **enforcement lives in the offline dry run only** — no stock OpenZeppelin
+  policy can scope an argument, so `context-rule.json` records the constraint
+  as a `DELTA` note, and the installed rules would permit an unobserved route
+  until an argument-checking policy exists. That policy is not built.
+
+So today a bounded trading delegation is: on-chain, the router rule, the
+composed cap and the generated call budget; offline, the route check that the
+agent's dry run enforces before every proposed install. The skill asks
+whether other routes should be denied or allowed-and-flagged before
+re-synthesizing ([the skill](/reference/skill/#the-clarification-triggers)).
+
+## Shipped features it uses
+
+- Argument derivation and both enforcement modes, with the real BLND→XLM
+  outputs ([dry run & argument scope](/reference/dry-run-harness/)).
+- Gross-outflow caps, frequency limits, lifetimes
+  ([least-privilege model](/concepts/least-privilege/)).
+- Compose-first realisation of the cap ([compose vs. generate](/concepts/compose-first/)).
+- The human, testnet-only install and the read-only verify
+  ([smart-account install](/reference/smart-account-install/)).

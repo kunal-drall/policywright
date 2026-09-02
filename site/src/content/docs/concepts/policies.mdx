@@ -4,8 +4,11 @@ description: The policy kinds Policywright synthesizes in v0, how they map to st
 ---
 
 import StatusBadge from '../../../components/StatusBadge.astro';
+import UnauditedBanner from '../../../components/UnauditedBanner.astro';
 
-<StatusBadge status="shipped" />
+<StatusBadge status="shipped" note="testnet" />
+
+<UnauditedBanner />
 
 Policies are the enforcement half of the synthesized output: quantitative
 constraints bound to the [context rules](/concepts/context-rules/). v0
@@ -45,7 +48,7 @@ In the installable `context-rule.json`, the cap becomes OpenZeppelin's **stock
 `spending_limit`** — with its real install params,
 `{ spending_limit: i128, period_ledgers: u32 }` — wherever the recording
 supports it. The stock policy's verified semantics
-([docs/FACTS.md §2.4](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md))
+([docs/FACTS.md §2.4](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md#24-stock-policy-modules--what-actually-ships))
 constrain where that is:
 
 - Its `enforce` only meters **direct `transfer` calls** (reading the amount
@@ -55,9 +58,11 @@ constrain where that is:
   (at OZ's own 5 s/ledger basis) and records the conversion in a note.
 
 So the binding attaches on a token rule the subject actually authorized a
-`transfer` on (the committed
-[live example](https://github.com/kunal-drall/policywright/blob/main/examples/live/context-rule.json)
-carries one: `stock:spending_limit` on the native-token rule). When the
+`transfer` on. The committed artifacts carry one each: `stock:spending_limit`
+on the BLND rule `pw:xfer:BLND` in
+[examples/live/fresh/context-rule.json](https://github.com/kunal-drall/policywright/blob/main/examples/live/fresh/context-rule.json)
+(the installed artifact), and on the native-token rule in the older
+[examples/live/context-rule.json](https://github.com/kunal-drall/policywright/blob/main/examples/live/context-rule.json). When the
 recording shows no subject-authorized direct transfer of a capped asset — as
 in the offline fixture, where the BLND moves inside the pool and router — the
 cap is recorded as an explicit **composition-delta note** rather than emitted
@@ -69,13 +74,15 @@ in a shape the real contract would reject. See
 Bounds how often the scoped calls may run within a rolling window (default: at
 most 5 calls per 24 hours, both configurable). One frequency-limit policy is
 always emitted. OpenZeppelin ships **no stock policy for call frequency**
-([docs/FACTS.md §2.4](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md)),
+([docs/FACTS.md §2.4](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md#24-stock-policy-modules--what-actually-ships)),
 so this is the one policy rendered as generated Rust — implementing the real
 OZ `Policy` trait, byte-identical at the default config to the
 compiled-and-tested crate at
 [contracts/frequency-limit-policy](https://github.com/kunal-drall/policywright/tree/main/contracts/frequency-limit-policy)
-(25 Rust tests; a hash-verified instance is deployed on testnet — see
-[Security](/security/)).
+(25 Rust tests; a hash-verified instance,
+[`CDSVPSTS…2ZPP`](https://stellar.expert/explorer/testnet/contract/CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP),
+is deployed on testnet — deployment is testnet-only and the instance is
+unaudited; see [Security](/security/)).
 
 ## `argument-constraint`
 
@@ -96,8 +103,9 @@ enforced depends on config:
 
 Proven both ways on the real recorded claim→swap sequence: BLND→XLM (XLM being
 the network's native asset contract, never observed) is flagged by default and
-denied when enabled —
-[committed reports](https://github.com/kunal-drall/policywright/tree/main/examples/live).
+denied when enabled — committed reports:
+[flag](https://github.com/kunal-drall/policywright/blob/main/examples/live/simulation-report.md),
+[deny](https://github.com/kunal-drall/policywright/blob/main/examples/live/simulation-report.constrained.md).
 
 It constrains the token _set_, not the ordering, hop count, or amounts — amount
 bounds are the spending limit's job

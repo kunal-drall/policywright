@@ -1,16 +1,21 @@
 ---
 title: Getting Started
-description: Install Policywright, run the offline demo, and record a live Soroban flow.
+description: Install Policywright, run the offline demo, the CLI, the MCP server and the read-only testnet verify — every command on this page was run on 2026-09-02 and its output is quoted.
 ---
 
 import StatusBadge from '../../components/StatusBadge.astro';
 import UnauditedBanner from '../../components/UnauditedBanner.astro';
 
-<StatusBadge status="shipped" />
+<StatusBadge status="shipped" note="testnet" />
 
-Everything on this page runs today against
-[the repository](https://github.com/kunal-drall/policywright) and — except for
-the live `record` fetch — needs no network access.
+Every command on this page was run on 2026-09-02 against
+[the repository](https://github.com/kunal-drall/policywright) at version
+`0.1.0`, and the outputs quoted are what it printed. Everything up to
+[Record a flow](#record-a-flow) needs no network access and no secret; the
+testnet steps are read-only unless they say otherwise. The demo writes a
+generated Rust policy:
+
+<UnauditedBanner />
 
 ## Prerequisites
 
@@ -34,15 +39,20 @@ npm run demo
 
 The demo records the committed fixture, synthesizes the spec, emits the
 artefacts to `out/` (`spec.json`, `context-rule.json`, `summary.txt`,
-`FrequencyLimitPolicy.rs`, `simulation-report.md`), and runs the dry-run
+`FrequencyLimitPolicy.rs`, `simulation-report.md`), and runs the six dry-run
 scenarios — asserting each behaves as expected. It exits non-zero if any
 scenario deviates, so it doubles as a smoke test
-([src/demo.ts](https://github.com/kunal-drall/policywright/blob/main/src/demo.ts)).
+([src/demo.ts](https://github.com/kunal-drall/policywright/blob/main/src/demo.ts));
+CI runs the same command in every dispatched run
+([ci.yml](https://github.com/kunal-drall/policywright/blob/main/.github/workflows/ci.yml),
+latest green run [33654658803](https://github.com/kunal-drall/policywright/actions/runs/33654658803)).
+`npm test` (215 tests, including the MCP stdio suite and the skill
+walkthrough) passed in the same session.
 
-This is the real output (v0.1.0, default config, re-run 2026-09-02; the final
-line, which prints the machine-specific absolute path of `out/`, is omitted):
+This is the real output (default config, run 2026-09-02; the final line,
+which prints the machine-specific absolute path of `out/`, is omitted):
 
-```text title="npm run demo — summary"
+```text title="npm run demo"
 policywright — synthesized smart-account authorization
 ======================================================
 
@@ -72,7 +82,7 @@ Policies (2)
 
 Argument scopes — advisory (flag only)
 --------------
-  - argument-constraint: swap_exact_tokens_for_tokens arg[2] (path) restricted to 2 observed token(s)
+  - argument-constraint (swap-path): swap_exact_tokens_for_tokens arg[2] (path) restricted to 2 observed token(s)
 
 Installable OZ context rules (2) — see context-rule.json
 ----------------------------
@@ -90,9 +100,7 @@ Installable OZ context rules (2) — see context-rule.json
 
 Note: the generated FrequencyLimitPolicy Rust is ILLUSTRATIVE and
 UNAUDITED — a starting point, not deploy-ready code.
-```
 
-```text title="npm run demo — dry-run report"
 # policywright dry-run report
 
 Recording: testnet, from fixture, tx 3389e9f0f1a32b9c7c1cf3b8a2e5d4c6b7a8901234567890abcdef123456789a; subject CABJN4UUYDTF6C2G3WQJCWLG4KNQS2EVLCORKPWMIMSKYPU3FVNFCBS2.
@@ -125,17 +133,18 @@ The same artefacts are committed under
 [examples/](https://github.com/kunal-drall/policywright/tree/main/examples) so
 you can inspect them without running anything — including, under
 [examples/live/](https://github.com/kunal-drall/policywright/tree/main/examples/live),
-the recording and emitted `context-rule.json` for a **real testnet**
-claim + swap sequence, alongside the raw transaction captures they were
-decoded from.
+the recording and the emitted artifacts for a **real testnet**
+claim → swap sequence, alongside the raw transaction captures they were
+decoded from ([agent yield operations](/use-cases/agent-yield-operations/)).
 
 The fixture's addresses and symbols are labelled synthetic assets — well-formed
 but synthetic contract addresses carrying the symbols BLND, XLM, and USDC (see
 the
 [fixture's own note](https://github.com/kunal-drall/policywright/blob/main/fixtures/recorded-tx.json)) —
-never presented as real USDC. The live-capture assets are the Blend/Soroswap
-_testnet_ mints, pinned and source-cited in
-[docs/FACTS.md](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md).
+never presented as real USDC. The assets in the real claim → swap recording
+([examples/live/recorded-claim-swap-fresh.json](https://github.com/kunal-drall/policywright/blob/main/examples/live/recorded-claim-swap-fresh.json))
+are the Blend/Soroswap _testnet_ mints, pinned and source-cited in
+[docs/FACTS.md GATE 4](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md#gate-4--swap-venue-testnet-blndusdc).
 
 ## Synthesize and simulate directly
 
@@ -157,32 +166,45 @@ npm run cli -- simulate --input examples/live/recorded-claim-swap-fresh.json --c
 npm run cli -- synth --lifetime 604800 --cap-multiplier 1.25
 ```
 
-The unobserved-route scenario re-routes the recorded swap through the network's
-native XLM asset contract (BLND→XLM). By default it is **flagged** — permitted,
-with the scope gap named; with `--constrain-arguments` it is **denied**, and the
-reason names the violated constraint. Both reports for the real sequence are
-committed under
-[examples/live/](https://github.com/kunal-drall/policywright/tree/main/examples/live).
-All flags and defaults are listed in the [CLI reference](/reference/cli/).
+All six ran on 2026-09-02. The two `--input …fresh.json` reports were
+byte-identical to the committed
+[simulation-report.md](https://github.com/kunal-drall/policywright/blob/main/examples/live/simulation-report.md)
+and
+[simulation-report.constrained.md](https://github.com/kunal-drall/policywright/blob/main/examples/live/simulation-report.constrained.md)
+(`diff` clean); the last command printed
+`spending-limit: BLND <= 1543.125 per 86400s (observed gross out 1234.5)` and
+`lifetime 120960 ledgers` — the 1.25 multiplier and the 7-day lifetime
+applied. The unobserved-route scenario re-routes the recorded swap through the
+network's native XLM asset contract (BLND→XLM). By default it is **flagged** —
+permitted, with the scope gap named; with `--constrain-arguments` it is
+**denied**, and the reason names the violated constraint
+([dry run & argument scope](/reference/dry-run-harness/)). All flags and
+defaults are listed in the [CLI reference](/reference/cli/).
 
-## Record a live flow
-
-```bash
-npm run record -- <txHash> [<txHash> ...] [--account <G...|C...>] \
-  [--network testnet|mainnet|futurenet] [--rpc-url <url>]
-
-# Or ingest a saved simulateTransaction exchange instead of fetching hashes
-npm run record -- --from-simulation <file.json>
-```
+## Record a flow
 
 A multi-step flow (like the Blend claim followed by the Soroswap swap) is
 several transaction hashes — Soroban allows one `InvokeHostFunction` per
 transaction. Passing every hash merges them into **one** `RecordedTx`, ordered
 by ledger close time. `record` decodes the `InvokeContract` calls and
-CAP-67/SEP-41 token events, resolves each token's symbol/decimals from its SAC
-metadata (with an explicit `resolved: false` fallback when that is not
-possible), and prints the merged recording as JSON
+CAP-67/SEP-41 token events, resolves each token's symbol/decimals by
+simulating its SEP-41 `symbol()` / `decimals()` getters against the same node
+(with an explicit `resolved: false` fallback to the full contract id when that
+is not possible), and prints the merged recording as JSON
 ([src/sources/rpc.ts](https://github.com/kunal-drall/policywright/blob/main/src/sources/rpc.ts)).
+No test contacts a live node: the decoders and the multi-hash merge run in
+[test/recorder.test.ts](https://github.com/kunal-drall/policywright/blob/main/test/recorder.test.ts)
+against the committed raw captures, and the MCP `record` tool is driven
+against a local stub RPC in
+[test/mcp.test.ts](https://github.com/kunal-drall/policywright/blob/main/test/mcp.test.ts).
+
+```bash
+npm run record -- <txHash> [<txHash> ...] [--account <G...|C...>] \
+  [--network <name>] [--rpc-url <url>]
+
+# Or ingest a saved simulateTransaction exchange instead of fetching hashes
+npm run record -- --from-simulation <file.json> --account <G...|C...>
+```
 
 - `--account` names the subject the movements are attributed to. Without it,
   the first transaction's source account is assumed and a warning records the
@@ -191,22 +213,111 @@ possible), and prints the merged recording as JSON
 - `--from-simulation` ingests a saved `simulateTransaction` exchange
   (`source: "simulation"`) — simulation discovers the authorization tree an
   unsigned envelope does not carry.
-- `--network` defaults to `testnet`; `--rpc-url` overrides the endpoint,
-  including a node you run yourself.
+- `--network` defaults to `testnet` (the accepted network names are in the
+  [CLI reference](/reference/cli/#record-flags)); `--rpc-url` overrides the
+  endpoint, including a node you run yourself.
 - Failures return a typed error — `BAD_INPUT` / `TX_NOT_FOUND` / `NETWORK` /
-  `DECODE_FAILED` — instead of empty output.
+  `DECODE_FAILED` — instead of empty output
+  ([src/sources/errors.ts](https://github.com/kunal-drall/policywright/blob/main/src/sources/errors.ts)).
 
-The live fetch itself is not exercised by the demo or tests, but its decoders
-and multi-hash merge logic run network-free in
+**The runnable example today** is the committed real `simulateTransaction`
+exchange of a Soroswap swap; only the token-metadata lookup touches the
+network:
+
+```bash
+npm run record -- --from-simulation examples/live/simulated-soroswap-swap.json \
+  --account GABJUTWUZ6RNKUAWVBEYOD6E4SGC63CRW2GC4K4ZHTLYSMWAFAN2WGTQ
+```
+
+```json title="output, 2026-09-02"
+{
+  "hash": null,
+  "network": "testnet",
+  "source": "simulation",
+  "ledger": 3935941,
+  "timestamp": null,
+  "subject": "GABJUTWUZ6RNKUAWVBEYOD6E4SGC63CRW2GC4K4ZHTLYSMWAFAN2WGTQ",
+  "calls": [
+    {
+      "contract": "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD",
+      "fnName": "swap_exact_tokens_for_tokens",
+      "args": [
+        "10000000",
+        "1",
+        [
+          "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+          "CB3TLW74NBIOT3BUWOZ3TUM6RFDF6A4GVIRUQRQZABG5KPOUL4JJOV2F"
+        ],
+        "GABJUTWU2LMN7VYU7Z43GV2OY7HPL5RXXJAQUBYHYLW5KHTRJUVNNJ3Q",
+        "1785700335"
+      ],
+      "sourceHash": null,
+      "authorizations": [
+        {
+          "contract": "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD",
+          "fnName": "swap_exact_tokens_for_tokens",
+          "args": [
+            "10000000",
+            "1",
+            [
+              "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+              "CB3TLW74NBIOT3BUWOZ3TUM6RFDF6A4GVIRUQRQZABG5KPOUL4JJOV2F"
+            ],
+            "GABJUTWU2LMN7VYU7Z43GV2OY7HPL5RXXJAQUBYHYLW5KHTRJUVNNJ3Q",
+            "1785700335"
+          ],
+          "subInvocations": [
+            {
+              "contract": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+              "fnName": "transfer",
+              "args": [
+                "GABJUTWU2LMN7VYU7Z43GV2OY7HPL5RXXJAQUBYHYLW5KHTRJUVNNJ3Q",
+                "CDVAIOYHCD4RUSLQNVFI7RIZBFT2JZMJWM4RTOLQZQXL4QAVXU5RFKDB",
+                "10000000"
+              ],
+              "subInvocations": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "flows": [],
+  "warnings": []
+}
+```
+
+**Recording by hash needs a recent transaction.** Public Soroban RPC nodes
+keep about seven days of history. The real claim → swap hashes of 2026-08-08
+used throughout this site are older than that, so recording them by hash
+today fails honestly, naming the node's window (the ledger numbers move with
+the node):
+
+```bash
+npm run record -- 9fff676c46c5b00afb124cd4f59f63d76177c7b4585bde31a518acf923f0a0b6 \
+  ae943f998fd07dfd17536d8c25b714146f467ea222a6314f23cf7032cdc67c46 \
+  --account GBMWJIADBWN6FJUQPSVKWZE7ZFEPHEN2YBINQ7UVPHJ2WJW2SWI6WD4Q
+```
+
+```text title="stderr, 2026-09-02 (exit 1)"
+[TX_NOT_FOUND] transaction 9fff676c46c5b00afb124cd4f59f63d76177c7b4585bde31a518acf923f0a0b6 not found on testnet. Public RPC nodes only retain recent history (this node: ledgers 4348101–4469060, oldest closed 2026-08-26T17:05:17.000Z, about 7 days); older transactions must be recorded from a saved capture or an archival node. Also check the hash is on the right network.
+```
+
+The committed recording of exactly that sequence,
+[examples/live/recorded-claim-swap-fresh.json](https://github.com/kunal-drall/policywright/blob/main/examples/live/recorded-claim-swap-fresh.json),
+is proven byte-identical to its raw captures by
 [test/recorder.test.ts](https://github.com/kunal-drall/policywright/blob/main/test/recorder.test.ts)
-against the committed raw captures of real testnet transactions.
+and is the input for every `--input` command above. Any contract-invoking
+testnet transaction from the last week works with `record` by hash.
 
 ## The generated Rust policy
 
 The demo also writes `out/FrequencyLimitPolicy.rs`. Its source is
 byte-identical (at the default config) to the compiled-and-tested crate at
-[contracts/frequency-limit-policy](https://github.com/kunal-drall/policywright/tree/main/contracts/frequency-limit-policy),
-and every generated file is stamped with this header
+[contracts/frequency-limit-policy](https://github.com/kunal-drall/policywright/tree/main/contracts/frequency-limit-policy)
+(equality locked by
+[test/rust-policy.test.ts](https://github.com/kunal-drall/policywright/blob/main/test/rust-policy.test.ts)),
+and every generated Rust file is stamped with this header
 ([src/rust-policy.ts](https://github.com/kunal-drall/policywright/blob/main/src/rust-policy.ts)):
 
 ```rust title="out/FrequencyLimitPolicy.rs (generated — header excerpt)"
@@ -224,21 +335,53 @@ and every generated file is stamped with this header
 // =============================================================================
 ```
 
-<UnauditedBanner />
-
 ## Drive it from an agent
 
 `npm run mcp` serves the same four operations — `record`, `synthesize`,
-`simulate`, `verify` — over stdio; Claude Code picks the server up from the
-committed `.mcp.json` (`claude mcp list` → `✓ Connected`). There is no install
-or deploy tool. The [MCP tools](/reference/mcp-tools/) page has the schemas,
-error codes and registration; [the skill](/reference/skill/) page has the
-"grant permission to do X from this transaction" conversation.
+`simulate`, `verify` — to an MCP client over stdio. Claude Code picks the
+server up from the committed
+[`.mcp.json`](https://github.com/kunal-drall/policywright/blob/main/.mcp.json)
+when you open the repository root
+([src/mcp/server.ts](https://github.com/kunal-drall/policywright/blob/main/src/mcp/server.ts)
+registers exactly four tools); checked on 2026-09-02:
 
-## Install into a testnet smart account
+```text
+$ claude mcp list
+Checking MCP server health...
 
-The deploy-second half is an explicit CLI step: `synth --signer … --policy-address …`
-emits an artifact that installs as-is, `install` validates it, simulates it
-in enforcing mode, signs client-side and submits, and `verify` reads the
-rules back. It needs the gitignored `.env` testnet key and is testnet-only —
+policywright: node node_modules/tsx/dist/cli.mjs src/mcp/server.ts - ✓ Connected
+```
+
+There is no install or deploy tool. The [MCP server](/reference/mcp-tools/)
+page has the schemas, error codes and registration; [the skill](/reference/skill/)
+page has the "grant permission to do X from this transaction" conversation.
+
+## Verify the testnet install — read-only, no key
+
+What is installed on the live testnet smart account can be read back and
+diffed against the committed artifact by anyone:
+
+```bash
+npm run cli -- verify --artifact examples/live/fresh/context-rule.json \
+  --account CBQ6H7ILH54ADWTVS7FCK36W7FY2RJJOWR4VGLZG7D4PZUG5FSA7QHDT \
+  --install-log examples/live/testnet/install-20260902T105742Z.json
+```
+
+On 2026-09-02 this printed `# policywright verify — PASS` with 15 of 15 rows
+`✅` at ledger 4469061; the full output is on the
+[smart-account install](/reference/smart-account-install/#the-read-only-verify-anyone-can-run)
+page. The rows pass while the installed rules are live (until ledger 4983015,
+about 2026-10-02).
+
+## Install into a testnet smart account — human-signed, testnet only
+
+The deploy-second half is an explicit CLI step, never an agent call:
+`synth --signer … --policy-address …` emits an artifact that installs as-is,
+`install --dry-run` validates and simulates it and submits nothing, `install`
+signs client-side with the operator's own testnet key from the gitignored
+`.env` and submits, and `verify` reads the rules back. It is **testnet-only**
+— the command refuses any other network. Live trail: the testnet account
+[`CBQ6H7IL…QHDT`](https://stellar.expert/explorer/testnet/contract/CBQ6H7ILH54ADWTVS7FCK36W7FY2RJJOWR4VGLZG7D4PZUG5FSA7QHDT),
+its [install logs and verify outputs](https://github.com/kunal-drall/policywright/tree/main/examples/live/testnet).
+Flow, signing hierarchy, and today's dry-run output:
 [smart-account install](/reference/smart-account-install/).

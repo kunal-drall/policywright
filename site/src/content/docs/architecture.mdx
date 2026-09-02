@@ -1,12 +1,15 @@
 ---
 title: Architecture
-description: The v0 pipeline in depth — recording, synthesis, emission, and simulation.
+description: The pipeline in depth — recording, synthesis, emission, simulation, the shipped agent surface (MCP server + skill), and the human-signed, testnet-only install path.
 ---
 
 import StatusBadge from '../../components/StatusBadge.astro';
+import UnauditedBanner from '../../components/UnauditedBanner.astro';
 import Mermaid from '../../components/Mermaid.astro';
 
-<StatusBadge status="shipped" />
+<StatusBadge status="shipped" note="testnet" />
+
+<UnauditedBanner />
 
 :::note
 This page is the repository's
@@ -22,10 +25,12 @@ the types in [`src/types.ts`](https://github.com/kunal-drall/policywright/blob/m
 which is the single source of truth for every shape in the system.
 
 <Mermaid
-  code={`flowchart LR
-  txhash(["tx hash"]) --> rpc["sources/rpc"]
+  code={`flowchart TB
+  txhash(["tx hash(es)"]) --> rpc["sources/rpc"]
+  simx(["saved simulateTransaction"]) --> simsrc["sources/simulation"]
   fixtures(["fixtures/"]) --> fixture["sources/fixture"]
   rpc --> recorded["RecordedTx"]
+  simsrc --> recorded
   fixture --> recorded
   recorded --> synthesizer["synthesizer"]
   synthesizer --> spec["SmartAccountSpec"]
@@ -33,9 +38,23 @@ which is the single source of truth for every shape in the system.
   emitter --> specjson["spec.json"]
   emitter --> ctxrule["context-rule.json"]
   emitter --> summary["summary.txt"]
-  emitter --> rust["FrequencyLimitPolicy.rs"]
+  emitter --> rust["FrequencyLimitPolicy.rs (unaudited)"]
   spec --> simulate["simulate"]
-  simulate --> report["dry-run report"]`}
+  simulate --> report["dry-run report"]
+  subgraph agent["Agent surface — shipped: exactly four tools, no install tool"]
+    skill["skill: policywright-grant"] --> mcp["MCP server: record · synthesize · simulate · verify"]
+  end
+  mcp --> recorded
+  mcp --> ctxrule
+  mcp --> report
+  subgraph deploy["Deploy-second — human, CLI, testnet only"]
+    ctxrule --> gate["install: validate against the OZ install signature"]
+    gate --> sim2["simulate ×2 (enforcing, AuthPayload + Delegated(G) __check_auth entry)"]
+    sim2 --> sign["sign client-side: .env key = local-fallback (used) · wallet via SEP-43 = primary (not built)"]
+    sign --> account["OZ smart account on testnet: add_context_rule"]
+    account --> verify["verify: read back, diff → PASS/FAIL (read-only)"]
+  end
+  mcp --> verify`}
 />
 
 ## Stages
@@ -58,9 +77,15 @@ Produces a `RecordedTx`: the transaction hash/network, the ordered `ScopedCall`s
   simulation discovers the authorization tree an unsigned envelope does not carry.
 - **`recorded.ts`** re-loads a previously saved recording (`synth --input <file>`).
 
-  Decoding assumptions (Soroban protocol 27 / CAP-67, `@stellar/stellar-sdk` 15.1.0 —
-  every shape verified against the committed captures,
-  [FACTS.md §3](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md)):
+  The synthesizer also takes deploy-time **install targets** (`--signer`,
+  `--policy-address`, `--ledger-head`) so the emitted rules carry real `Signer` shapes,
+  deployed policy addresses, and a relative `lifetimeLedgers` (schema v2).
+
+  Decoding assumptions (captures taken at Soroban protocol 27 / CAP-67 and decoded with
+  the pinned `@stellar/stellar-sdk` 15.1.0; the testnet node has reported protocol 28 since
+  the 2026-09-02 re-check and the same SDK still decodes it — every shape verified against
+  the committed captures,
+  [FACTS.md §3](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md#gate-3--live-chain-truth-stellar-testnet)):
   - the transaction is a v1 (or fee-bump-wrapping-v1) envelope;
   - contract calls come from `InvokeHostFunction` operations whose host function is
     `InvokeContract` (`InvokeContractArgs` → contract, function, args via `scValToNative`);
@@ -86,14 +111,15 @@ Produces a `RecordedTx`: the transaction hash/network, the ordered `ScopedCall`s
 
 ### 2. Synthesis (`src/synthesizer.ts`)
 
-`synthesize(tx, config, now) → SmartAccountSpec`. The design mirrors OZ's smart-account
+`synthesize(tx, config, now, targets?) → SmartAccountSpec` (`targets` are the optional
+deploy-time install targets described in stage 1). The design mirrors OZ's smart-account
 model: a **context rule** fixes scope, and a small set of **policies** bound to it enforce
 quantitative limits.
 
 - **Scope** — the distinct `(contract, fn)` pairs observed, in first-seen order, plus a
   short derived rule name (OZ caps rule names at 20 **bytes** — multibyte symbols count
   per byte;
-  [FACTS.md §2.3](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md)).
+  [FACTS.md §2.3](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md#23-limits)).
 - **Spending limits** — per asset, sum the **gross outflow** (ignoring inflows) and cap it
   at `gross × capMultiplier` (rounded up so the cap never sits below what was observed).
   - _Gross, not net:_ an asset received then sent within the same flow (BLND: claimed in,
@@ -111,7 +137,9 @@ quantitative limits.
   permitted-with-a-scope-gap. Set semantics only — not ordering, hop count, or amounts
   (limits in the [README](https://github.com/kunal-drall/policywright#argument-level-scope---constrain-arguments)).
 - **Policy budget** — OZ allows at most `MAX_POLICIES` (5) policies per context rule;
-  exceeding that adds a warning to the spec rather than failing.
+  exceeding that in the harness policy set adds a warning to the spec, and a composed OZ
+  rule that would bind more than five is rejected with a `SynthError` (OZ's
+  `TooManyPolicies`).
 
 `SynthConfig` is validated up front and echoed into the spec for reproducibility. All of
 the above knobs are exposed as CLI flags on `synth`/`simulate`.
@@ -134,19 +162,31 @@ Renders the spec four ways:
   [test/rust-policy.test.ts](https://github.com/kunal-drall/policywright/blob/main/test/rust-policy.test.ts);
   non-default `--frequency-window`/`--frequency-max` values are substituted into the
   template). Every generated Rust file is stamped
-  **ILLUSTRATIVE / UNAUDITED — NOT DEPLOY-READY**; the summary carries the same note.
+  **ILLUSTRATIVE / UNAUDITED — NOT DEPLOY-READY**
+  ([src/rust-policy.ts](https://github.com/kunal-drall/policywright/blob/main/src/rust-policy.ts);
+  see the committed
+  [FrequencyLimitPolicy.rs](https://github.com/kunal-drall/policywright/blob/main/examples/live/fresh/FrequencyLimitPolicy.rs));
+  the summary carries the same note
+  ([summary.txt](https://github.com/kunal-drall/policywright/blob/main/examples/live/fresh/summary.txt)).
 
 ### 3b. Install and verify (`src/install-shape.ts`, `src/install.ts`, `src/verify.ts`)
 
-The deploy-second half, reachable only from the CLI (never from the MCP server).
+The deploy-second half, reachable only from the CLI (never from the MCP server), and
+**testnet-only** — the `install` command refuses any other network.
 `install-shape.ts` validates an emitted `context-rule.json` (schema v2) field-by-field
 against the checks the OZ contracts perform and encodes install params as the sorted
 `ScMap` they decode; `install.ts` maps each rule to `add_context_rule` arguments, builds the
 account's `AuthPayload` entry and the `Delegated(G)` signer's nested `__check_auth` entry,
-simulates in enforcing mode, signs through a labelled signing surface (local `.env` key
-fallback today; a wallet signs the same transaction), and submits; `verify.ts` reads the
-account's rules and policy params back through simulated getters and diffs them. Details:
-[docs/smart-account-install.md](https://github.com/kunal-drall/policywright/blob/main/docs/smart-account-install.md).
+simulates in enforcing mode, signs through a labelled `SigningSurface` (today the local
+`.env` key, labelled `local-fallback` in every output and install log; a wallet signing
+surface would sign the same transaction but is not built — the open cohort-wallet track),
+and submits; `verify.ts` reads the account's rules and policy params back through simulated
+getters and diffs them. Details:
+[docs/smart-account-install.md](https://github.com/kunal-drall/policywright/blob/main/docs/smart-account-install.md);
+proof:
+[EVIDENCE — D2.5](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#d25--testnet-smart-account-with-the-installed-generated-policy-fallback-path)
+and the testnet account
+[`CBQ6H7IL…QHDT`](https://stellar.expert/explorer/testnet/contract/CBQ6H7ILH54ADWTVS7FCK36W7FY2RJJOWR4VGLZG7D4PZUG5FSA7QHDT).
 
 ### 4. Simulation (`src/simulate.ts`)
 
@@ -164,14 +204,19 @@ failure decides the outcome:
    the call is permitted by every enforced check, and the report says so and how to close
    the gap.
 
-`buildScenarios` builds the unobserved-route case from the REAL observed swap re-routed
-through a **probe token** — the recording network's native XLM Stellar Asset Contract by
-default (`--probe-token` overrides) — and `renderReport` prefixes every report with its
-provenance: recording, generated policy set, mode, decision legend, token addresses.
-
 If every check passes the call is permitted. `buildScenarios` derives the standard
-permit/deny/flag set generically from a spec, and `renderReport` formats results as
-Markdown.
+permit/deny/flag set generically from a spec: the recorded replay, one deny per enforced
+check, and — when an argument constraint was derived — the REAL observed swap re-routed
+through a **probe token**: the recording network's native XLM Stellar Asset Contract
+(address derived from the network passphrase in
+[src/network.ts](https://github.com/kunal-drall/policywright/blob/main/src/network.ts);
+`--probe-token` to override; a synthetic placeholder only if XLM itself was observed).
+`renderReport` formats results as Markdown with a provenance header (recording, generated
+policy set — each policy annotated with its realisation: composed stock binding, generated
+contract, or offline-only — mode, decision legend), an **Enforced by** column attributing
+each decision to the artifact that realises the deciding check, and a token legend, so a
+committed report is self-describing. The realisation itself comes from `realisePolicies` in
+the synthesizer ([compose vs. generate](/concepts/compose-first/)).
 
 ### 5. Agent surface (`src/mcp/`)
 
@@ -179,6 +224,8 @@ The same pipeline, exposed to an agent over the Model Context Protocol (stdio) a
 tools — `record`, `synthesize`, `simulate`, `verify` — that wrap the library entry points above
 and nothing else
 ([src/mcp/tools.ts](https://github.com/kunal-drall/policywright/blob/main/src/mcp/tools.ts);
+evidence:
+[EVIDENCE — D2.1](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#d21--mcp-server);
 the reuse audit is in
 [docs/mcp-server.md](https://github.com/kunal-drall/policywright/blob/main/docs/mcp-server.md#reuse-audit--what-each-tool-wraps)).
 `src/mcp/schemas.ts` holds the versioned Zod contracts the server advertises as JSON Schema
@@ -188,9 +235,9 @@ every failure is a typed envelope mapped from the existing `RecorderError` / `In
 `SynthError` codes. `synthesize` and `simulate` stay pure; `record` and `verify` are deterministic
 per chain state
 ([determinism map](https://github.com/kunal-drall/policywright/blob/main/docs/mcp-server.md#determinism-map)).
-**Stage 3b is not reachable from here**: there is no install or deploy tool, the server never
-signs, and it needs no secret — the artifact an agent produces is what the human installs with
-the CLI. The [skill](/reference/skill/) is a conversation over these four tools.
+**The install half of stage 3b is not reachable from here** (only the read-only `verify`
+is): there is no install or deploy tool, the server never signs, and it needs no secret — the
+artifact an agent produces is what the human installs with the CLI. The [skill](/reference/skill/) is a conversation over these four tools.
 
 ## Design choices
 
@@ -199,7 +246,10 @@ the CLI. The [skill](/reference/skill/) is a conversation over these four tools.
 - **Explicit `now`** — synthesis takes the current time as a parameter rather than reading
   the clock, keeping it deterministic and testable.
 - **Offline-first** — the fixture is the default source; the live RPC adapter is opt-in, so
-  the demo, tests, and CI never depend on network state or RPC retention windows.
+  the demo, tests, and CI never depend on network state or RPC retention windows
+  ([ci.yml](https://github.com/kunal-drall/policywright/blob/main/.github/workflows/ci.yml);
+  latest green run
+  [33654658803](https://github.com/kunal-drall/policywright/actions/runs/33654658803)).
 - **Code-first, deploy-second, structurally** — the agent surface can produce and check
   artifacts but cannot install them; installation is a separate, explicit, human-initiated
   CLI/signing step. A design that needed the agent to deploy would be a design error.

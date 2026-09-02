@@ -1,21 +1,28 @@
 ---
-title: "Design principle: compose-first"
-description: Configure stock OpenZeppelin policies before ever generating fresh Rust — permanently.
+title: Compose vs. generate
+description: The permanent compose-first invariant and the exact decision boundary — which synthesised constraints become configured stock OpenZeppelin policies, which become generated Rust, and which stay offline-only.
 ---
 
 import StatusBadge from '../../../components/StatusBadge.astro';
+import UnauditedBanner from '../../../components/UnauditedBanner.astro';
 
-<StatusBadge status="shipped" />
+<StatusBadge status="shipped" note="testnet" />
 
-Policywright's design rule: **the synthesizer configures stock OpenZeppelin
-policies before ever generating fresh Rust.** New policy code is generated only
-where no stock policy can express the constraint. This is the permanent
-default, not a v0 shortcut. The stock building block v0 configures today is
-`spending_limit`; the stock threshold policies — `simple_threshold` and
-`weighted_threshold` — are the planned composition targets for multi-signer
-flows (see [Planned](#planned)).
+Compose-first is Policywright's **permanent** default: **configure a stock
+OpenZeppelin policy wherever one expresses the constraint; generate fresh Rust
+only where none can.** This is not a maturity phase to grow out of — even with
+a hardened generator, composing stock policies stays the first choice and
+generation stays the fallback. This page states the boundary exactly as the
+code implements it, so a reviewer can predict — and a test asserts — which side
+of the line every synthesised constraint falls on. It is the site version of
+[docs/compose-vs-generate.md](https://github.com/kunal-drall/policywright/blob/main/docs/compose-vs-generate.md),
+the Tranche 2 deliverable D2.4 page — _"Generates both a composed-policy
+configuration and a net-new stateful policy contract; both compile and pass
+simulation."_
 
-## Why compose-first is the default permanently
+<UnauditedBanner />
+
+## Why compose-first is permanent
 
 Generated authorization code guards user funds, and every freshly generated
 line is a line nobody has reviewed yet:
@@ -24,72 +31,103 @@ line is a line nobody has reviewed yet:
   blocks are shared, maintained code. Configuring them means the enforcement
   logic executing on-chain is the same code everyone else runs and scrutinises
   — only the parameters are new, and parameters are auditable at a glance.
+  OpenZeppelin ships `spending_limit` as a library module, not a deployable
+  contract
+  ([FACTS §2.4](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md#24-stock-policy-modules--what-actually-ships)),
+  so the deployed instance is OZ's own wrapper, vendored verbatim
+  ([contracts/spending-limit-policy](https://github.com/kunal-drall/policywright/tree/main/contracts/spending-limit-policy)).
 - **Fresh codegen multiplies audit surface.** A generator that emits a new
   contract per delegation produces code no audit has covered. Keeping
   generation as the rare fallback keeps the unaudited surface small and
   reviewable.
 - **Parameters are legible to reviewers and wallets.** "Stock `spending_limit`,
-  cap 1357.95 BLND per 24 h" is a statement a wallet, an agent, or a human can
-  check mechanically. Arbitrary generated code is not.
+  cap 2.3533505 BLND per 17280 ledgers" is a statement a wallet, an agent, or a
+  human can check mechanically. Arbitrary generated code is not.
 
-For those reasons the ordering is not a maturity phase to grow out of: even
-with a hardened generator, composing stock policies stays the first choice, and
-generation stays the fallback.
+## The boundary
 
-## The boundary, stated
-
-Every synthesised policy is classified by `realisePolicies` in
+The decision is made per policy by `realisePolicies` in
 [src/synthesizer.ts](https://github.com/kunal-drall/policywright/blob/main/src/synthesizer.ts)
-and the classification is visible in the artifacts — in `context-rule.json`
-bindings, and in the dry-run report's policy-set header and **Enforced by**
-column:
+and surfaced in three places: the `context-rule.json` bindings (what
+installs), the dry-run report's policy-set header and **Enforced by** column
+(what decided each scenario), and
+[test/compose-boundary.test.ts](https://github.com/kunal-drall/policywright/blob/main/test/compose-boundary.test.ts)
+(the invariant — 30 tests). The MCP `synthesize` tool returns the same
+decisions as `realisations` ([MCP server](/reference/mcp-tools/)). Evidence for
+the deliverable:
+[EVIDENCE.md § D2.4](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#d24--composed-configuration--generated-stateful-policy).
 
-| Constraint                                                       | Realisation      | Artifact                                                                 |
-| ---------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------ |
-| Spend cap on a token the subject directly `transfer`red          | **composed**     | `stock:spending_limit { spending_limit, period_ledgers }` on the token rule |
-| Spend cap with no subject-authorized direct transfer             | **offline-only** | `DELTA` note; the harness enforces it                                    |
-| Call-frequency limit                                             | **generated**    | `FrequencyLimitPolicy.rs` — a net-new stateful policy contract           |
-| Argument constraint (swap `path` set), function-level narrowing  | **offline-only** | the harness (argument case when `--constrain-arguments`); `DELTA` note   |
+| Synthesised constraint                                                        | Stock OZ policy that expresses it                                                                                                                | Realisation                                                                                                     | Artifact                                                                                                                                                                  |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Spend cap on an asset the subject **directly `transfer`red** in the recording | `spending_limit` — `SpendingLimitAccountParams { spending_limit: i128, period_ledgers: u32 }` (`spending_limit.rs:88-94`); meters `transfer` calls | **composed** — params only, on the token's `CallContract` rule                                                  | `context-rule.json` → `stock:spending_limit { spending_limit, period_ledgers }` with the OZ `file:line` in `paramsSource`                                                 |
+| Spend cap on an asset with **no** subject-authorized direct transfer          | none that fires — `spending_limit` panics `NotAllowed` on any non-`transfer` context ([FACTS §2.4](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md)) | **offline-only** — the harness enforces it; `context-rule.json` records a `DELTA` note instead of rejectable params | none on-chain (a future generated policy could read the outflow; not built)                                                                                               |
+| Call-frequency limit                                                          | none ships ([FACTS §2.4](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md): no stock frequency policy)                           | **generated** — a net-new stateful policy contract implementing the real `Policy` trait                        | `FrequencyLimitPolicy.rs` (byte-identical to the compiled-and-tested crate at the default config) bound as `custom:FrequencyLimitPolicy { window_secs, max_calls }`      |
+| Argument constraint (swap `path` token set)                                   | none ships (no stock argument-value scoping)                                                                                                     | **offline-only** — enforced by the harness when `--constrain-arguments` is on; `DELTA` note otherwise           | none on-chain (an argument-checking policy is not built — [T2-NOTES](https://github.com/kunal-drall/policywright/blob/main/docs/T2-NOTES.md))                             |
+| Function-level narrowing inside a contract                                    | none — rules are contract-level (`storage.rs:289-304`)                                                                                            | **offline-only** — the harness's scope model; `observedFns` is advisory in the artifact                        | none on-chain (same not-built policy)                                                                                                                                     |
 
-Two invariants are asserted by
-[test/compose-boundary.test.ts](https://github.com/kunal-drall/policywright/blob/main/test/compose-boundary.test.ts):
-a constraint a stock policy can express is **never generated**, and the one
-generated policy re-implements **no** stock policy. The full page — including
-what "compiles" and "passes simulation" mean for each artifact — is
-[docs/compose-vs-generate.md](https://github.com/kunal-drall/policywright/blob/main/docs/compose-vs-generate.md);
-both artifacts for the real recorded sequence sit side by side under
-[examples/live/fresh/](https://github.com/kunal-drall/policywright/tree/main/examples/live/fresh).
+Two consequences follow, and the tests assert both:
 
-## What v0 does today
+1. **A constraint a stock policy can express is never generated.** There is no
+   code path that emits a spend cap into Rust; `realisePolicies` can only
+   return `composed` or `offline-only` for a spending limit.
+2. **A generated policy is never a re-implementation of a stock one.** The
+   only generated contract is the frequency limit, for which OpenZeppelin ships
+   nothing.
 
-- **Composes the stock `spending_limit` under its real install shape.** The
-  emitted `context-rule.json` attaches `stock:spending_limit` with the
-  parameters the real module takes — `{ spending_limit: i128, period_ledgers:
-  u32 }`, seconds converted to ledgers — on a token rule the subject actually
-  authorized a `transfer` on. Every binding carries its OZ `file:line` source
-  citation
-  ([docs/context-rule-schema.md](https://github.com/kunal-drall/policywright/blob/main/docs/context-rule-schema.md);
-  a real binding is committed in the
-  [live example](https://github.com/kunal-drall/policywright/blob/main/examples/live/context-rule.json)).
-- **Records what stock policies cannot express as explicit delta notes —
-  never as a shape the real contract would reject.** The stock
-  `spending_limit` only meters direct `transfer` calls, verified against OZ
-  source ([docs/FACTS.md §2.4](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md)),
-  so a cap on an asset the subject never directly transferred (the fixture's
-  BLND, which moves inside the pool and router) becomes a named
-  composition-delta note in `context-rule.json`, enforced meanwhile by the
-  offline dry run.
-- **Generates fresh Rust only where no stock policy exists.** OpenZeppelin
-  ships no call-frequency policy, so the frequency limit is the one generated
-  contract — implementing the real OZ `Policy` trait, byte-identical at the
-  default config to the compiled-and-tested crate at
-  [contracts/frequency-limit-policy](https://github.com/kunal-drall/policywright/tree/main/contracts/frequency-limit-policy),
-  stamped `ILLUSTRATIVE / UNAUDITED — NOT DEPLOY-READY` on every emitted file
-  ([src/rust-policy.ts](https://github.com/kunal-drall/policywright/blob/main/src/rust-policy.ts)).
+## Why the line sits here
 
-## Planned
+- The stock `spending_limit` is asset-blind and `transfer`-only: it meters the
+  `i128` at `args[2]` of a `transfer` context and rejects everything else.
+  Composing it is therefore only correct on the **token's** rule, and only when
+  the recording proves the subject authorizes that `transfer` (each
+  `require_auth` is its own `Context` at `__check_auth` —
+  [FACTS §2.5](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md)).
+  Policywright reads that proof from the authorization trees; the offline
+  fixture carries none, which is why its BLND cap is a `DELTA` note while the
+  real recording's BLND cap composes.
+- A frequency bound is a human-time constraint the account must **remember**
+  (call history per `(smart_account, context_rule_id)`), and OpenZeppelin
+  ships no such policy. Generating it is the only option; the generated
+  contract follows the stock storage-segregation pattern exactly
+  ([contracts/frequency-limit-policy](https://github.com/kunal-drall/policywright/tree/main/contracts/frequency-limit-policy)).
 
-Composition of the stock threshold policies — `simple_threshold` and
-`weighted_threshold` — is planned for when multi-signer flows enter the
-synthesizer's scope; v0's worked example is a single-signer flow and does not
-exercise them. See the [Roadmap](/roadmap/).
+## What "compiles" and "passes simulation" mean for each artifact
+
+| Artifact                                       | Compiles                                                                                                                                                                                                                                                                                                                                                | Passes simulation                                                                                                                                                                                                                                                                                                             |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Composed configuration (`context-rule.json`)   | Validates field-by-field against the `add_context_rule` signature and every bound policy's install guards ([src/install-shape.ts](https://github.com/kunal-drall/policywright/blob/main/src/install-shape.ts), each check citing its OZ line), and its params encode to the exact `ScVal` the policy's `AccountParams` decodes                             | The dry-run harness denies the over-cap scenario, attributing it to `composed stock:spending_limit on rule pw:xfer:BLND`; permits the recorded replay. Honest limit: the harness measures the window in seconds and caps a candidate's outflow — the on-chain policy meters `transfer` amounts per ledger window              |
+| Generated contract (`FrequencyLimitPolicy.rs`) | `cargo build` / `cargo test --locked` against the pinned toolchain (25 Rust tests in the Soroban test environment); `stellar contract build` reproduces the recorded wasm hash `42227f2b…6eed`, equal to the deployed one; the emitted source is byte-identical to the crate ([test/rust-policy.test.ts](https://github.com/kunal-drall/policywright/blob/main/test/rust-policy.test.ts)) | The dry-run harness denies the repeat-within-window scenario, attributing it to `generated custom:FrequencyLimitPolicy`; the Rust tests exercise the same rolling-window semantics on-contract                                                                                                                                 |
+
+## Where to see it on real data
+
+From the recorded testnet claim→swap sequence
+([examples/live/recorded-claim-swap-fresh.json](https://github.com/kunal-drall/policywright/blob/main/examples/live/recorded-claim-swap-fresh.json)),
+
+```bash
+npm run cli -- synth --input examples/live/recorded-claim-swap-fresh.json --out examples/live/fresh $(cat examples/live/fresh/synth.args)
+```
+
+writes both artifacts side by side — the composed configuration
+([context-rule.json](https://github.com/kunal-drall/policywright/blob/main/examples/live/fresh/context-rule.json))
+and the generated contract
+([FrequencyLimitPolicy.rs](https://github.com/kunal-drall/policywright/blob/main/examples/live/fresh/FrequencyLimitPolicy.rs))
+— and the dry-run report
+([examples/live/simulation-report.md](https://github.com/kunal-drall/policywright/blob/main/examples/live/simulation-report.md))
+shows each deny attributed to the artifact that realises it. CI re-emits the
+directory with the flags pinned in
+[synth.args](https://github.com/kunal-drall/policywright/blob/main/examples/live/fresh/synth.args)
+and diffs it on every run; the same command was re-run on 2026-09-02 with a
+clean `diff -r`. Both artifacts are installed on the testnet smart account
+([smart-account install](/reference/smart-account-install/)). Evidence:
+[EVIDENCE.md § D2.4](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#d24--composed-configuration--generated-stateful-policy).
+
+## What is not built
+
+The stock threshold policies — `simple_threshold` and `weighted_threshold` —
+exist as OpenZeppelin modules
+([FACTS §2.4](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md))
+and are not composed today: the worked example is a single-signer flow and
+does not exercise them. If multi-signer flows enter the synthesizer's scope
+they will be composed, never generated; no tranche schedules this. The
+on-chain argument-scoping and function-narrowing policy is likewise not built
+([T2-NOTES](https://github.com/kunal-drall/policywright/blob/main/docs/T2-NOTES.md)).

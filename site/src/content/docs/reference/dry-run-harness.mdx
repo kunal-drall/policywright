@@ -1,11 +1,14 @@
 ---
-title: Dry-run harness
+title: Dry run & argument scope
 description: The offline permit/deny/flag harness — the standard scenarios, argument-level scope both ways on the real recording, the Enforced-by column, and what it does not enforce.
 ---
 
 import StatusBadge from '../../../components/StatusBadge.astro';
+import UnauditedBanner from '../../../components/UnauditedBanner.astro';
 
-<StatusBadge status="shipped" />
+<StatusBadge status="shipped" note="testnet" />
+
+<UnauditedBanner />
 
 The harness evaluates candidate calls against a synthesized policy set before
 anything is installed and reports whether each would be **permitted, denied,
@@ -46,12 +49,17 @@ npm run cli -- simulate --input examples/live/recorded-claim-swap-fresh.json
 npm run cli -- simulate --input examples/live/recorded-claim-swap-fresh.json --constrain-arguments
 ```
 
-The two committed reports —
+Both commands were re-run on 2026-09-02 and their output was byte-identical to
+the committed reports (`diff` clean). The two committed reports —
 [simulation-report.md](https://github.com/kunal-drall/policywright/blob/main/examples/live/simulation-report.md)
 (flag) and
 [simulation-report.constrained.md](https://github.com/kunal-drall/policywright/blob/main/examples/live/simulation-report.constrained.md)
-(deny) — are regenerated and diffed by CI on every run. The criterion row,
-verbatim from each:
+(deny) — are regenerated and diffed by CI on every run
+([ci.yml](https://github.com/kunal-drall/policywright/blob/main/.github/workflows/ci.yml),
+step "Live dry-run reports (both modes) match the committed copies"; CI run
+[33561221471](https://github.com/kunal-drall/policywright/actions/runs/33561221471)).
+The criterion row from each, with the three token addresses abbreviated here
+(the committed files carry them in full):
 
 ```
 | BLND→XLM swap (route through unobserved XLM) | ⚠️ flag (argument-constraint) | dry-run harness only — advisory, no on-chain artifact | permitted with a scope gap (constrainArguments is off, so this constraint is advisory): swap_exact_tokens_for_tokens arg[2] path (rule swap-path) must stay within the observed token set {BLND CB22KRA3…, USDC CAQCFVLO…}; candidate routes through unobserved XLM CDLZFC3S…; enable --constrain-arguments to deny it |
@@ -68,8 +76,22 @@ column that attributes each decision to the artifact realising the deciding
 check, and a token legend. For the real recording the over-cap deny is
 attributed to the composed `stock:spending_limit` on rule `pw:xfer:BLND`, and
 the over-frequency deny to the generated `FrequencyLimitPolicy` on rules
-`pw:claim` and `pw:swap` — the two artifacts of D2.4, side by side
-([compose-first](/concepts/compose-first/)).
+`pw:claim` and `pw:swap` — the two artifacts of D2.4, side by side under
+[examples/live/fresh/](https://github.com/kunal-drall/policywright/tree/main/examples/live/fresh)
+([compose vs. generate](/concepts/compose-first/)).
+
+## Why enforcement is off by default
+
+An argument constraint is derived only from the routes the recording happened
+to contain — for the real claim→swap sequence, a single swap. Enforcing it by
+default would silently narrow the delegation to exactly that route — a token
+set of two — and deny a legitimate future route without the user ever choosing
+that. So the default is **advisory**: the
+constraint is always derived and always reported, a violation is permitted and
+**flagged** with the gap named, and `--constrain-arguments` (or
+`config.constrainArguments` through the MCP tools) turns it into a **deny**.
+The skill asks the user which they want before re-synthesizing
+([the skill](/reference/skill/#the-clarification-triggers)).
 
 ## Argument-level scope, and its limits
 
@@ -82,11 +104,13 @@ decision, **off by default** — an opt-in tightening, never a silent widening.
 Stated plainly: set semantics only (no ordering, hop count, or amounts);
 `swap-path` is the only rule; the address check is a StrKey shape check;
 and **enforcement lives in the offline harness only** — no stock
-OpenZeppelin policy can express argument-value scoping, so the installed rule
-would permit BLND→XLM until an argument-checking policy exists. That policy
+OpenZeppelin policy can express argument-value scoping, so the rule as
+installed on the (testnet-only) smart account
+([smart-account install](/reference/smart-account-install/)) would permit
+BLND→XLM until an argument-checking policy exists. That policy
 is not built and is not one of the approved Tranche 2 criteria; it is tracked
 in
-[docs/T2-NOTES.md](https://github.com/kunal-drall/policywright/blob/main/docs/T2-NOTES.md).
+[docs/T2-NOTES.md § Function-level scope enforcement as a policy](https://github.com/kunal-drall/policywright/blob/main/docs/T2-NOTES.md#function-level-scope-enforcement-as-a-policy).
 
 ## Tests
 

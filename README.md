@@ -296,8 +296,10 @@ npm run dev     # local dev server
 npm run build   # static build to site/dist/
 ```
 
-CI builds the site on every push and pull request (the `site` job in
-[ci.yml](.github/workflows/ci.yml)).
+The `site` job in [ci.yml](.github/workflows/ci.yml) builds the site in every
+CI run (dispatched manually on this fork — see Development above). Publishing
+to Vercel is a separate manual step (below); the live site is not redeployed
+by a push.
 
 ### Deploying to policywright.lemmalabs.space (Vercel)
 

@@ -4,26 +4,35 @@ description: Every command and flag that exists in v0, with defaults, from src/c
 ---
 
 import StatusBadge from '../../../components/StatusBadge.astro';
+import UnauditedBanner from '../../../components/UnauditedBanner.astro';
 
-<StatusBadge status="shipped" />
+<StatusBadge status="shipped" note="testnet" />
 
-Everything on this page is implemented in
+Every command and flag on this page is implemented in
 [src/cli.ts](https://github.com/kunal-drall/policywright/blob/main/src/cli.ts),
 with defaults defined in
 [src/types.ts](https://github.com/kunal-drall/policywright/blob/main/src/types.ts)
-(`DEFAULT_SYNTH_CONFIG`).
+(`DEFAULT_SYNTH_CONFIG`), except the two `npm run mcp*` package scripts, which
+start the MCP server and check its schemas
+([package.json](https://github.com/kunal-drall/policywright/blob/main/package.json)).
+Everything was checked against `npm run cli -- help` on 2026-09-02.
+`synth --out` writes the generated `FrequencyLimitPolicy.rs`:
+
+<UnauditedBanner />
 
 ## Commands
 
 | Command                                        | What it does                                                                                                                              |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `npm run demo`                                 | End-to-end pipeline + dry-run self-check (offline). Exits non-zero if a scenario deviates.                                                 |
+| `npm run demo`                                 | End-to-end pipeline + dry-run self-check (offline, from the baked-in fixture; [src/demo.ts](https://github.com/kunal-drall/policywright/blob/main/src/demo.ts)). Exits non-zero if a scenario deviates. |
 | `npm run cli -- synth`                         | Synthesize a spec from the baked-in fixture (or `--input <recorded.json>`) and print the summary + `spec.json` + `context-rule.json`; with `--out <dir>` write all four artefacts (incl. `FrequencyLimitPolicy.rs`) to a directory. |
 | `npm run cli -- simulate`                      | Run the dry-run scenarios against the fixture's spec (or `--input <recorded.json>`) and print the permit / deny / flag report.             |
 | `npm run record -- <txHash> [<txHash> ...]`    | Fetch one or more live transactions by hash and print them merged (ledger-close-time order) as ONE `RecordedTx` JSON.                      |
 | `npm run record -- --from-simulation <file>`   | Ingest a saved `simulateTransaction` exchange instead of fetching hashes (`source: "simulation"`). Cannot be combined with hashes.         |
-| `npm run cli -- install --artifact <context-rule.json> --account <C…>` | Testnet only. Validate the artifact against the OZ install signature, build the `add_context_rule` transactions with the account's `AuthPayload` entry and the `Delegated(G)` nested entry, simulate (recording, then enforcing), sign client-side with `STELLAR_SECRET_KEY` from the environment, submit. `--dry-run` simulates everything and submits nothing; `--out` writes the install log. |
-| `npm run cli -- verify --artifact <context-rule.json> --account <C…>` | Read-only: read the account's rules and policy params back and diff them against the artifact (PASS/FAIL); `--install-log` also checks `valid_until`. |
+| `npm run cli -- install --artifact <context-rule.json> --account <C…>` | **Testnet only**, human-initiated. Validate the artifact against the OZ install signature, build the `add_context_rule` transactions with the account's `AuthPayload` entry and the `Delegated(G)` nested entry, simulate (recording, then enforcing), sign client-side with `STELLAR_SECRET_KEY` from the environment, submit. `--dry-run` simulates everything and submits nothing; `--out` writes the install log. Ran on testnet 2026-09-02: [install log, rule ids 1–3](https://github.com/kunal-drall/policywright/blob/main/examples/live/testnet/install-20260902T105742Z.json); flags below. |
+| `npm run cli -- verify --artifact <context-rule.json> --account <C…>` | Read-only, no key: read the account's rules and policy params back and diff them against the artifact (PASS/FAIL); `--install-log` also checks `valid_until`. Committed reports: [verify.md](https://github.com/kunal-drall/policywright/blob/main/examples/live/testnet/verify.md) (rule ids 1–3), [verify-demo-…md](https://github.com/kunal-drall/policywright/blob/main/examples/live/testnet/verify-demo-20260902T153356Z.md) (ids 4–6). |
+| `npm run mcp`                                  | Serve the same four operations — `record`, `synthesize`, `simulate`, `verify` — to an MCP client over stdio. No install or deploy tool ([MCP server](/reference/mcp-tools/)). |
+| `npm run mcp:schemas -- --check`               | Fail if the JSON Schemas committed under `schemas/mcp/` drift from `src/mcp/schemas.ts` (run in CI; prints `schemas/mcp/ matches src/mcp/schemas.ts (9 files)`). |
 | `npm run cli -- help`                          | Print usage (also `--help` / `-h` / no arguments).                                                                                         |
 
 `npm run synth`, `npm run simulate`, and `npm run record` are direct package
@@ -73,11 +82,36 @@ The committed installable artifact's flags are pinned in
 | `<txHash> [<txHash> ...]`  | (required unless simulating)  | One or more 64-character hex transaction hashes; a multi-step flow is several hashes (Soroban allows one `InvokeHostFunction` per transaction) merged into one `RecordedTx`. |
 | `--account <G...\|C...>`   | first tx's source account     | The subject account movements are attributed to. Without it the fallback is assumed **with a warning** — smart-account flows usually act through a `C...` address.           |
 | `--from-simulation <file>` | —                             | Ingest a saved `simulateTransaction` exchange instead of fetching hashes.                                                                                                    |
-| `--network <name>`         | `testnet`                     | One of `testnet`, `mainnet`, `futurenet`.                                                                                                                                     |
+| `--network <name>`         | `testnet`                     | One of `testnet`, `mainnet`, `futurenet` — the read-only `record` and `verify` accept all three; `install` refuses anything but `testnet` (a mainnet demonstration is a Tranche 3 item, [Roadmap](/roadmap/)). |
 | `--rpc-url <url>`          | the network's public endpoint | Override the Soroban RPC endpoint, e.g. a node you run yourself.                                                                                                              |
 
 Default public endpoints per network are defined in
 [src/sources/rpc.ts](https://github.com/kunal-drall/policywright/blob/main/src/sources/rpc.ts).
+
+## `install` flags (testnet-only)
+
+The signer is `STELLAR_SECRET_KEY` from the environment — never an argument —
+and is never printed; `scripts/install-testnet.sh` sources the gitignored
+`.env` for you ([smart-account install](/reference/smart-account-install/)).
+
+| Flag                                | Default                                   | Meaning                                                                                                              |
+| ----------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `--artifact <context-rule.json>`    | (required)                                | The emitted artifact, consumed unmodified; refused if it would not install as-is.                                    |
+| `--account <C…>`                    | (required)                                | The OpenZeppelin smart account to install into.                                                                      |
+| `--admin-rule-id <n>`               | `0`                                       | The account's admin rule (the constructor's).                                                                        |
+| `--admin-signer <spec>`             | `delegated:<the signing key's public key>` | The admin rule's signer(s), same syntax as `--signer`.                                                               |
+| `--dry-run`                         | off                                       | Simulate everything, including the authorization entries; submit nothing.                                             |
+| `--source <G…>`                     | —                                         | Dry-run only: the intended transaction source when `STELLAR_SECRET_KEY` is not set.                                  |
+| `--out <install-log.json>`          | —                                         | Write the machine-readable install log.                                                                              |
+| `--network <n>`, `--rpc-url <url>`  | `testnet`                                 | `install` is testnet-only: any other network is refused.                                                             |
+
+## `verify` flags
+
+| Flag                                                   | Meaning                                                                                                  |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `--artifact`, `--account`, `--network`, `--rpc-url`    | As above; read-only, no key needed.                                                                      |
+| `--install-log <json>`                                 | Compare `valid_until` with what the install computed, and select that install when the same artifact was installed more than once. |
+| `--out <verify.md>`                                    | Write the Markdown report.                                                                               |
 
 ## Flag syntax and errors
 

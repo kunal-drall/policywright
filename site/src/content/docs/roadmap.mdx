@@ -1,48 +1,58 @@
 ---
 title: Roadmap
-description: The three-tranche build plan — MVP, testnet expansion, mainnet launch — and where v0 stands.
+description: The three-tranche plan — Tranche 1 delivered early and approved, Tranche 2 shipped on testnet, Tranche 3 planned for 30 Nov 2026 with the audit via the SCF Audit Bank.
 ---
 
 import StatusBadge from '../../components/StatusBadge.astro';
+import UnauditedBanner from '../../components/UnauditedBanner.astro';
 
-<StatusBadge status="in-development" />
+<StatusBadge status="shipped" note="testnet" />
 
-Policywright is built against a three-tranche plan — **MVP → Testnet →
-Mainnet** — tracking the funded deliverables of the awarded SCF #44 submission
-["Record-to-Policy MCP + Agent skill"](https://communityfund.stellar.org/project/policywright-j8x).
-All dates are **targets**. Deliverables that involve on-chain behaviour are
-evidenced by contract IDs and transaction links when they exist; the first —
-the deployed generated frequency-limit policy — is evidenced in the deployment
-log in
-[evidence/EVIDENCE.md](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md),
-and the Tranche 2 table below links each deliverable's evidence section.
+Built in response to the SCF 'OZ accounts policy builder' RFP (Q2 2026), funded
+in round [SCF #44](https://communityfund.stellar.org/awards/rec4FnYypcsKpBRB4)
+as the awarded submission
+['Record-to-Policy MCP + Agent skill.'](https://communityfund.stellar.org/project/policywright-j8x)
+The plan has three tranches — **MVP → Testnet expansion → Mainnet launch**.
+The only dates on this page are the communicated tranche targets. Every
+shipped row links to the section of
+[evidence/EVIDENCE.md](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md)
+that quotes its approved criterion verbatim and gives the verification
+commands, and to a green CI run.
+
+<UnauditedBanner />
 
 ## The three tranches
 
-| Tranche                  | Target date                | Focus              | Headline deliverables                                                                                                                                                                                       |
-| ------------------------ | -------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **T1 — MVP (testnet)**   | 31 Aug 2026 _(target)_     | Working engine     | Recording layer (live + simulated); least-privilege synthesizer (scope + composed policies + minimal permission); generated-policy compile + testnet deploy; open-source CLI + CI                             |
-| **T2 — Testnet expansion** | 15 Oct 2026 _(target)_   | Agent-usable tooling | MCP server (`record` / `synthesize` / `simulate` / `verify` tools); Claude skill; dry-run harness + argument-level scope; net-new policy codegen with storage segregation; wallet integration (testnet, end-to-end) |
-| **T3 — Mainnet launch**  | 30 Nov 2026 _(target)_     | Production         | Three documented end-to-end walkthroughs; OpenZeppelin validation of generated code; production release (versioned MCP server + packaged skill + docs); mainnet demonstration; test suite + audit readiness (audit scope submitted to the SCF Audit Bank) |
+| Tranche                    | Target      | Status (2026-09-02)                                                                                                                                                                                                                                                                            |
+| -------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **T1 — MVP (testnet)**     | 31 Aug 2026 | **Delivered 2026-08-03, ahead of target, and approved** — D1.1–D1.4 ([evidence](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#delivered--tranche-1)). The SCF portal publishes award status, not per-tranche approvals, so the approval is stated here by the project owner; the next form due is the [Tranche 2 form](https://github.com/kunal-drall/policywright/blob/main/evidence/TRANCHE2-FORM.md) |
+| **T2 — Testnet expansion** | 15 Oct 2026 | **Shipped 2026-09-02** — D2.1–D2.5 built and evidenced ([evidence](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#delivered--tranche-2)); the open items are three human recordings (table below)                                                                      |
+| **T3 — Mainnet launch**    | 30 Nov 2026 | **Planned** — not started; nothing under it exists in the repository (table below)                                                                                                                                                                                                              |
 
-## Where the project stands
+## Tranche 1 — delivered 2026-08-03, approved
 
-Tranche 1 (D1.1–D1.4) is delivered and approved. The five Tranche 2
-deliverables are built and evidenced as of 2026-09-02; what is still open in
-each is a human recording. Every row links to the section of
-[evidence/EVIDENCE.md](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md)
-that quotes the approved criterion verbatim and gives the verification
-commands.
+| #    | Deliverable                                                              | Proof                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ---- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1.1 | Hardened recording layer — multi-hash sequences, simulated path, typed errors | [evidence § D1.1](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#d11--hardened-recording-layer-multi-hash-simulated-path-typed-errors); [src/sources/](https://github.com/kunal-drall/policywright/tree/main/src/sources)                                                                                                                                                      |
+| D1.2 | Installable OZ context rules with composed stock-policy params           | [evidence § D1.2](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#d12--installable-oz-context-rules-with-composed-stock-policy-params); [schema](https://github.com/kunal-drall/policywright/blob/main/docs/context-rule-schema.md); [CI run 30765581963](https://github.com/kunal-drall/policywright/actions/runs/30765581963)                                                     |
+| D1.3 | Generated policy compiled, tested, and deployed to testnet               | [evidence § D1.3](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#d13--generated-policy-compiled-tested-and-deployed-to-testnet); [`CDSVPSTS…2ZPP`](https://stellar.expert/explorer/testnet/contract/CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP); [deployment log](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#deployment-log); [CI run 30787953610](https://github.com/kunal-drall/policywright/actions/runs/30787953610) |
+| D1.4 | Public MIT repository, green CI, evidence pack                           | [evidence § D1.4](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#d14--public-mit-repo-green-ci-evidence-pack); [LICENSE](https://github.com/kunal-drall/policywright/blob/main/LICENSE); [CI run 30839117017](https://github.com/kunal-drall/policywright/actions/runs/30839117017)                                                                                              |
 
-### Tranche 2 deliverables
+## Tranche 2 — shipped 2026-09-02
 
-| #    | Deliverable                                            | Status (2026-09-02)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Open                                                                                                                                                                                      |
-| ---- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D2.1 | MCP server                                             | **Built and evidenced** — `record` / `synthesize` / `simulate` / `verify` over stdio, no install/deploy tool, versioned schemas, `.mcp.json` registration, the real server driven end to end by the test suite ([MCP tools](/reference/mcp-tools/); [evidence § D2.1](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#d21--mcp-server))                                                                                                                                                             | the human-saved [reference session](https://github.com/kunal-drall/policywright/blob/main/docs/mcp-reference-session.md) transcript                                                       |
-| D2.2 | Claude skill                                           | **Built and evidenced** — `policywright-grant` validated by the reference validator and walked through by machine against the real server ([the skill](/reference/skill/); [evidence § D2.2](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#d22--claude-skill))                                                                                                                                                                                                                                       | the human-saved [demo conversation](https://github.com/kunal-drall/policywright/blob/main/docs/skill-demo-script.md) transcript                                                           |
-| D2.3 | Dry-run harness + argument-level scope                 | **Delivered** — BLND→XLM flagged by default, denied with `--constrain-arguments`, on the real recorded sequence; both reports committed and diffed in CI ([dry-run harness](/reference/dry-run-harness/); [evidence § D2.3](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#d23--dry-run-harness--argument-level-scope))                                                                                                                                                                              | —                                                                                                                                                                                         |
-| D2.4 | Composed configuration + generated stateful policy     | **Delivered** — both artifacts side by side for the real recording; the configuration validated field-by-field against the OZ install signature, the crate compiled and tested, each attributed in the report ([compose-first](/concepts/compose-first/); [evidence § D2.4](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#d24--composed-configuration--generated-stateful-policy))                                                                                                                  | —                                                                                                                                                                                         |
-| D2.5 | Testnet smart account with the installed policy        | **Built and evidenced — fallback signing path** — OpenZeppelin's example account on testnet with the emitted rules installed as-is and read back to PASS; signed with the labelled local key ([smart-account install](/reference/smart-account-install/); [evidence § D2.5](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#d25--testnet-smart-account-with-the-installed-generated-policy-fallback-path))                                                                                             | the end-to-end [demo recording](https://github.com/kunal-drall/policywright/blob/main/docs/demo-script-t2.md); the Freighter/wallets-kit signing page (cohort-wallet track)                |
+| #    | Deliverable                                          | Status                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Open                                                                                                                                                                                                                  |
+| ---- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D2.1 | MCP server                                           | **Shipped** — `record` / `synthesize` / `simulate` / `verify` over stdio, no install/deploy tool, versioned schemas, `.mcp.json` registration, the real server driven end to end by the test suite ([MCP server](/reference/mcp-tools/); [evidence § D2.1](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#d21--mcp-server); [CI run 33631174115](https://github.com/kunal-drall/policywright/actions/runs/33631174115))          | the human-saved [reference session](https://github.com/kunal-drall/policywright/blob/main/docs/mcp-reference-session.md) transcript                                                                                   |
+| D2.2 | Claude skill                                         | **Shipped** — `policywright-grant` validated by the reference validator and walked through by machine against the real server ([the skill](/reference/skill/); [evidence § D2.2](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#d22--claude-skill); [CI run 33647377983](https://github.com/kunal-drall/policywright/actions/runs/33647377983))                                                                                  | the human-saved [demo conversation](https://github.com/kunal-drall/policywright/blob/main/docs/skill-demo-script.md) transcript                                                                                        |
+| D2.3 | Dry-run harness + argument-level scope               | **Delivered** — BLND→XLM flagged by default, denied with `--constrain-arguments`, on the real recorded sequence; both reports committed and diffed in CI ([dry run & argument scope](/reference/dry-run-harness/); [evidence § D2.3](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#d23--dry-run-harness--argument-level-scope); [CI run 33561221471](https://github.com/kunal-drall/policywright/actions/runs/33561221471))      | —                                                                                                                                                                                                                     |
+| D2.4 | Composed configuration + generated stateful policy   | **Delivered** — both artifacts side by side for the real recording; the configuration validated field-by-field against the OZ install signature, the crate compiled and tested, each attributed in the report ([compose vs. generate](/concepts/compose-first/); [evidence § D2.4](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#d24--composed-configuration--generated-stateful-policy); [CI run 33618871930](https://github.com/kunal-drall/policywright/actions/runs/33618871930)) | —                                                                                                                                                                                                                     |
+| D2.5 | Testnet smart account with the installed policy      | **Shipped — fallback signing path** — OpenZeppelin's example account on testnet with the emitted rules installed as-is (twice) and read back to PASS; signed with the labelled local key ([smart-account install](/reference/smart-account-install/); [evidence § D2.5](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#d25--testnet-smart-account-with-the-installed-generated-policy-fallback-path); [CI run 33622880981](https://github.com/kunal-drall/policywright/actions/runs/33622880981)) | the end-to-end [demo recording](https://github.com/kunal-drall/policywright/blob/main/docs/demo-script-t2.md); the Freighter/wallets-kit signing page (cohort-wallet track) — not built                                 |
+
+The close-out work of 2026-09-02 — the demo script from real runs, the second
+install (rule ids 4–6), the re-install-safe `verify`, the tranche form draft —
+is in
+[evidence § Tranche 2 close-out](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#tranche-2-close-out--truthfulness-pass-demo-script-form)
+([CI run 33654005983](https://github.com/kunal-drall/policywright/actions/runs/33654005983)).
 
 **Not built in Tranche 2, stated plainly:** the wallet signing page (it
 replaces only the installer's signing surface — the `Delegated(G)` model is
@@ -51,31 +61,23 @@ harness enforces argument scope offline; not an approved T2 criterion), and
 the optional post-install enforcement demo. Each is tracked in
 [docs/T2-NOTES.md](https://github.com/kunal-drall/policywright/blob/main/docs/T2-NOTES.md).
 
-### Tranche 1 (delivered 2026-08-03)
+## Tranche 3 — planned, target 30 Nov 2026
 
-- Recording from the offline fixture, from a live Soroban RPC node by
-  transaction hash, and from a saved `simulateTransaction` exchange —
-  [src/sources/](https://github.com/kunal-drall/policywright/tree/main/src/sources)
-- The least-privilege synthesizer: exact scope binding, gross-outflow spend
-  caps, the minimal-permission inflow rule, and frequency limits —
-  [src/synthesizer.ts](https://github.com/kunal-drall/policywright/blob/main/src/synthesizer.ts)
-- The emitter: `spec.json`, `context-rule.json`, `summary.txt`, and the stamped
-  illustrative Rust policy — the same source as the compiled-and-tested crate at
-  [contracts/frequency-limit-policy](https://github.com/kunal-drall/policywright/tree/main/contracts/frequency-limit-policy),
-  deployed to testnet hash-verified — deployment log in
-  [evidence/EVIDENCE.md](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md)
-- The open-source CLI, Vitest suite with coverage thresholds, and CI —
-  [src/cli.ts](https://github.com/kunal-drall/policywright/blob/main/src/cli.ts),
-  [CI workflow](https://github.com/kunal-drall/policywright/actions/workflows/ci.yml)
-
-### Planned — Tranche 3 (not started)
-
-The three documented end-to-end walkthroughs, the OpenZeppelin validation
-pass of the generated code, the production release (versioned MCP server,
-packaged skill, docs), the mainnet demonstration, and the audit-readiness
-work with the SCF Audit Bank. Nothing under this heading exists in the
-repository; ideas that surface early are parked in
+Nothing under this heading exists in the repository. Ideas that surface early
+are parked in
 [docs/T3-NOTES.md](https://github.com/kunal-drall/policywright/blob/main/docs/T3-NOTES.md).
+
+| Item                                                                                                                | Status  | Target      |
+| ------------------------------------------------------------------------------------------------------------------- | ------- | ----------- |
+| Three documented end-to-end walkthroughs                                                                            | Planned | 30 Nov 2026 |
+| OpenZeppelin validation of the generated code and the compose-first install mapping                                 | Planned | 30 Nov 2026 |
+| Production release — versioned MCP server, packaged skill, docs                                                     | Planned | 30 Nov 2026 |
+| Mainnet demonstration                                                                                               | Planned | 30 Nov 2026 |
+| Audit readiness — audit of the synthesizer logic and the generated policy templates via the **SCF Audit Bank**      | Planned | 30 Nov 2026 |
+
+Until that audit has happened, every generated contract stays stamped
+illustrative and unaudited, and deployment stays testnet-only
+([Security](/security/)).
 
 ## Proof policy
 
@@ -89,4 +91,7 @@ the smart account
 [`CBQ6H7IL…QHDT`](https://stellar.expert/explorer/testnet/contract/CBQ6H7ILH54ADWTVS7FCK36W7FY2RJJOWR4VGLZG7D4PZUG5FSA7QHDT),
 and every install transaction in
 [examples/live/testnet/](https://github.com/kunal-drall/policywright/tree/main/examples/live/testnet).
-All of it is testnet; there is no mainnet deployment.
+All of it is testnet-only; there is no mainnet deployment, and the `install`
+command refuses any network but testnet. Because the repository
+is a GitHub fork, CI runs are dispatched manually; the runs cited above are
+the ones the evidence pack cites.

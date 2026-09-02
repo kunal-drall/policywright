@@ -1,0 +1,180 @@
+---
+title: Agent yield operations
+description: The one executed walkthrough — a real Blend emissions claim followed by a Soroswap swap on testnet, recorded, synthesized into least-privilege rules, dry-run both ways, installed on an OpenZeppelin smart account, and read back to PASS.
+---
+
+import StatusBadge from '../../../components/StatusBadge.astro';
+import UnauditedBanner from '../../../components/UnauditedBanner.astro';
+
+<StatusBadge status="shipped" note="testnet" />
+
+An agent that operates yield for a user needs to claim rewards and convert
+them — and nothing else. This is the only use case on this site written as a
+walkthrough, because it is the only one that has been executed end to end:
+every hash, amount, rule id and output below is a committed artifact or a
+command re-run on 2026-09-02. The generated policy it installs is unaudited:
+
+<UnauditedBanner />
+
+## The flow that was performed
+
+On 2026-08-08, on Stellar **testnet**, the account
+`GBMWJIADBWN6FJUQPSVKWZE7ZFEPHEN2YBINQ7UVPHJ2WJW2SWI6WD4Q` did two things, in
+two transactions (Soroban allows one contract invocation per transaction):
+
+| Step | Contract                                                              | Function                       | Transaction                                                                  |
+| ---- | --------------------------------------------------------------------- | ------------------------------ | ---------------------------------------------------------------------------- |
+| 1    | Blend pool `CAPBMXIQTICKWFPWFDJWMAKBXBPJZUKLNONQH3MLPLLBKQ643CYN5PRW`  | `claim`                        | `9fff676c46c5b00afb124cd4f59f63d76177c7b4585bde31a518acf923f0a0b6`           |
+| 2    | Soroswap router `CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD` | `swap_exact_tokens_for_tokens` | `ae943f998fd07dfd17536d8c25b714146f467ea222a6314f23cf7032cdc67c46`           |
+
+Token flows relative to that account: **in 2.1394095 BLND** (the claim),
+**out 2.1394095 BLND** and **in 1.0516011 USDC** (the swap). BLND and USDC are
+the Blend/Soroswap testnet mints
+([FACTS.md GATE 4](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md)).
+
+## 1. Record
+
+Both hashes were fetched from the public testnet RPC and merged into one
+recording:
+[examples/live/recorded-claim-swap-fresh.json](https://github.com/kunal-drall/policywright/blob/main/examples/live/recorded-claim-swap-fresh.json)
+(ledger 4029100). The raw `getTransaction` captures are committed beside it,
+and
+[test/recorder.test.ts](https://github.com/kunal-drall/policywright/blob/main/test/recorder.test.ts)
+proves the recording re-assembles from them byte for byte. The hashes are now
+older than the public node's ~7-day retention window, so `record` by hash
+returns `TX_NOT_FOUND` today (re-checked 2026-09-02); the committed recording
+is the reproduction path for every step below.
+
+## 2. Synthesize
+
+```bash
+npm run cli -- synth --input examples/live/recorded-claim-swap-fresh.json
+```
+
+Output re-run on 2026-09-02, identical to the committed
+[summary.txt](https://github.com/kunal-drall/policywright/blob/main/examples/live/fresh/summary.txt)
+apart from the install targets (added in step 4):
+
+```text
+Policies (2)
+--------
+  - spending-limit: BLND <= 2.3533505 per 86400s (observed gross out 2.1394095)
+  - frequency-limit: <= 5 call(s) per 86400s
+
+Argument scopes — advisory (flag only)
+--------------
+  - argument-constraint (swap-path): swap_exact_tokens_for_tokens arg[2] (path) restricted to 2 observed token(s)
+
+Installable OZ context rules (3) — see context-rule.json
+----------------------------
+  pw:claim  CallContract(CAPBMXIQTICKWFPWFDJWMAKBXBPJZUKLNONQH3MLPLLBKQ643CYN5PRW)
+    lifetime 518400 ledgers; valid until ledger (head + lifetime at install); observed fns: claim
+  pw:swap  CallContract(CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD)
+    lifetime 518400 ledgers; valid until ledger (head + lifetime at install); observed fns: swap_exact_tokens_for_tokens
+  pw:xfer:BLND  CallContract(CB22KRA3YZVCNCQI64JQ5WE7UY2VAV7WFLK6A2JN3HEX56T2EDAFO7QF)
+    lifetime 518400 ledgers; valid until ledger (head + lifetime at install); observed fns: transfer
+    - stock:spending_limit { spending_limit: 23533505, period_ledgers: 17280 } (caps BLND transfers)
+```
+
+What that is, in the user's words: the delegate may `claim` on that Blend
+pool and `swap_exact_tokens_for_tokens` on that Soroswap router, may move at
+most 2.3533505 BLND out per day (the observed 2.1394095 plus 10 % headroom),
+gets no USDC permission at all because USDC only came in, may make at most
+five such calls a day, and loses the permission after 30 days. The BLND cap is
+**composed** — the stock OpenZeppelin `spending_limit`, with its real install
+parameters, on the BLND token rule, because the recording proves the account
+authorized that `transfer`; the frequency limit is the one **generated**
+policy ([compose vs. generate](/concepts/compose-first/)).
+
+## 3. Dry-run, both ways
+
+```bash
+npm run cli -- simulate --input examples/live/recorded-claim-swap-fresh.json
+npm run cli -- simulate --input examples/live/recorded-claim-swap-fresh.json --constrain-arguments
+```
+
+Six scenarios; the recorded flow permitted, four adjacent cases denied, and
+the swap re-routed through the never-observed native XLM contract **flagged**
+by default and **denied** when the route constraint is enforced. Both reports
+are committed —
+[simulation-report.md](https://github.com/kunal-drall/policywright/blob/main/examples/live/simulation-report.md),
+[simulation-report.constrained.md](https://github.com/kunal-drall/policywright/blob/main/examples/live/simulation-report.constrained.md)
+— and were byte-identical to today's output. The criterion rows, with the
+token addresses abbreviated here (the committed files carry them in full):
+
+```text
+| BLND→XLM swap (route through unobserved XLM) | ⚠️ flag (argument-constraint) | dry-run harness only — advisory, no on-chain artifact | permitted with a scope gap (constrainArguments is off, so this constraint is advisory): swap_exact_tokens_for_tokens arg[2] path (rule swap-path) must stay within the observed token set {BLND CB22KRA3…, USDC CAQCFVLO…}; candidate routes through unobserved XLM CDLZFC3S…; enable --constrain-arguments to deny it |
+| BLND→XLM swap (route through unobserved XLM) | ⛔ deny (argument-constraint) | dry-run harness only — no on-chain artifact yet | argument constraint violated: swap_exact_tokens_for_tokens arg[2] path (rule swap-path) must stay within the observed token set {BLND CB22KRA3…, USDC CAQCFVLO…}; candidate routes through unobserved XLM CDLZFC3S… |
+```
+
+The route constraint is enforced by the offline harness only — no stock
+OpenZeppelin policy can scope an argument, and the artifact says so in a
+`DELTA` note ([dry run & argument scope](/reference/dry-run-harness/)).
+
+## 4. Install — explicit, human-signed, testnet only
+
+The deploy-time facts were added and the artifact emitted with the flags
+pinned in
+[examples/live/fresh/synth.args](https://github.com/kunal-drall/policywright/blob/main/examples/live/fresh/synth.args):
+signer `delegated:GATUKCIM…KS3W`, the generated policy at
+[`CDSVPSTS…2ZPP`](https://stellar.expert/explorer/testnet/contract/CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP),
+the stock `spending_limit` at
+[`CCOQPGEY…4W4E`](https://stellar.expert/explorer/testnet/contract/CCOQPGEYKZVNDRIUFMP6IQRDUONOURWWDJTXP22SJZ7NICJX7VGS4W4E).
+The CLI then installed it, unmodified, into OpenZeppelin's example smart
+account
+[`CBQ6H7IL…QHDT`](https://stellar.expert/explorer/testnet/contract/CBQ6H7ILH54ADWTVS7FCK36W7FY2RJJOWR4VGLZG7D4PZUG5FSA7QHDT)
+on 2026-09-02 — one transaction per rule, each simulated twice and signed
+client-side with the operator's key (`local-fallback`):
+
+| Rule           | On-chain id | Transaction                                                                                                                                       | `valid_until` |
+| -------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `pw:claim`     | 1           | [`2bd245b6…4b8a6e`](https://stellar.expert/explorer/testnet/tx/2bd245b67925e688a183be50e6d6c75d3d7b4eb98b0be02d23693611f44b8a6e)                  | 4983015       |
+| `pw:swap`      | 2           | [`065bf20b…a33dfa`](https://stellar.expert/explorer/testnet/tx/065bf20b3d6e3b8b3cd9a8e408f009a61c347e0dfaaa4a5bda40b2199aa33dfa)                  | 4983015       |
+| `pw:xfer:BLND` | 3           | [`6593a5a0…771a9a`](https://stellar.expert/explorer/testnet/tx/6593a5a0440b02e8679e9f87b7031d915b35b85a6873eb23b18016e827771a9a)                  | 4983015       |
+
+The same day the skill demo produced a tighter variant of the same rule —
+10 % headroom over a week, 7-day lifetime, route enforced
+([examples/live/demo/](https://github.com/kunal-drall/policywright/tree/main/examples/live/demo))
+— and the human CLI step installed it as rule ids 4–6
+([install log](https://github.com/kunal-drall/policywright/blob/main/examples/live/testnet/install-20260902T153356Z.json)).
+Flow, signing hierarchy and today's dry-run output:
+[smart-account install](/reference/smart-account-install/).
+
+## 5. Verify
+
+```bash
+npm run cli -- verify --artifact examples/live/fresh/context-rule.json \
+  --account CBQ6H7ILH54ADWTVS7FCK36W7FY2RJJOWR4VGLZG7D4PZUG5FSA7QHDT \
+  --install-log examples/live/testnet/install-20260902T105742Z.json
+```
+
+**PASS**, 15 of 15 rows — rule, signers, policy address, install parameters
+and `valid_until` for each of the three rules read back from chain equal the
+artifact — at ledger 4464624 when committed
+([verify.md](https://github.com/kunal-drall/policywright/blob/main/examples/live/testnet/verify.md))
+and again at ledger 4469061 on 2026-09-02, read-only, no key
+([full output](/reference/smart-account-install/#the-read-only-verify-anyone-can-run)).
+
+## The same flow from an agent
+
+The MCP `record` → `synthesize` → `simulate` calls for this exact recording,
+and the `verify` of this exact install, were made live from Claude Code on
+2026-09-02 ([MCP server](/reference/mcp-tools/#real-tool-results)); the
+`policywright-grant` skill turned "grant permission to claim my Blend yield
+and swap it to USDC" into the reviewed 7-day policy above, asking about the
+cap, the lifetime and the route before re-synthesizing, and answered "just
+install it" with the human command and no tool call
+([the skill](/reference/skill/)). The recordable end-to-end demo, with these
+outputs at every beat, is
+[docs/demo-script-t2.md](https://github.com/kunal-drall/policywright/blob/main/docs/demo-script-t2.md).
+
+## What this use case does not yet show
+
+The route constraint (BLND→USDC only) is enforced offline; an on-chain
+argument-scoping policy is not built. The install was signed with the
+operator's local key; the wallet signing page is not built. An in-scope swap
+executed **through** the smart account after the install, and an over-cap
+transfer rejected on-chain, are not demonstrated. The end-to-end video and
+the two conversation transcripts are the open Tranche 2 items
+([evidence/EVIDENCE.md](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#delivered--tranche-2)).
+Everything is testnet.

@@ -4,8 +4,11 @@ description: Permit exactly the observed flow and nothing else — the rules v0 
 ---
 
 import StatusBadge from '../../../components/StatusBadge.astro';
+import UnauditedBanner from '../../../components/UnauditedBanner.astro';
 
-<StatusBadge status="shipped" />
+<StatusBadge status="shipped" note="testnet" />
+
+<UnauditedBanner />
 
 Policywright's core thesis: the safest authorization is derived from a
 transaction the user has already performed. Whatever that transaction did is
@@ -16,9 +19,15 @@ this as a set of concrete rules, each of them tested
 
 ## Scope is exact
 
-The context rule binds exactly the `(contract, function)` pairs observed —
-never a third. A call to any other function, even on the same contract, is
-denied with reason `scope`.
+The synthesized spec binds exactly the `(contract, function)` pairs observed —
+never a third — and the offline dry run denies a call to any other function,
+even on the same contract, with reason `scope`. On-chain, an OpenZeppelin
+context rule matches at **contract** level only: the installable
+`context-rule.json` emits one `CallContract` rule per contract with the
+observed functions as advisory `observedFns`, and function-level narrowing
+stays the harness's job until an argument-checking policy exists — stated in
+the artifact's notes and on the [context rules](/concepts/context-rules/)
+page.
 
 ## Caps are gross, not net
 
@@ -59,14 +68,28 @@ anything would be installed:
 | BLND→XLM swap through the unobserved XLM | ⚠️ flag (default) / ⛔ deny (`--constrain-arguments`) |
 
 `npm run demo` asserts all six behave as expected and exits non-zero otherwise
-([committed report](https://github.com/kunal-drall/policywright/blob/main/examples/simulation-report.md)).
+([src/demo.ts](https://github.com/kunal-drall/policywright/blob/main/src/demo.ts);
+[committed fixture report](https://github.com/kunal-drall/policywright/blob/main/examples/simulation-report.md)).
+The same six scenarios on the real recorded claim→swap sequence are committed
+in both modes —
+[simulation-report.md](https://github.com/kunal-drall/policywright/blob/main/examples/live/simulation-report.md)
+(flag) and
+[simulation-report.constrained.md](https://github.com/kunal-drall/policywright/blob/main/examples/live/simulation-report.constrained.md)
+(deny) — and regenerated and diffed in CI. Installation is a separate,
+explicit, human-initiated, **testnet-only** step
+([smart-account install](/reference/smart-account-install/)).
 
 ## Honest edges
 
 Where v0 does not constrain something, it says so rather than implying
-coverage: an unobserved swap route under the default config is **flagged**
-explicitly — surfaced as a gap, not silently permitted
+coverage: an unobserved swap route under the default config is permitted and
+**flagged** — the report names the scope gap and how to close it, and
+`--constrain-arguments` turns it into a deny
 ([src/simulate.ts](https://github.com/kunal-drall/policywright/blob/main/src/simulate.ts)).
+Both verdicts are the offline harness's: no stock OpenZeppelin policy can
+scope an argument, an argument-checking policy is not built, and
+`context-rule.json` records the constraint as a `DELTA` note
+([dry run & argument scope](/reference/dry-run-harness/#argument-level-scope-and-its-limits)).
 Unresolvable token metadata is labelled `resolved: false` — never a silent
 guess
 ([src/sources/rpc.ts](https://github.com/kunal-drall/policywright/blob/main/src/sources/rpc.ts)).

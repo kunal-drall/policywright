@@ -1,0 +1,71 @@
+---
+title: Why least-privilege for agents
+description: The safety framing — scoped, time-bounded smart-account policies instead of full keys, a dry run before anything is installed, and code a human can review. Describes shipped capabilities only.
+---
+
+import StatusBadge from '../../../components/StatusBadge.astro';
+import UnauditedBanner from '../../../components/UnauditedBanner.astro';
+
+<StatusBadge status="shipped" note="testnet — describes existing capabilities only" />
+
+Handing an agent a key is handing it everything the key can do. The
+capabilities on this page exist on Stellar testnet today; nothing here is a
+promise.
+
+<UnauditedBanner />
+
+## Scoped policies instead of full keys
+
+A Stellar `G` secret authorizes every operation of that account, forever,
+until it is rotated. An OpenZeppelin smart-account **context rule** authorizes
+one contract, for one signer, with **policies** attached — a spending cap, a
+call budget — and a **lifetime** after which it stops working
+([context rules](/concepts/context-rules/)). Policywright derives that rule
+from a transaction the user has already performed, so the permission is
+exactly the observed flow: the calls that were made, a cap at the amount that
+actually moved (plus headroom the user chooses), no permission at all for an
+asset that only came in, a bounded number of calls, an expiry
+([least-privilege model](/concepts/least-privilege/)). In the executed
+example the delegate may claim on one Blend pool and swap on one Soroswap
+router, move at most 2.3533505 BLND a day, touch no USDC, and stops after 30
+days ([agent yield operations](/use-cases/agent-yield-operations/)).
+
+## A dry run before anything is installed
+
+A least-privilege claim is only credible if the adjacent cases fail. Before
+any install, the harness replays the recorded flow (must permit) and tries
+the neighbours — one unit over the cap, a call to an unseen function, a call
+after expiry, one call over the frequency limit, a swap through a token that
+was never observed — and reports permit, deny, or flag with the reason and
+the artifact that enforces it. Both reports for the real recording are
+committed and regenerated in CI; the demo exits non-zero if any scenario
+deviates ([dry run & argument scope](/reference/dry-run-harness/)). The
+agent-facing tools do the same: the skill will not call a policy "reviewed"
+until `simulate` has run with zero deviations ([the skill](/reference/skill/)).
+
+## Code a human can review — and an agent cannot install
+
+The artifact is a JSON document, not a program: three context rules, real
+OpenZeppelin install parameters, a source citation for every parameter shape,
+and a `notes` array that lists every unit conversion, every constraint the
+stock policies cannot express, and every install-time obligation
+([context-rule.json](https://github.com/kunal-drall/policywright/blob/main/examples/live/fresh/context-rule.json)).
+Where a stock policy exists it is configured, not re-implemented; the one
+generated contract is stamped illustrative and unaudited on every emitted
+Rust file, and it is byte-identical to a crate that compiles and passes its
+tests
+([compose vs. generate](/concepts/compose-first/)). Installing is a separate,
+human-initiated, testnet-only CLI step that signs client-side; the MCP server
+and the skill have no install tool, structurally
+([MCP server](/reference/mcp-tools/); [smart-account install](/reference/smart-account-install/)).
+
+## What least privilege does not solve here
+
+- On-chain rules are contract-level: the function name and the swap route are
+  enforced by the offline dry run, not by an installed policy. An
+  argument-scoping policy is not built.
+- The install so far was signed with the operator's local key; the wallet
+  signing page is not built.
+- Nothing is audited. The audit of the synthesizer and the generated
+  templates is a Tranche 3 item via the SCF Audit Bank ([Security](/security/)).
+- Everything is testnet.

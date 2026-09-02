@@ -1,0 +1,59 @@
+---
+title: Subscription-style recurring payments (SEP-41)
+description: Concept brief — the delegation shape for a recurring SEP-41 token payment, which shipped features it uses, and what stays unexpressed today. The executed walkthrough is a Tranche 3 deliverable.
+---
+
+import StatusBadge from '../../../components/StatusBadge.astro';
+import UnauditedBanner from '../../../components/UnauditedBanner.astro';
+
+<StatusBadge status="planned" note="walkthrough — Tranche 3, target 30 Nov 2026" />
+<StatusBadge status="shipped" note="capability — testnet" />
+
+A user pays the same SEP-41 token to the same service every month and wants
+an agent or a key to keep doing that — and nothing else. This page describes
+the delegation shape Policywright derives from **one** observed payment,
+built only from features that are shipped. It is a concept brief, not a
+walkthrough: no recurring-payment recording, artifact, or install exists in
+the repository. **A full executed walkthrough of this use case is a Tranche 3
+deliverable (target 30 Nov 2026).**
+
+<UnauditedBanner />
+
+## The delegation shape
+
+Record one performed payment — a `transfer` on the token contract — and
+synthesize. From that one recording the synthesizer derives
+([src/synthesizer.ts](https://github.com/kunal-drall/policywright/blob/main/src/synthesizer.ts);
+[least-privilege model](/concepts/least-privilege/)):
+
+| Constraint            | Derived from the recording                                                                                                 | Realisation today                                                                                                                                                                                                                                              |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Scope                 | the one `(token contract, transfer)` pair observed — one `CallContract` rule for that token, nothing else                   | on-chain context rule ([context rules](/concepts/context-rules/))                                                                                                                                                                                              |
+| Spend cap             | the gross amount that left the account, × 1.1 by default; the skill asks "cap at the observed amount, or allow more over a window?" | **composed** — the stock OpenZeppelin `spending_limit` with `{ spending_limit, period_ledgers }` on the token rule, when the recording proves the subject authorized that `transfer` ([compose vs. generate](/concepts/compose-first/))            |
+| Frequency             | a rolling call cap — default 5 per 86400 s; a monthly payment would set `--frequency-window` / `--frequency-max` accordingly | **generated** — `FrequencyLimitPolicy` (unaudited; deployed on testnet)                                                                                                                                                                                       |
+| Lifetime              | `--lifetime`, default 30 days, converted to ledgers                                                                        | on-chain `valid_until`                                                                                                                                                                                                                                         |
+| Recipient             | **not derived.** The only argument-derivation rule is `swap-path`, which reads swap routes; a `transfer` yields no argument constraint | **not expressed** — on-chain the stock `spending_limit` meters the amount only, so the delegate could pay any recipient up to the cap. Policywright says so rather than implying otherwise ([dry run & argument scope](/reference/dry-run-harness/#argument-level-scope-and-its-limits)) |
+
+The result is a delegation that says: transfer this token, up to this amount
+per window, this often, until this date — reviewable as parameters, dry-run
+before install, installed by a human on testnet, verified on-chain.
+
+## Shipped features it uses
+
+- Recording of SEP-41/CAP-67 `transfer` events and the authorization tree
+  ([Getting Started](/getting-started/)).
+- Gross-outflow spend caps, frequency limits and lifetimes
+  ([least-privilege model](/concepts/least-privilege/)).
+- Composition of the stock `spending_limit` with its real install
+  parameters, verified against `stellar-accounts` v0.7.2
+  ([compose vs. generate](/concepts/compose-first/)).
+- The dry run, which would show the over-cap payment and the
+  too-frequent payment denied ([dry run & argument scope](/reference/dry-run-harness/)).
+- The human, testnet-only install and the read-only verify
+  ([smart-account install](/reference/smart-account-install/)).
+- The MCP tools and the skill, which ask the cap and lifetime questions
+  before producing the artifact ([the skill](/reference/skill/)).
+
+All of these are demonstrated on the executed use case,
+[agent yield operations](/use-cases/agent-yield-operations/), not on a
+recurring payment.

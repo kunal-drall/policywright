@@ -23,7 +23,12 @@ script with real outputs at every beat
 re-installed artifact verify against its own log, and the Tranche 2
 completion-form draft (`evidence/TRANCHE2-FORM.md`). The three open items
 are all human recordings: the MCP reference-session transcript, the skill
-demo transcript, and the end-to-end video.
+demo transcript, and the end-to-end video. A second pass the same day (Prompt
+D) brought every docs-site page to current, provable reality from a delta map
+([site-delta.md](site-delta.md); FACTS §18): status badges, the verbatim
+provenance sentence, use-case pages with honest tiering, and reference pages
+rebuilt from the committed schemas and today's outputs. Publishing the site
+remains a manual Vercel step.
 
 ### D2.2 — Claude skill (2026-09-02)
 

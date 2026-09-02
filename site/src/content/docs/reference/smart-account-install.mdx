@@ -1,54 +1,106 @@
 ---
 title: Smart-account install
-description: The code-first, deploy-second half — installing an emitted context-rule.json into an OpenZeppelin smart account on testnet, signed client-side, and verifying it on-chain.
+description: The deploy-second half — record → generate → simulate → sign → install an emitted context-rule.json into an OpenZeppelin smart account on testnet, with the signing hierarchy labelled honestly, and the read-only verify that anyone can run.
 ---
 
 import StatusBadge from '../../../components/StatusBadge.astro';
+import UnauditedBanner from '../../../components/UnauditedBanner.astro';
+import Mermaid from '../../../components/Mermaid.astro';
 
-<StatusBadge status="shipped" />
+<StatusBadge status="shipped" note="testnet" />
 
 Everything before this page produces files for review. This page is the
-explicit, **human-initiated** step that puts them on a testnet smart account,
-and the read-only step that proves what is installed matches what was
-emitted. Nothing here is reachable from the MCP server or the skill — by
-design, not by omission. It is Tranche 2 deliverable D2.5 — _"A testnet
-smart account with an installed generated policy; end-to-end demo
-recorded."_ — delivered on the labelled **fallback signing path**; the
-repository page is
+explicit, **human-initiated, testnet-only** step that puts them on an
+OpenZeppelin smart account, and the read-only step that proves what is
+installed matches what was emitted. Nothing that signs or submits here — the
+account creation and the install — is reachable from the MCP server or the
+skill, by design, not by omission; only the read-only `verify` is also an MCP
+tool. It is Tranche 2 deliverable
+D2.5 — _"A testnet smart account with an installed generated policy;
+end-to-end demo recorded."_ — delivered on the labelled **fallback signing
+path**; the repository page is
 [docs/smart-account-install.md](https://github.com/kunal-drall/policywright/blob/main/docs/smart-account-install.md).
+The install binds the generated `FrequencyLimitPolicy`:
+
+<UnauditedBanner />
 
 ## The flow
 
-1. **`account:create`** —
-   [scripts/deploy-account.sh](https://github.com/kunal-drall/policywright/blob/main/scripts/deploy-account.sh)
-   builds OpenZeppelin's own example smart account (vendored verbatim from
-   `stellar-contracts` v0.7.2 — the `stellar-accounts` crate is a library and
-   ships no deployable account), deploys it with the `.env` public key as its
-   single `Delegated(G)` signer and no policies (the `Default` admin rule, id
-   0), and hard-fails on a wasm-hash mismatch. The live account is
-   [`CBQ6H7IL…QHDT`](https://stellar.expert/explorer/testnet/contract/CBQ6H7ILH54ADWTVS7FCK36W7FY2RJJOWR4VGLZG7D4PZUG5FSA7QHDT).
-2. **Emit an installable artifact** — `synth --signer delegated:G… --policy-address custom:FrequencyLimitPolicy=C… --policy-address stock:spending_limit=C…`
+<Mermaid
+  code={`flowchart TB
+  rec["record: CLI or MCP tool"] --> gen["generate: synth --signer … --policy-address … → context-rule.json (schema v2)"]
+  gen --> dry["simulate: install --dry-run — validate against the OZ install signature, simulate ×2 in enforcing mode, submit nothing"]
+  dry --> sign["sign client-side: .env key acting as Delegated(G) — local-fallback (used); a wallet via SEP-43 — primary (not built)"]
+  sign --> inst["install: add_context_rule ×3 on the OZ smart account — testnet only"]
+  inst --> ver["verify: read rules and params back, diff against the artifact → PASS / FAIL (read-only; also the MCP verify tool)"]`}
+/>
+
+1. **Record** — the real claim→swap sequence
+   ([examples/live/recorded-claim-swap-fresh.json](https://github.com/kunal-drall/policywright/blob/main/examples/live/recorded-claim-swap-fresh.json)),
+   from the CLI or the MCP `record` tool ([Getting Started](/getting-started/)).
+2. **Generate an installable artifact** —
+   `synth --signer delegated:G… --policy-address custom:FrequencyLimitPolicy=C… --policy-address stock:spending_limit=C…`
    puts the deploy-time facts into `context-rule.json` (schema v2: real
    `Signer` shapes, deployed policy addresses, relative `lifetimeLedgers`).
    The committed artifact's flags are pinned in
    [examples/live/fresh/synth.args](https://github.com/kunal-drall/policywright/blob/main/examples/live/fresh/synth.args);
-   CI re-emits and diffs it. The policy addresses are real testnet
-   deployments: the generated
+   CI re-emits and diffs it
+   ([ci.yml](https://github.com/kunal-drall/policywright/blob/main/.github/workflows/ci.yml),
+   step "Live side-by-side artifacts … match the committed copies"). The
+   policy addresses are real testnet deployments: the generated
    [`FrequencyLimitPolicy`](https://stellar.expert/explorer/testnet/contract/CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP)
    and OpenZeppelin's stock
    [`spending_limit` wrapper](https://stellar.expert/explorer/testnet/contract/CCOQPGEYKZVNDRIUFMP6IQRDUONOURWWDJTXP22SJZ7NICJX7VGS4W4E).
-3. **`install`** — `npm run cli -- install --artifact … --account … [--dry-run]`
-   (or `scripts/install-testnet.sh`, which sources `.env` into the
-   environment). The artifact is consumed **unmodified**: every field is
-   validated against the checks the real contracts perform and refused if it
-   would not install as-is. One transaction per rule, always simulated twice
-   before signing; `--dry-run` stops after the enforcing simulation and
-   submits nothing. Output and the install log carry the signing mode and its
-   reason; the secret appears nowhere.
-4. **`verify`** — `npm run cli -- verify --artifact … --account … [--install-log …]`
+   The account itself is OpenZeppelin's own example smart account, vendored
+   verbatim from `stellar-contracts` v0.7.2 into
+   [contracts/multisig-account](https://github.com/kunal-drall/policywright/tree/main/contracts/multisig-account)
+   (the `stellar-accounts` crate is a library and ships no deployable
+   account), built from source, deployed by
+   [scripts/deploy-account.sh](https://github.com/kunal-drall/policywright/blob/main/scripts/deploy-account.sh)
+   with the `.env` public key as its single `Delegated(G)` signer and no
+   policies (the `Default` admin rule, id 0), hash-verified:
+   [`CBQ6H7IL…QHDT`](https://stellar.expert/explorer/testnet/contract/CBQ6H7ILH54ADWTVS7FCK36W7FY2RJJOWR4VGLZG7D4PZUG5FSA7QHDT)
+   ([account.json](https://github.com/kunal-drall/policywright/blob/main/examples/live/testnet/account.json)).
+3. **Simulate** — `npm run cli -- install --artifact … --account … --dry-run`
+   (or
+   [scripts/install-testnet.sh](https://github.com/kunal-drall/policywright/blob/main/scripts/install-testnet.sh)
+   `<artifact> --dry-run`, which sources `.env` into the environment). The artifact is consumed **unmodified**:
+   every field is validated against the checks the real contracts perform and
+   refused if it would not install as-is. One transaction per rule, each
+   simulated twice — the second time in enforcing mode with both
+   authorization entries — and nothing submitted.
+4. **Sign and install** — the same command without `--dry-run`. The
+   transaction is signed **client-side**, on the operator's machine, through a
+   labelled signing surface (below); the secret is read from the environment
+   only and appears nowhere in output or logs. **Testnet only**: the CLI
+   refuses any other network.
+5. **Verify** — `npm run cli -- verify --artifact … --account … [--install-log …]`
    reads the account's rules and each policy's stored parameters through
    simulated getters, diffs them against the artifact, and prints PASS/FAIL
-   row by row. Read-only; nothing signed. Also the MCP `verify` tool.
+   row by row. Read-only; nothing signed; no key needed. Also the MCP `verify`
+   tool.
+
+## Today's dry run
+
+Run on 2026-09-02 with `scripts/install-testnet.sh examples/live/fresh/context-rule.json --dry-run`
+against the live testnet account (the ledger head, `valid_until` and fees
+move with the ledger; nothing was submitted):
+
+```text
+policywright install — DRY RUN (nothing submitted)
+account      : CBQ6H7ILH54ADWTVS7FCK36W7FY2RJJOWR4VGLZG7D4PZUG5FSA7QHDT
+admin rule   : 0 (Delegated(GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W))
+signing mode : local-fallback — local signer from .env (fallback): the .env key acts as the Delegated(G) rule signer and transaction source; a wallet would sign this same transaction via signTransaction, but no SEP-43 wallet can sign an OZ External digest (FACTS §8.4), and the wallets-kit page is the cohort-wallet track (open)
+ledger head  : 4469062
+rules        : 3
+
+→ pw:claim  CallContract(CAPBMXIQTICKWFPWFDJWMAKBXBPJZUKLNONQH3MLPLLBKQ643CYN5PRW)  valid_until 4987462 (head+lifetime)  policies: custom:FrequencyLimitPolicy@CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP
+  ✓ simulation passed (enforcing, 2 auth entries, min resource fee 118420); not submitted
+→ pw:swap  CallContract(CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD)  valid_until 4987462 (head+lifetime)  policies: custom:FrequencyLimitPolicy@CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP
+  ✓ simulation passed (enforcing, 2 auth entries, min resource fee 118421); not submitted
+→ pw:xfer:BLND  CallContract(CB22KRA3YZVCNCQI64JQ5WE7UY2VAV7WFLK6A2JN3HEX56T2EDAFO7QF)  valid_until 4987462 (head+lifetime)  policies: stock:spending_limit@CCOQPGEYKZVNDRIUFMP6IQRDUONOURWWDJTXP22SJZ7NICJX7VGS4W4E
+  ✓ simulation passed (enforcing, 2 auth entries, min resource fee 126851); not submitted
+```
 
 ## Why simulation alone is not enough
 
@@ -65,8 +117,9 @@ both entries (a wrong payload fails here, before anything is signed), signs,
 and submits. This path was **proven on testnet on 2026-09-02** — three rules,
 two auth entries each — and again by the demo-script run the same day (rule
 ids 4–6). Details and the digest test vector:
-[docs/smart-account-install.md](https://github.com/kunal-drall/policywright/blob/main/docs/smart-account-install.md),
-[docs/FACTS.md §8 and §14](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md).
+[docs/smart-account-install.md](https://github.com/kunal-drall/policywright/blob/main/docs/smart-account-install.md#how-an-install-transaction-authorizes-and-why-simulation-alone-is-not-enough),
+[docs/FACTS.md §8](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md#gate-8--openzeppelin-smart-account-the-account-side-v072-verified-2026-09-02)
+and [§14](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md#gate-14--d25-testnet-smart-account-install-verify-verified-2026-09-02).
 
 ## The signing hierarchy, labelled honestly
 
@@ -74,30 +127,76 @@ ids 4–6). Details and the digest test vector:
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Primary — wallet (`Delegated(G)`)**        | The wallet's `G` is the rule signer and the transaction source; it signs **the same transaction** via SEP-43 `signTransaction`. | **Not built** — the wallets-kit + Freighter page is the open cohort-wallet track; it replaces only the installer's `SigningSurface`.                                                       |
 | **Fallback — local `.env` key**              | `Keypair.fromSecret(STELLAR_SECRET_KEY)` acts as `G`.                                                                          | **Used for every install so far**, labelled `local-fallback` in every output and log, with the reason: no SEP-43 wallet can sign an OpenZeppelin `External` digest, and the page is unbuilt. |
-| Never                                        | MCP-driven signing or submission.                                                                                              | Structural rule; the server has no install/deploy tool.                                                                                                                                  |
+| Never                                        | MCP-driven signing or submission.                                                                                              | Structural rule; the server has no install/deploy tool ([MCP server](/reference/mcp-tools/)).                                                                                           |
 
 ## What is on the account
 
-| Rules            | Installed                                | `valid_until`                 | Evidence                                                                                                                                                                                                                                             |
-| ---------------- | ---------------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| id 0             | constructor (`Default "multisig"`)       | none                          | [account.json](https://github.com/kunal-drall/policywright/blob/main/examples/live/testnet/account.json)                                                                                                                                             |
-| ids 1–3          | D2.5, 2026-09-02, 30-day artifact        | 4983015 (≈ 2026-10-02)        | [install log](https://github.com/kunal-drall/policywright/blob/main/examples/live/testnet/install-20260902T105742Z.json), [verify PASS](https://github.com/kunal-drall/policywright/blob/main/examples/live/testnet/verify.md)                        |
-| ids 4–6          | demo-script run, 2026-09-02, 7-day artifact (route enforced) | 4588890 (≈ 2026-09-09)        | [install log](https://github.com/kunal-drall/policywright/blob/main/examples/live/testnet/install-20260902T153356Z.json), [verify PASS](https://github.com/kunal-drall/policywright/blob/main/examples/live/testnet/verify-demo-20260902T153356Z.md) |
+| Rules            | Installed                                                    | `valid_until`                 | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ---------------- | ------------------------------------------------------------ | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id 0             | constructor (`Default "multisig"`)                           | none                          | [account.json](https://github.com/kunal-drall/policywright/blob/main/examples/live/testnet/account.json)                                                                                                                                                                                                                                                                                                                                                                              |
+| ids 1–3          | D2.5, 2026-09-02, 30-day artifact                            | 4983015 (≈ 2026-10-02)        | txs [`2bd245b6…`](https://stellar.expert/explorer/testnet/tx/2bd245b67925e688a183be50e6d6c75d3d7b4eb98b0be02d23693611f44b8a6e), [`065bf20b…`](https://stellar.expert/explorer/testnet/tx/065bf20b3d6e3b8b3cd9a8e408f009a61c347e0dfaaa4a5bda40b2199aa33dfa), [`6593a5a0…`](https://stellar.expert/explorer/testnet/tx/6593a5a0440b02e8679e9f87b7031d915b35b85a6873eb23b18016e827771a9a); [install log](https://github.com/kunal-drall/policywright/blob/main/examples/live/testnet/install-20260902T105742Z.json); [verify PASS](https://github.com/kunal-drall/policywright/blob/main/examples/live/testnet/verify.md) |
+| ids 4–6          | demo-script run, 2026-09-02, 7-day artifact (route enforced) | 4588890 (≈ 2026-09-09)        | txs [`6fee5fc8…`](https://stellar.expert/explorer/testnet/tx/6fee5fc8ab46cd221c6b807ee22c12e216d1d072e2179b4f6964c6c646e22ed6), [`7763c0f6…`](https://stellar.expert/explorer/testnet/tx/7763c0f6a30a3e9a24944d685b5faaab2b4360e5b1a136f2f0386b5d2bb9007a), [`cdb5266d…`](https://stellar.expert/explorer/testnet/tx/cdb5266d038768a7a7bf9e3130e5c6efdcdaf04a3e1a574e6d13e34eb459893d); [install log](https://github.com/kunal-drall/policywright/blob/main/examples/live/testnet/install-20260902T153356Z.json); [verify PASS](https://github.com/kunal-drall/policywright/blob/main/examples/live/testnet/verify-demo-20260902T153356Z.md) |
 
 Installing the same artifact again appends new rule ids with the same names.
 `verify --install-log <log>` selects the install the log describes (by the
 `valid_until` it recorded); without a log the earliest matching rule is
 compared.
 
-## The human steps that remain
+## The read-only verify anyone can run
 
-The end-to-end demo recording (the criterion's second clause) — script with
-real outputs at every beat:
-[docs/demo-script-t2.md](https://github.com/kunal-drall/policywright/blob/main/docs/demo-script-t2.md).
-For the primary signing mode: install Freighter, fund its testnet account,
-create an account whose admin signer is that wallet's `G`, and approve the
-same install transaction there — which needs the unbuilt wallets-kit page.
-The optional post-install enforcement demo (an in-scope swap through the
-account succeeding, an over-cap transfer rejected on-chain) is not attempted.
-All three are listed as such in
-[evidence/EVIDENCE.md § D2.5](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#d25--testnet-smart-account-with-the-installed-generated-policy-fallback-path).
+No key, no secret — only the public testnet RPC. Run on 2026-09-02 at ledger
+4469061 (the "read at ledger" line and the informational list move; the rows
+pass while the rules are live, until ledger 4983015 ≈ 2026-10-02):
+
+```bash
+npm run cli -- verify --artifact examples/live/fresh/context-rule.json \
+  --account CBQ6H7ILH54ADWTVS7FCK36W7FY2RJJOWR4VGLZG7D4PZUG5FSA7QHDT \
+  --install-log examples/live/testnet/install-20260902T105742Z.json
+```
+
+```text
+# policywright verify — PASS
+
+Account: CBQ6H7ILH54ADWTVS7FCK36W7FY2RJJOWR4VGLZG7D4PZUG5FSA7QHDT (testnet); read at ledger 4469061.
+
+| Rule | Field | Expected (artifact) | Actual (on-chain) | OK |
+| --- | --- | --- | --- | --- |
+| pw:claim | rule | CallContract(CAPBMXIQTICKWFPWFDJWMAKBXBPJZUKLNONQH3MLPLLBKQ643CYN5PRW) "pw:claim" | installed as rule id 1 | ✅ |
+| pw:claim | signers | Delegated:GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W | Delegated:GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W | ✅ |
+| pw:claim | policies | CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP | CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP | ✅ |
+| pw:claim | custom:FrequencyLimitPolicy params | {"window_secs":86400,"max_calls":5} | {"window_secs":"86400","max_calls":5} | ✅ |
+| pw:claim | valid_until | 4983015 (install log) | 4983015 | ✅ |
+| pw:swap | rule | CallContract(CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD) "pw:swap" | installed as rule id 2 | ✅ |
+| pw:swap | signers | Delegated:GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W | Delegated:GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W | ✅ |
+| pw:swap | policies | CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP | CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP | ✅ |
+| pw:swap | custom:FrequencyLimitPolicy params | {"window_secs":86400,"max_calls":5} | {"window_secs":"86400","max_calls":5} | ✅ |
+| pw:swap | valid_until | 4983015 (install log) | 4983015 | ✅ |
+| pw:xfer:BLND | rule | CallContract(CB22KRA3YZVCNCQI64JQ5WE7UY2VAV7WFLK6A2JN3HEX56T2EDAFO7QF) "pw:xfer:BLND" | installed as rule id 3 | ✅ |
+| pw:xfer:BLND | signers | Delegated:GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W | Delegated:GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W | ✅ |
+| pw:xfer:BLND | policies | CCOQPGEYKZVNDRIUFMP6IQRDUONOURWWDJTXP22SJZ7NICJX7VGS4W4E | CCOQPGEYKZVNDRIUFMP6IQRDUONOURWWDJTXP22SJZ7NICJX7VGS4W4E | ✅ |
+| pw:xfer:BLND | stock:spending_limit params | {"spending_limit":"23533505","period_ledgers":17280} | {"spending_limit":"23533505","period_ledgers":17280} | ✅ |
+| pw:xfer:BLND | valid_until | 4983015 (install log) | 4983015 | ✅ |
+
+Installed rules not described by the artifact (informational):
+- id 0: Default "multisig", 1 signer(s), 0 policies, valid_until None
+- id 4: CallContract(CAPBMXIQTICKWFPWFDJWMAKBXBPJZUKLNONQH3MLPLLBKQ643CYN5PRW) "pw:claim", 1 signer(s), 1 policy, valid_until 4588890
+- id 5: CallContract(CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD) "pw:swap", 1 signer(s), 1 policy, valid_until 4588890
+- id 6: CallContract(CB22KRA3YZVCNCQI64JQ5WE7UY2VAV7WFLK6A2JN3HEX56T2EDAFO7QF) "pw:xfer:BLND", 1 signer(s), 1 policy, valid_until 4588890
+```
+
+## The one interactive human step
+
+The install itself is the one human step: the operator runs the command,
+and the client-side signing happens on their machine with their key. In the
+fallback mode used so far there is no interactive approval prompt — the
+`.env` key signs. In the primary mode, not built, the human would approve the
+same transaction in Freighter. The end-to-end demo recording (the criterion's
+second clause) is scripted beat by beat with real outputs in
+[docs/demo-script-t2.md](https://github.com/kunal-drall/policywright/blob/main/docs/demo-script-t2.md);
+it is the open item listed in
+[evidence/EVIDENCE.md § D2.5](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#d25--testnet-smart-account-with-the-installed-generated-policy-fallback-path),
+together with the Freighter setup for the primary mode. The optional
+post-install enforcement demo (an in-scope swap through the account
+succeeding, an over-cap transfer rejected on-chain) is not attempted. CI run
+for this deliverable:
+[33622880981](https://github.com/kunal-drall/policywright/actions/runs/33622880981).

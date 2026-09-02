@@ -2,11 +2,14 @@
 /**
  * Page status badge. Every docs page renders one of:
  * Shipped (exists in this repo, verifiable) / In development / Planned.
+ * `note` adds a qualifier in parentheses, e.g. "Shipped (testnet)" or
+ * "Planned (walkthrough — Tranche 3)".
  */
 interface Props {
   status: 'shipped' | 'in-development' | 'planned';
+  note?: string;
 }
-const { status } = Astro.props;
+const { status, note } = Astro.props;
 const labels = {
   shipped: 'Shipped',
   'in-development': 'In development',
@@ -16,5 +19,5 @@ const labels = {
 
 <p class={`pw-status pw-status--${status}`}>
   <span class="pw-status-dot" aria-hidden="true"></span>
-  Status: {labels[status]}
+  Status: {labels[status]}{note ? ` (${note})` : ''}
 </p>

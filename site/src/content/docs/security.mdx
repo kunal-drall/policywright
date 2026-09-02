@@ -1,12 +1,12 @@
 ---
 title: Security
-description: The threat model, the protections that exist in v0, and the audit commitment.
+description: The protections that exist in the code today, the threat model, and the audit planned for Tranche 3 via the SCF Audit Bank.
 ---
 
 import StatusBadge from '../../components/StatusBadge.astro';
 import UnauditedBanner from '../../components/UnauditedBanner.astro';
 
-<StatusBadge status="in-development" />
+<StatusBadge status="shipped" note="testnet" />
 
 <UnauditedBanner />
 
@@ -22,12 +22,16 @@ linked to its source) from what is **planned**.
   server and the skill — never signs anything and needs no secret. The only
   on-chain actions in the repository are opt-in, **testnet-only**,
   human-initiated CLI steps signed with the operator's own gitignored testnet
-  identity: deploying the generated policy and OpenZeppelin's example smart
-  account
+  identity: deploying the generated policy, OpenZeppelin's example smart
+  account and the stock spending-limit wrapper
   ([scripts/deploy-testnet.sh](https://github.com/kunal-drall/policywright/blob/main/scripts/deploy-testnet.sh),
   [scripts/deploy-account.sh](https://github.com/kunal-drall/policywright/blob/main/scripts/deploy-account.sh);
-  both refuse any network other than testnet) and installing an emitted
-  artifact into that account (below).
+  both refuse any network other than testnet), restoring the archived policy
+  entries
+  ([scripts/restore-testnet.sh](https://github.com/kunal-drall/policywright/blob/main/scripts/restore-testnet.sh)),
+  and installing an emitted artifact into that account (below). The agent
+  surface's no-secret rule is stated and tested in
+  [docs/mcp-server.md § Configuration](https://github.com/kunal-drall/policywright/blob/main/docs/mcp-server.md#configuration).
 - **Code-first, deploy-second.** Every output is a file written locally for
   review — `spec.json`, `context-rule.json`, `summary.txt`, the generated
   Rust, and the dry-run report. Nothing installs automatically
@@ -46,16 +50,28 @@ linked to its source) from what is **planned**.
   expiry, over the frequency cap — plus the recorded swap re-routed through an
   unobserved token (BLND→XLM on the real testnet recording), which is denied
   when argument constraints (`--constrain-arguments`) are enabled and
-  advisory-flagged (permitted, with the gap named) otherwise. The demo asserts
-  every scenario behaves as expected, exiting non-zero otherwise
+  advisory-flagged (permitted, with the gap named) otherwise — both committed
+  ([flag](https://github.com/kunal-drall/policywright/blob/main/examples/live/simulation-report.md),
+  [deny](https://github.com/kunal-drall/policywright/blob/main/examples/live/simulation-report.constrained.md)).
+  The demo asserts every scenario behaves as expected, exiting non-zero
+  otherwise
   ([src/simulate.ts](https://github.com/kunal-drall/policywright/blob/main/src/simulate.ts)).
 - **Real shapes only, deltas declared.** The installable `context-rule.json`
   targets a pinned OZ release (`stellar-accounts` v0.7.2) using its real
-  parameter names and units, with an OZ `file:line` citation on every policy
-  binding; anything the stock policies cannot express is recorded as an
-  explicit composition-delta note rather than emitted in a shape the real
-  contract would reject
-  ([docs/context-rule-schema.md](https://github.com/kunal-drall/policywright/blob/main/docs/context-rule-schema.md)).
+  parameter names and units, with a `paramsSource` citation on every policy
+  binding — the OZ `file:line` for every stock-policy parameter shape, and the
+  emitting crate for the generated policy; anything the stock policies cannot
+  express is recorded as an explicit composition-delta note rather than
+  emitted in a shape the real contract would reject
+  ([docs/context-rule-schema.md](https://github.com/kunal-drall/policywright/blob/main/docs/context-rule-schema.md),
+  [examples/live/fresh/context-rule.json](https://github.com/kunal-drall/policywright/blob/main/examples/live/fresh/context-rule.json)).
+- **On-chain read-back after install.** `npm run cli -- verify` (and the MCP
+  `verify` tool) reads the installed rules and each policy's stored parameters
+  back from the smart account through simulated getters and diffs them against
+  the artifact, row by row — PASS 15/15 for both installs on the testnet
+  account
+  ([verify.md](https://github.com/kunal-drall/policywright/blob/main/examples/live/testnet/verify.md),
+  [smart-account install](/reference/smart-account-install/)).
 - **Unaudited output is stamped as such.** Every generated Rust file carries an
   `ILLUSTRATIVE / UNAUDITED — NOT DEPLOY-READY` header — including, verbatim,
   the banner sentence at the top of this page — with a source comment
@@ -70,18 +86,19 @@ linked to its source) from what is **planned**.
 - **Reproducible build, hash-verified deployment.** Two clean local builds and
   the CI build on a different OS/architecture produce the **identical** wasm
   SHA-256, and CI asserts that equality on every run
-  ([docs/FACTS.md §1.5](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md)).
+  ([docs/FACTS.md §1.5](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md#15-the-d13-build-command-and-its-reproducibility-verified-2026-08-03)).
   The testnet instance was deployed by a script that re-fetches the on-chain
-  wasm and verifies its hash equals the local build — contract ID, transaction
-  links, and the full deployment log are in
-  [evidence/EVIDENCE.md](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md).
+  wasm and verifies its hash equals the local build — contract ID
+  ([`CDSVPSTS…2ZPP`](https://stellar.expert/explorer/testnet/contract/CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP)),
+  transaction links, and the full deployment log are in
+  [evidence/EVIDENCE.md § Deployment log](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#deployment-log).
   The deployed instance is testnet-only and unaudited.
 - **Storage segregation.** The generated policy follows the stock-policy
   storage pattern: all state keyed by
   `AccountContext(smart_account, context_rule_id)` in persistent storage, so
   state cannot bleed across accounts or rules — the same pattern every stock
   OZ policy uses
-  ([docs/FACTS.md §2.4](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md)).
+  ([docs/FACTS.md §2.4](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md#24-stock-policy-modules--what-actually-ships)).
 - **Defensive input handling.** The fixture loader validates every field and
   fails with a precise `FixtureError`; the recording layer returns typed
   errors — `BAD_INPUT` / `TX_NOT_FOUND` / `NETWORK` / `DECODE_FAILED` — for
@@ -109,13 +126,18 @@ repository today; the audit work is planned.
 | Policy bypass                             | Fixed-order dry-run checks with auto-generated deny cases asserted by the demo and tests                                       | Bypass hunting on synthesizer output and templates   |
 | Incorrect lifecycle handling              | Generated code implements the real OZ `Policy` trait and passes 25 Rust tests against `stellar-accounts` v0.7.2               | Conformance review against the OZ accounts lifecycle |
 | Install-shape drift                       | `context-rule.json` pins the OZ release and cites every param shape to source; deltas are named notes, not invalid shapes      | Review of the install mapping end to end             |
+| Authorization-path replay or rule-selection downgrade | OZ v0.7.2 binds the selected `context_rule_ids` into the signed digest; the installer hand-builds the `Delegated(G)` nested `__check_auth` entry and simulates in enforcing mode before signing — proven on testnet ([FACTS.md §14.3](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md#143-the-delegatedg-path-is-proven-end-to-end)) | Replay across accounts, expiration-ledger handling of the nested entry, source-account credentials ([docs/T3-NOTES.md](https://github.com/kunal-drall/policywright/blob/main/docs/T3-NOTES.md)) |
 
 ## Audit commitment
 
-The audit commitment is: **a third-party audit of the synthesizer logic itself
-and the generated policy templates, via the SCF Audit Bank at Tranche 3.**
+The funded plan's Tranche 3 commitment is **audit readiness**: the audit scope
+for a third-party audit of the synthesizer logic itself and the generated
+policy templates, submitted to the SCF Audit Bank
+([README § Deliverables](https://github.com/kunal-drall/policywright#deliverables)).
+The audit itself is what the banner sentence waits for.
 
-That audit is a Tranche 3 target and has not happened. Until it has, every
-generated contract remains stamped illustrative and unaudited, deployment stays
-testnet-only, and this site carries the banner above on every page that shows
-generated Rust. See the [Roadmap](/roadmap/) for the tranche plan.
+That audit is a Tranche 3 item (target 30 Nov 2026) and has not happened.
+Until it has, every generated contract remains stamped illustrative and
+unaudited, deployment stays testnet-only, and this site carries the banner
+above on every page that shows or discusses generated contracts. See the
+[Roadmap](/roadmap/) for the tranche plan.

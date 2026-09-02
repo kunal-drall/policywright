@@ -5,19 +5,23 @@ the types in [`src/types.ts`](../src/types.ts), which is the single source of tr
 every shape in the system.
 
 ```
-                  ┌──────────────┐
-  tx hash ───────▶│ sources/rpc  │─┐
-                  └──────────────┘ │   ┌──────────────┐   ┌──────────────┐
-                                   ├──▶│ synthesizer  │──▶│   emitter    │
-  fixtures/ ──────▶ sources/      ─┘   └──────────────┘   └──────────────┘
-                    fixture            SmartAccountSpec      spec.json
-                  RecordedTx                 │               context-rule.json
-                                             │               summary.txt
-                                             │               FrequencyLimitPolicy.rs
-                                             ▼
-                                       ┌──────────────┐
-                                       │  simulate    │──▶ dry-run report
-                                       └──────────────┘
+  tx hash(es) ─────────▶ sources/rpc ────────┐
+  saved simulateTx ────▶ sources/simulation ─┼──▶ RecordedTx ──▶ synthesizer ──▶ SmartAccountSpec ──▶ emitter ─┬─▶ spec.json
+  fixtures/ ───────────▶ sources/fixture ────┘                                          │                      ├─▶ context-rule.json
+                                                                                        │                      ├─▶ summary.txt
+                                                                                        ▼                      └─▶ FrequencyLimitPolicy.rs (unaudited)
+                                                                                    simulate ──▶ dry-run report
+
+  Agent surface — shipped (exactly four tools, no install tool):
+    skill: policywright-grant ──▶ MCP server: record · synthesize · simulate · verify
+                                    │ record → RecordedTx · synthesize → context-rule.json · simulate → report · verify (read-only)
+
+  Deploy-second — human, CLI, testnet only:
+    context-rule.json ──▶ install: validate against the OZ install signature
+                      ──▶ simulate ×2 (enforcing, AuthPayload + Delegated(G) __check_auth entry)
+                      ──▶ sign client-side: .env key = local-fallback (used) · wallet via SEP-43 = primary (not built)
+                      ──▶ OZ smart account on testnet: add_context_rule
+                      ──▶ verify: read back, diff → PASS/FAIL (read-only; also the MCP verify tool)
 ```
 
 ## Stages
@@ -44,8 +48,10 @@ Produces a `RecordedTx`: the transaction hash/network, the ordered `ScopedCall`s
   `--policy-address`, `--ledger-head`) so the emitted rules carry real `Signer` shapes,
   deployed policy addresses, and a relative `lifetimeLedgers` (schema v2).
 
-  Decoding assumptions (Soroban protocol 27 / CAP-67, `@stellar/stellar-sdk` 15.1.0 —
-  every shape verified against the committed captures, [FACTS.md §3](FACTS.md)):
+  Decoding assumptions (captures taken at Soroban protocol 27 / CAP-67 and decoded with
+  the pinned `@stellar/stellar-sdk` 15.1.0; the testnet node has reported protocol 28 since
+  the 2026-09-02 re-check and the same SDK still decodes it — every shape verified against
+  the committed captures, [FACTS.md §3](FACTS.md)):
   - the transaction is a v1 (or fee-bump-wrapping-v1) envelope;
   - contract calls come from `InvokeHostFunction` operations whose host function is
     `InvokeContract` (`InvokeContractArgs` → contract, function, args via `scValToNative`);
@@ -70,7 +76,8 @@ Produces a `RecordedTx`: the transaction hash/network, the ordered `ScopedCall`s
 
 ### 2. Synthesis (`src/synthesizer.ts`)
 
-`synthesize(tx, config, now) → SmartAccountSpec`. The design mirrors OZ's smart-account
+`synthesize(tx, config, now, targets?) → SmartAccountSpec` (`targets` are the optional
+deploy-time install targets described in stage 1). The design mirrors OZ's smart-account
 model: a **context rule** fixes scope, and a small set of **policies** bound to it enforce
 quantitative limits.
 
@@ -94,7 +101,9 @@ quantitative limits.
   permitted-with-a-scope-gap. Set semantics only — not ordering, hop count, or amounts
   (limits in the README).
 - **Policy budget** — OZ allows at most `MAX_POLICIES` (5) policies per context rule;
-  exceeding that adds a warning to the spec rather than failing.
+  exceeding that in the harness policy set adds a warning to the spec, and a composed OZ
+  rule that would bind more than five is rejected with a `SynthError` (OZ's
+  `TooManyPolicies`).
 
 `SynthConfig` is validated up front and echoed into the spec for reproducibility. All of
 the above knobs are exposed as CLI flags on `synth`/`simulate`.
@@ -120,15 +129,19 @@ Renders the spec four ways:
 
 ### 3b. Install and verify (`src/install-shape.ts`, `src/install.ts`, `src/verify.ts`)
 
-The deploy-second half, reachable only from the CLI (never from the MCP server).
+The deploy-second half, reachable only from the CLI (never from the MCP server), and
+**testnet-only** — the `install` command refuses any other network.
 `install-shape.ts` validates an emitted `context-rule.json` (schema v2) field-by-field
 against the checks the OZ contracts perform and encodes install params as the sorted
 `ScMap` they decode; `install.ts` maps each rule to `add_context_rule` arguments, builds the
 account's `AuthPayload` entry and the `Delegated(G)` signer's nested `__check_auth` entry,
-simulates in enforcing mode, signs through a labelled `SigningSurface` (local `.env` key
-fallback today; a wallet signs the same transaction), and submits; `verify.ts` reads the
-account's rules and policy params back through simulated getters and diffs them (pure
-`diffRules`, thin RPC layer). Details: [smart-account-install.md](smart-account-install.md).
+simulates in enforcing mode, signs through a labelled `SigningSurface` (today the local
+`.env` key, labelled `local-fallback` in every output and install log; a wallet signing
+surface would sign the same transaction but is not built — the open cohort-wallet track),
+and submits; `verify.ts` reads the account's rules and policy params back through simulated
+getters and diffs them (pure `diffRules`, thin RPC layer). Details:
+[smart-account-install.md](smart-account-install.md); proof: EVIDENCE.md § D2.5 and the
+testnet account `CBQ6H7IL…QHDT`.
 
 ### 4. Simulation (`src/simulate.ts`)
 
@@ -168,9 +181,10 @@ and nothing else (`src/mcp/tools.ts`; the reuse audit is in
 versioned Zod contracts the server advertises as JSON Schema (committed under `schemas/mcp/`), and
 every failure is a typed envelope mapped from the existing `RecorderError` / `InstallError` /
 `SynthError` codes. `synthesize` and `simulate` stay pure; `record` and `verify` are deterministic
-per chain state ([determinism map](mcp-server.md#determinism-map)). **Stage 3b is not reachable
-from here**: there is no install or deploy tool, the server never signs, and it needs no secret —
-the artifact an agent produces is what the human installs with the CLI.
+per chain state ([determinism map](mcp-server.md#determinism-map)). **The install half of stage 3b
+is not reachable from here** (only the read-only `verify` is): there is no install or deploy
+tool, the server never signs, and it needs no secret — the artifact an agent produces is what
+the human installs with the CLI.
 
 ## Design choices
 

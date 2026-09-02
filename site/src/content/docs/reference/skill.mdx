@@ -1,23 +1,60 @@
 ---
 title: The skill
-description: policywright-grant — "grant permission to do X from this transaction" as a conversation over the four MCP tools that asks before assuming and never installs.
+description: policywright-grant — "grant permission to do X from this transaction" as a conversation over the four MCP tools that asks before assuming, always dry-runs, always shows the unaudited banner, and never installs.
 ---
 
 import StatusBadge from '../../../components/StatusBadge.astro';
 import UnauditedBanner from '../../../components/UnauditedBanner.astro';
 
-<StatusBadge status="shipped" />
+<StatusBadge status="shipped" note="testnet" />
 
 `policywright-grant` is a project skill packaged at
 [`.claude/skills/policywright-grant/`](https://github.com/kunal-drall/policywright/tree/main/.claude/skills/policywright-grant)
 — `SKILL.md` plus two references — in the
-[agentskills.io](https://agentskills.io) format with the six spec fields
-only (`name`, `description`, `license`, `compatibility`, `metadata`,
-`allowed-tools`), so the same package is portable across agent hosts. Claude
-Code loads it from the repository root; its `allowed-tools` pre-approve
-exactly the four `mcp__policywright__*` tools. It is Tranche 2 deliverable
-D2.2 — _"Skill packaged; a demo shows 'grant permission to do X from this
-transaction' producing a reviewed policy."_
+[agentskills.io](https://agentskills.io) format. It turns "grant permission to
+do X from this transaction" into a conversation over the four MCP tools
+([MCP server](/reference/mcp-tools/)) that ends with reviewable artifacts and
+the one human install command. It is Tranche 2 deliverable D2.2 — _"Skill
+packaged; a demo shows 'grant permission to do X from this transaction'
+producing a reviewed policy."_ The skill shows generated Rust, so it shows
+this banner, verbatim, every time:
+
+<UnauditedBanner />
+
+## How to load it
+
+It needs the policywright MCP server registered as `policywright` — the
+committed `.mcp.json` does that after `npm ci`
+([registration](/reference/mcp-tools/#registration-stdio-exactly-as-verified))
+— and Soroban RPC access for `record` and `verify`; it is testnet-only
+(`compatibility` field below). Claude Code picks project skills up from
+`.claude/skills/` at the repository root, so opening the repository in Claude
+Code (`claude`) is all it takes; the 2.0.76 project-skill loader is verified
+statically in
+[FACTS §16](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md#gate-16--d22-skill-packaging-as-verified-2026-09-02),
+and the human demo is the interactive run.
+The package carries the six spec fields only — `name`, `description`,
+`license`, `compatibility`, `metadata`, `allowed-tools` — and its
+`allowed-tools` pre-approve exactly the four `mcp__policywright__*` tools:
+
+```yaml title=".claude/skills/policywright-grant/SKILL.md — frontmatter"
+name: policywright-grant
+description: Turn a Soroban transaction the user already performed into a reviewed least-privilege OpenZeppelin smart-account policy with the policywright MCP tools — record the hashes, synthesize the rule, ask the clarification questions (spend cap, lifetime, route constraint, signer and policy addresses), re-synthesize with the answers, dry-run it, and hand over the reviewable artifacts. Use when the user says "grant permission to do X from this transaction", pastes Stellar/Soroban transaction hashes to delegate a flow, or asks to limit what a key or agent may do on a smart account. Never installs, deploys, signs, or submits anything.
+license: MIT
+compatibility: Requires the policywright MCP server registered as "policywright" (the repository's .mcp.json after npm ci) and Soroban RPC access for record and verify. Testnet only.
+metadata:
+  project: policywright
+  deliverable: D2.2
+  server: policywright
+allowed-tools: mcp__policywright__record mcp__policywright__synthesize mcp__policywright__simulate mcp__policywright__verify
+```
+
+The reference validator accepts it (run 2026-09-02, also in CI):
+
+```text
+$ npx --yes skills-ref@0.1.5 validate .claude/skills/policywright-grant
+Valid skill: .claude/skills/policywright-grant
+```
 
 ## What it does
 
@@ -37,48 +74,80 @@ the transactions" with the hashes and the account, and the skill:
 5. **dry-runs** (`simulate`) with the same recording and config and shows the
    permit/deny/flag table — a policy is "reviewed" only after that, with
    `deviations: 0`;
-6. **hands over** the artifacts and the one human install command. It calls
-   `verify` only after the human has installed, and only if asked.
+6. **hands over** the artifacts and the one human install command
+   (testnet-only). It calls `verify` only after the human has installed, and
+   only if asked.
 
 ## The clarification triggers
 
-Written before the skill was authored, and asserted by the test suite:
+Written before the skill was authored
+([references/clarifications.md](https://github.com/kunal-drall/policywright/blob/main/.claude/skills/policywright-grant/references/clarifications.md))
+and asserted by the test suite. The skill asks; it never assumes:
 
 | #   | Trigger                                                                         | What the answer changes                              |
 | --- | ------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| T1  | **Ambiguous cap** — always, per asset that flowed out ("this transferred 50 USDC — cap at 50, or allow up to 100 over a week?") | `capMultiplier`, `spendWindowSecs`                    |
+| T1  | **Ambiguous cap** — always, per asset that flowed out                           | `capMultiplier`, `spendWindowSecs`                    |
 | T2  | **Ambiguous lifetime** — always                                                 | `lifetimeSecs`                                       |
 | T3  | **Multi-asset outflows**                                                        | one synthesis or separate delegations                |
 | T4  | **Argument constraint on/off** — a swap-path token set was derived              | `constrainArguments`                                 |
 | T5  | **A warning, a `DELTA` note, or `installable.asIs: false`**                     | proceed, narrow, stop; `installTargets`              |
 | T6  | **Assumed subject** — the recorder assumed the first transaction's source       | re-record with the account                           |
 
+The real T1 question, with the numbers the tools produced for the recorded
+claim→swap sequence
+([docs/skill-demo-script.md](https://github.com/kunal-drall/policywright/blob/main/docs/skill-demo-script.md#1-clarification-triggers-written-before-the-skill-was-authored)):
+
+> "The recording moved **2.1394095 BLND** out. The default cap is that amount
+> plus 10 % headroom (**2.3533505 BLND per 24 h**). Do you want (a) exactly the
+> observed amount, (b) the default headroom, or (c) a different ceiling and
+> window — e.g. up to 10 BLND per week?"
+
+That is the funded plan's own example — "this transferred 50 USDC — cap at 50,
+or allow up to 100 over a week?" — with real numbers: cap at the observed
+amount, or allow more over a window. Answer (a) maps to `capMultiplier: 1`,
+(b) keeps `1.1`, and (c) becomes a longer `spendWindowSecs` plus a multiplier
+the skill states. In the demo conversation the answer was "keep the 10 %
+headroom but over a week, lifetime 7 days, deny other routes", and the
+re-synthesized artifact was installable as-is.
+
 ## Guardrails
 
 Written into the skill body verbatim and asserted by
 [test/skill.test.ts](https://github.com/kunal-drall/policywright/blob/main/test/skill.test.ts):
-**never install, deploy, sign, or submit** (there is no such tool; "just
-install it" is answered with the human command and no tool call); **always
-dry-run before calling anything "reviewed"**; **always show the banner with
-generated code**; **never invent a hash, address, amount, or window**;
-**ask, do not assume**; **testnet only**.
 
-<UnauditedBanner />
+- **never install, deploy, sign, or submit** — there is no such tool; "just
+  install it" is answered with the human command and no tool call;
+- **always dry-run before calling anything "reviewed"**, and require
+  `deviations: 0`;
+- **always show the unaudited banner** whenever generated code is shown or
+  mentioned;
+- **always surface every `warnings`, `notes` and `scopeNotes` entry** that
+  changes what the policy permits or can enforce, before asking for a
+  decision;
+- **never invent a hash, address, amount, or window** — every value comes from
+  a tool output or the user's message;
+- **ask, do not assume**, on every trigger above;
+- **testnet only** — if the user names mainnet, the skill stops and says the
+  toolkit is testnet-only until the audit.
 
 ## How it is validated
 
 - `npx --yes skills-ref@0.1.5 validate .claude/skills/policywright-grant`
-  — the agentskills.io reference validator, run in CI.
+  — the agentskills.io reference validator, run as the "Skill package
+  validates (skills-ref)" step of
+  [ci.yml](https://github.com/kunal-drall/policywright/blob/main/.github/workflows/ci.yml).
 - [test/skill.test.ts](https://github.com/kunal-drall/policywright/blob/main/test/skill.test.ts)
-  — package structure (name = directory, six fields, references one level
-  deep, body length), `allowed-tools` = exactly the four MCP tools, every
-  guardrail phrase, all six triggers, and a **machine walkthrough**: every
-  expected tool call in the demo script and in the MCP reference session is
-  validated against the committed input schemas and executed, in order,
-  against the real server over stdio (stub RPC replaying the committed
+  (9 tests) — package structure (name = directory, six fields, references one
+  level deep, body length), `allowed-tools` = exactly the four MCP tools,
+  every guardrail phrase, all six triggers, and a **machine walkthrough**:
+  every expected tool call in the demo script and in the MCP reference
+  session is validated against the committed input schemas and executed, in
+  order, against the real server over stdio (stub RPC replaying the committed
   captures). The demo hits record → synthesize → synthesize → simulate, is
   not installable before the answers and installable after, and ends with
   the dry-run table (1 permit / 5 deny / 0 flag).
+- CI run for this deliverable:
+  [33647377983](https://github.com/kunal-drall/policywright/actions/runs/33647377983).
 
 ## The demo conversation
 
@@ -88,16 +157,20 @@ hashes (today they are past the public node's retention window, so the script
 branches honestly to the committed recording), Turn 2 is the plain-language
 rule and the questions, Turn 3 the answers and the re-synthesis, Turn 4 the
 dry run, Turn 5 the hand-over, and Turn 6 "just install it" → no tool call.
-The same tool calls were made live from Claude Code on 2026-09-02 and their
-results are quoted in
-[docs/demo-script-t2.md](https://github.com/kunal-drall/policywright/blob/main/docs/demo-script-t2.md).
-What remains for the criterion's "a demo shows" clause is the human-saved
-transcript, listed as the open blocker in
-[evidence/EVIDENCE.md](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#d22--claude-skill).
+The same tool calls were made live from Claude Code 2.0.76 on 2026-09-02
+([FACTS §17.6](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md#176-six-live-mcp-tool-calls-from-the-agent-host))
+and their results are quoted in
+[docs/demo-script-t2.md](https://github.com/kunal-drall/policywright/blob/main/docs/demo-script-t2.md#beat-2--the-skill-grant-permission-to-with-a-clarification-055205);
+the policy they produced was then installed into the testnet smart account by
+the human CLI step as rule ids 4–6 and read back to PASS
+([agent yield operations](/use-cases/agent-yield-operations/)). What remains
+for the criterion's "a demo shows" clause is the human-saved transcript,
+listed as the open item in
+[evidence/EVIDENCE.md § D2.2](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#d22--claude-skill).
 
 ## Limits, stated plainly
 
 The skill cannot express a cap in a different asset, a per-function cap, or
 differing per-asset ceilings in one run (T3 says so and offers separate
 delegations). Argument constraints it enforces are offline-only — the dry
-run denies them; no on-chain policy does yet. It is testnet-only.
+run denies them; no on-chain policy does. It is testnet-only.

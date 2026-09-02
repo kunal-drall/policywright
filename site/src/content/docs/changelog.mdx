@@ -4,17 +4,29 @@ description: Project history, seeded from the repository's git log.
 ---
 
 import StatusBadge from '../../components/StatusBadge.astro';
+import UnauditedBanner from '../../components/UnauditedBanner.astro';
 
 <StatusBadge status="shipped" />
+
+<UnauditedBanner />
 
 Seeded from the repository's
 [commit history](https://github.com/kunal-drall/policywright/commits/main),
 which is authoritative. The project is pre-release: version `0.1.0` in
 [package.json](https://github.com/kunal-drall/policywright/blob/main/package.json),
-no tagged releases yet.
+no tagged releases yet
+([tags](https://github.com/kunal-drall/policywright/tags)). Every deploy and
+install recorded below is testnet-only; nothing in this history is a
+production release.
 
 ## 2026-09-02 — Tranche 2 close-out (truthfulness pass, demo script, form)
 
+"Close-out" here means the evidence, the demo script and the tranche form
+were written; Tranche 2 still has three human recordings open
+([Not yet delivered](https://github.com/kunal-drall/policywright/blob/main/evidence/EVIDENCE.md#not-yet-delivered)).
+
+- [`c8fd466`](https://github.com/kunal-drall/policywright/commit/c8fd466) docs: cite the site's Tranche 2 pages by source until the docs site is redeployed
+- [`94000d2`](https://github.com/kunal-drall/policywright/commit/94000d2) docs: cite the close-out CI run; add the close-out commits to the site changelog
 - [`e3f0bfe`](https://github.com/kunal-drall/policywright/commit/e3f0bfe) evidence: Tranche 2 close-out section and the paste-ready Tranche 2 form draft
 - [`e4e32ea`](https://github.com/kunal-drall/policywright/commit/e4e32ea) docs: record close-out facts (FACTS §17) and reconciliation rows 101-106
 - [`5a33c5d`](https://github.com/kunal-drall/policywright/commit/5a33c5d) docs: T2 truthfulness pass across README, the site, notes and the session scripts
@@ -61,6 +73,16 @@ no tagged releases yet.
 - [`4318aea`](https://github.com/kunal-drall/policywright/commit/4318aea) feat(harness): promote argument-level scope to supported; BLND→XLM case on the real recording
 - [`d7b52b8`](https://github.com/kunal-drall/policywright/commit/d7b52b8) docs: park T3-shaped notes from the T2 pre-flight
 - [`c1dec23`](https://github.com/kunal-drall/policywright/commit/c1dec23) docs: reconcile the OZ account side and the T2 toolchain (pre-flight)
+
+## 2026-08-06 → 2026-08-09 — Tranche 1 form, demo video, site deploy
+
+- [`fe9b0d7`](https://github.com/kunal-drall/policywright/commit/fe9b0d7) style(evidence): reformat the demo-video row
+- [`6eccaa4`](https://github.com/kunal-drall/policywright/commit/6eccaa4) docs(evidence): link the recorded Tranche 1 demo video
+- [`6fc5e9d`](https://github.com/kunal-drall/policywright/commit/6fc5e9d) chore(docs): keep the demo script and tranche form as internal team documents
+- [`9e6ea94`](https://github.com/kunal-drall/policywright/commit/9e6ea94) docs(evidence): finalize the Tranche 1 form and demo script with a fresh claim→swap flow
+- [`0a0b54d`](https://github.com/kunal-drall/policywright/commit/0a0b54d) chore(site): ignore Vercel CLI link artifacts
+- [`9b8fc75`](https://github.com/kunal-drall/policywright/commit/9b8fc75) docs(site): update content for D1.1-D1.4 and the public award status
+- [`e3dc054`](https://github.com/kunal-drall/policywright/commit/e3dc054) chore(ci): empty commit to test push-triggered workflow runs
 
 ## 2026-08-03 — Tranche 1 deliverables D1.1–D1.4
 

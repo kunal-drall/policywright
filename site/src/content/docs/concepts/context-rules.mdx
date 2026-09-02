@@ -4,8 +4,11 @@ description: How Policywright derives a scoped, time-bounded context rule — an
 ---
 
 import StatusBadge from '../../../components/StatusBadge.astro';
+import UnauditedBanner from '../../../components/UnauditedBanner.astro';
 
-<StatusBadge status="shipped" />
+<StatusBadge status="shipped" note="testnet" />
+
+<UnauditedBanner />
 
 In OpenZeppelin's
 [Stellar smart-account model](https://docs.openzeppelin.com/stellar-contracts/accounts/smart-account),
@@ -29,10 +32,13 @@ builds a context rule with:
 - **Name** — a short deterministic rule name derived from the called function
   verbs (e.g. `pw:claim+swap`), truncated to 20 **bytes** (multibyte symbols
   count per byte) because OpenZeppelin caps rule names at that length
-  ([docs/FACTS.md §2.3](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md)).
-- **Lifetime** — `validUntil` is the synthesis time plus the configured
-  lifetime (`--lifetime`, default 30 days). Synthesis takes the current time as
-  an explicit parameter, so the result is deterministic and testable.
+  ([docs/FACTS.md §2.3](https://github.com/kunal-drall/policywright/blob/main/docs/FACTS.md#23-limits)).
+- **Lifetime** — `validUntil` is a lifetime base plus the configured lifetime
+  (`--lifetime`, default 30 days = 2 592 000 s). The base is an explicit `now`
+  argument to `synthesize()`: the CLI, the demo and the MCP tools pass the
+  recording's timestamp by default, so the result is deterministic and
+  testable ([src/cli.ts](https://github.com/kunal-drall/policywright/blob/main/src/cli.ts),
+  [MCP `synthesize.now`](/reference/mcp-tools/#synthesize)).
 
 ## Example
 
@@ -72,17 +78,28 @@ OpenZeppelin's `add_context_rule` actually takes, verified against the pinned
 ([docs/context-rule-schema.md](https://github.com/kunal-drall/policywright/blob/main/docs/context-rule-schema.md)).
 The mapping is honest about what the on-chain model can and cannot carry:
 
-- **One `CallContract` rule per contract.** An OZ context rule binds exactly
-  one contract, so the claim+swap flow emits two rules (`pw:claim`, `pw:swap`);
-  the `Default` rule type is never emitted — it would authorize everything.
+- **One `CallContract` rule per contract — plus one per token the subject
+  authorized a direct `transfer` on.** An OZ context rule binds exactly one
+  contract, and `__check_auth` receives one context per `require_auth`, so the
+  claim+swap flow emits `pw:claim` and `pw:swap` for the two contracts called
+  and, from the real recording's authorization tree, `pw:xfer:BLND` for the
+  BLND token whose `transfer` the account authorized inside the swap — the rule
+  the stock `spending_limit` composes on
+  ([examples/live/fresh/context-rule.json](https://github.com/kunal-drall/policywright/blob/main/examples/live/fresh/context-rule.json);
+  [compose vs. generate](/concepts/compose-first/)). The `Default` rule type is
+  never emitted — it would authorize everything
+  ([test/oz-context-rules.test.ts](https://github.com/kunal-drall/policywright/blob/main/test/oz-context-rules.test.ts)).
 - **On-chain matching is contract-level.** OZ context rules cannot carry
   function names. The observed functions are included as advisory
   `observedFns`, function-level narrowing stays the offline dry run's job, and
   the gap is recorded as a composition-delta note.
 - **`valid_until` is a ledger sequence on-chain,** not a Unix time. The
   configured lifetime is converted at OZ's own estimated 5 s/ledger basis into
-  a relative `lifetimeLedgers` (schema v2); the installer adds the live ledger
-  head at install time — the only value it computes — and the conversion is
+  a relative `lifetimeLedgers` (schema v2); the installer adds it to the live
+  ledger head at install time — the only `add_context_rule` argument it
+  computes ([src/install.ts](https://github.com/kunal-drall/policywright/blob/main/src/install.ts)
+  `planInstall`; the authorization entry's nonce, expiration ledger and digest
+  are computed too and recorded in the install log) — and the conversion is
   recorded in a note.
 - **Signers and policy addresses are deploy-time facts.** `synth --signer` and
   `--policy-address` put them into the artifact in the real OZ `Signer` shape
@@ -94,4 +111,6 @@ The mapping is honest about what the on-chain model can and cannot carry:
 
 Read the `notes` array before installing: it lists every unit conversion,
 every constraint the stock policies cannot express, and every install-time
-obligation.
+obligation. Installing is a separate, explicit, human-initiated CLI step and
+is **testnet-only** — the `install` command refuses any other network
+([smart-account install](/reference/smart-account-install/)).

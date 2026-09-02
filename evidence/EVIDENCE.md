@@ -487,10 +487,73 @@ conversion basis stated; the offline simulator still reasons in seconds.
 
 ### D7 — Documentation site
 
-**Delivered.** Astro + Starlight, fully static, under [site/](../site/), built in
-CI on every push. Published at <https://policywright.lemmalabs.space>. The
-required unaudited banner is a fixed component
-([UnauditedBanner.astro](../site/src/components/UnauditedBanner.astro)).
+**Delivered.** Astro + Starlight, fully static, under [site/](../site/), built by
+the `site` CI job in every (manually dispatched) run. Published at
+<https://policywright.lemmalabs.space>; publishing is a separate manual Vercel
+step (no git integration — [FACTS.md §18.2](../docs/FACTS.md)). The required
+unaudited banner is a fixed component
+([UnauditedBanner.astro](../site/src/components/UnauditedBanner.astro)) rendered
+on every page.
+
+**Brought to current, provable reality on 2026-09-02/03 (Prompt D).** Every page
+was audited claim-by-claim against this file, FACTS.md and the reconciliation
+logs before editing; the delta map is [docs/site-delta.md](../docs/site-delta.md)
+(what was stale, false, missing or unproven → what replaced it, each row
+resolved). What shipped:
+
+- Status flips: Overview, Roadmap and Security show `Shipped (testnet)`; the
+  canonical provenance sentence appears verbatim on the Overview and Roadmap;
+  the Roadmap carries T1 (delivered 2026-08-03, approved), the D2.1–D2.5 table
+  with evidence sections and CI runs, and five Tranche 3 rows (Planned, target
+  30 Nov 2026, audit via the SCF Audit Bank); the architecture diagram shows
+  the shipped agent surface and the human-signed, testnet-only install path
+  (the ASCII diagram in `docs/architecture.md` updated to match); the changelog
+  is regenerated from git.
+- Reference pages: MCP server (per-tool input/output field tables from the
+  committed schemas, the error-code table, the determinism map, `.mcp.json`
+  verbatim and the observed `claude mcp list` line, real tool results, the
+  plain statement that there is no install/deploy tool by design); the skill
+  (frontmatter verbatim, validator output, the real T1 clarification question,
+  guardrails); smart-account install (record → generate → simulate → sign →
+  install flow as Mermaid, the signing hierarchy, today's dry-run output, the
+  read-only verify output at ledger 4469061); dry run & argument scope (both
+  modes, the real BLND→XLM rows, why enforcement is off by default); compose
+  vs. generate (the D2.4 boundary tables, the invariant stated permanent).
+- Use cases: one executed walkthrough (agent yield operations — the real
+  claim→swap, its rule, both dry runs, rule ids 1–3 and 4–6, verify), two
+  concept briefs labelled `Planned walkthrough (Tranche 3)` + `Shipped
+capability (testnet)` (recurring SEP-41 payments; bounded Soroswap trading,
+  which showcases the shipped argument constraints), and the safety framing
+  page. Every page states testnet-only wherever installation appears; the
+  banner is on all 20 pages; no page says "In development".
+- Getting Started quotes today's `npm run demo` output verbatim (the previous
+  quote had drifted one line), the runnable `record --from-simulation` example
+  with its output, the honest `TX_NOT_FOUND` for the aged-out hashes, the
+  `claude mcp list` line, and the read-only testnet verify.
+
+**How a reviewer verifies it.**
+
+```bash
+cd site && npm ci && npm run build        # 20 pages; Pagefind index; sitemap
+grep -rl "Generated contracts are illustrative and unaudited" dist --include=index.html | wc -l   # 20
+grep -rl "Status: In development" dist --include=index.html | wc -l                                # 0
+```
+
+Then compare any page's claims with the sources it links (every Shipped claim
+links a repo file, an EVIDENCE section, an explorer page, a CI run or a
+committed artifact). Facts recorded: [FACTS.md §18](../docs/FACTS.md)
+(public-status truth and the RFP's public traces, the live site's prior state,
+build/render facts from headless Chrome in both themes, the 174-URL link
+check, every command re-run); reconciliation rows 107–113 in
+[RECONCILIATION-T2.md](../docs/RECONCILIATION-T2.md).
+
+**Not done (stated plainly).** The live site is not redeployed by this work:
+the Vercel project has no git integration and the CLI here has no
+credentials, so <https://policywright.lemmalabs.space> serves the 2026-08-06
+build until a human runs `cd site && vercel login && vercel --prod` and checks
+the Overview badge reads `Status: Shipped (testnet)` in an incognito window,
+desktop and mobile, both themes. The CI run for this work is cited in the
+[Changelog](#changelog) row below once dispatched.
 
 ### D8 — Verified-facts record
 
@@ -1168,6 +1231,7 @@ with no credentials at all.
 
 | Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-09-02 | Prompt D: the docs site brought to current, provable reality — delta map (`docs/site-delta.md`), status flips, canonical provenance sentence, regenerated changelog, architecture diagram with the shipped agent surface and the install path, MCP server / skill / install / dry-run / compose-vs-generate reference pages rebuilt from the repo and today's outputs, four use-case pages with honest tiering, banner on all 20 pages, testnet-only wherever installation appears; FACTS §18 and reconciliation rows 107–113. Live redeploy is a manual Vercel step (not done here).                                                                                                                                                                                                                  |
 | 2026-08-03 | File created. Recorded D1–D8 with reproduction steps and artefact hashes. Added the "Not yet delivered" table after correcting the README's Tranche 2 completion claim.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | 2026-08-03 | D1.1 delivered: multi-hash recording of the real claim→swap sequence (committed output + reconciliation table above), simulated-path ingestion with a committed real `simulateTransaction` exchange, typed error taxonomy, capture-driven decoder tests (58 total). Superseded D1's "live path untested / simulated path not built" limits.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | 2026-08-03 | D1.3 delivered: the generated policy as a compiled crate against the real OZ `Policy` trait (25 Rust tests; emitter byte-equality locked in CI), reproducible wasm build, and a hash-verified testnet deployment (`CDSVPSTS…2ZPP`); deploy script + deployment log added; FACTS §1.4–1.6 and §5 record the toolchain, CLI-surface, and deployment facts.                                                                                                                                                                                                                                                                                                                                                                                                                                               |
