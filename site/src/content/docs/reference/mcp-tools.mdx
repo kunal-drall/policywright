@@ -42,15 +42,18 @@ of truth; the JSON Schemas the server advertises are committed under
 [schemas/mcp/](https://github.com/kunal-drall/policywright/tree/main/schemas/mcp)
 and CI fails if they drift.
 
-Failures are MCP tool-execution errors (`isError: true`) whose structured
-content is
+Failures are MCP tool-execution errors (`isError: true`) whose single text
+block is the JSON envelope
 
 ```json
 { "schemaVersion": 1, "ok": false, "error": { "code": "TX_NOT_FOUND", "message": "…", "source": "RecorderError" } }
 ```
 
 with `code` ∈ `BAD_INPUT | TX_NOT_FOUND | NETWORK | DECODE_FAILED | SHAPE_INVALID | INTERNAL`,
-mapped from the CLI's existing typed errors.
+mapped from the CLI's existing typed errors. Error results carry no
+`structuredContent` on purpose: clients validate it against the tool's
+output schema whenever it is present, and an error envelope cannot match a
+success schema.
 
 ## Registration
 

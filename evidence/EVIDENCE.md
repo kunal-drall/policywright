@@ -1037,9 +1037,14 @@ after, writes the four artifacts, and ends with the dry-run table; the
 reference session's six calls all succeed (record from the real simulation
 exchange, synthesize, both simulations, verify PASS). Suite total: 214 tests.
 
-**CI run for this deliverable:** dispatched after this commit is pushed and
-cited in the follow-up commit (fork: manual dispatch). The `build` job also
-runs the external validator (`skills-ref validate`).
+**CI run for this deliverable:**
+[run 33647377983](https://github.com/kunal-drall/policywright/actions/runs/33647377983)
+— all three jobs green on commit `0d46381` (`build`: lint → format → typecheck
+→ 214 tests incl. the 9 skill tests and the machine walkthrough → MCP schema
+drift check → `skills-ref validate` → demo → live reports and side-by-side
+artefacts diffed; `site`: docs build; `contracts`: fmt → clippy → Rust tests
+→ three wasm builds asserted against the deployed hashes). Dispatched
+manually (fork).
 
 **BLOCKER — human step (exact instructions).** Run
 [docs/skill-demo-script.md](../docs/skill-demo-script.md) in Claude Code
