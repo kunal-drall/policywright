@@ -38,6 +38,12 @@ jobs:
       - name: MCP tool schemas match the committed copies
         run: npm run mcp:schemas -- --check
 
+      # D2.2: the packaged skill validates against the agentskills.io
+      # reference validator (the structural + walkthrough checks run in
+      # `npm test`, test/skill.test.ts).
+      - name: Skill package validates (skills-ref)
+        run: npx --yes skills-ref@0.1.5 validate .claude/skills/policywright-grant
+
       - name: Demo (offline smoke test)
         run: npm run demo
 

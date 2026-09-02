@@ -1,0 +1,26 @@
+# Clarification triggers and question templates
+
+Written before the skill was authored (D2.2 pre-flight gate 3). The skill
+**asks** on every trigger that fires; it never assumes. Fill the ⟨…⟩ slots
+from tool outputs only.
+
+## Triggers
+
+| #   | Fires when                                                                                                                                     | Ask                                                                                                                                                                                                                                                             | Maps to                                                                                                                                                |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| T1  | Always — once per asset with an `out` flow in `record.summary.flows` (the funded plan's example: "this transferred 50 USDC — cap at 50, or allow up to 100 over a week?") | "The recording moved **⟨amountFormatted⟩ ⟨symbol⟩** out. The default cap is that amount plus 10 % headroom (**⟨cap⟩ per ⟨window⟩**). Do you want (a) exactly the observed amount, (b) the default headroom, or (c) a different ceiling and window — e.g. up to ⟨N⟩ ⟨symbol⟩ per week?" | (a) `capMultiplier: 1`; (b) omit; (c) `spendWindowSecs` + `capMultiplier = ceiling ÷ observed gross out` (state the multiplier you computed)           |
+| T2  | Always                                                                                                                                         | "How long should this permission last? The default is **30 days** (2 592 000 s ≈ 518 400 ledgers). Shorter is safer; it can be re-granted."                                                                                                                       | `lifetimeSecs`                                                                                                                                         |
+| T3  | More than one asset has an `out` flow                                                                                                          | "This flow moved out **⟨n⟩ assets** (⟨list⟩). Each gets its own cap from its own observed outflow; do you want the same headroom for all, or different ceilings per asset? One synthesis applies one multiplier to every asset — different ceilings mean separate delegations." | one run with a shared `capMultiplier`, or split the delegation                                                                                          |
+| T4  | `synthesize.spec.argumentScopes` is non-empty                                                                                                  | "The ⟨fnName⟩ was routed **⟨observed token set⟩**. Should a route through any other token be **denied**, or **allowed but flagged** (default)? Either way this is enforced only by the offline dry run today, not on-chain."                                      | `constrainArguments: true` / `false`                                                                                                                   |
+| T5  | Any `synthesize.warnings` entry; any `notes` entry starting `DELTA:`; or `installable.asIs: false`                                             | "This changes what the policy can enforce on-chain: ⟨entry verbatim⟩. Accept, narrow the delegation, or stop?" — and for not-installable: "To install as-is I need the signer (`G…`/`C…`) and the deployed policy addresses; without them this stays a design document. Do you have them?" | proceed / narrow / stop; `installTargets.signers`, `installTargets.policyAddresses`                                                                      |
+| T6  | `record.warnings` contains "no --account given"                                                                                                | "Movements were attributed to ⟨address⟩ by assumption. Is that the account this delegation is for, or is the real actor a smart account (`C…`)?"                                                                                                                 | re-record with `account`                                                                                                                               |
+
+## Rules for asking
+
+- One message, numbered, all triggers that fired. Wait for the answers.
+- Quote the observed numbers; never round them.
+- If the user says "defaults", list the default values you will use and
+  then proceed.
+- If an answer implies a value the tools cannot express (a cap in a
+  different asset, a per-function cap, a mainnet address), say so and offer
+  the nearest expressible option instead of silently approximating.
