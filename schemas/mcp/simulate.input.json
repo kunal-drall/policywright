@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "description": "MCP I/O schema version of this input. Optional; when present it must be 1.",
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "recording": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {},
+      "description": "A RecordedTx exactly as the record tool returns it in `recording` (or as `npm run record` prints): bigints as decimal strings, bytes as hex:… strings."
+    },
+    "recordingPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\.json$",
+      "description": "Path to a saved recording (e.g. examples/live/recorded-claim-swap-fresh.json). Alternative to recording."
+    },
+    "config": {
+      "type": "object",
+      "properties": {
+        "lifetimeSecs": {
+          "type": "number",
+          "description": "Context-rule lifetime in seconds (default 2592000)."
+        },
+        "spendWindowSecs": {
+          "type": "number",
+          "description": "Rolling spend-cap window in seconds (default 86400)."
+        },
+        "capMultiplier": {
+          "type": "number",
+          "description": "Cap = observed gross outflow × this, rounded up (default 1.1)."
+        },
+        "frequencyWindowSecs": {
+          "type": "number",
+          "description": "Rolling frequency window in seconds (default 86400)."
+        },
+        "frequencyMaxCalls": {
+          "type": "number",
+          "description": "Max calls per frequency window (default 5)."
+        },
+        "constrainArguments": {
+          "type": "boolean",
+          "description": "Enforce the derived argument constraints (swap-path token set): a violating route is DENIED. Default false: permitted and FLAGGED as a scope gap."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Synthesis configuration overrides; omitted fields keep their defaults."
+    },
+    "now": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991,
+      "description": "As for synthesize."
+    },
+    "probeToken": {
+      "type": "string",
+      "pattern": "^C[A-Z2-7]{55}$",
+      "description": "Token the unobserved-route scenario routes through. Default: the network’s native XLM Stellar Asset Contract."
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Label shown in the report."
+          },
+          "contract": {
+            "type": "string",
+            "pattern": "^C[A-Z2-7]{55}$",
+            "description": "Contract the candidate invokes."
+          },
+          "fnName": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Function the candidate invokes."
+          },
+          "args": {
+            "type": "array",
+            "items": {},
+            "description": "Positional arguments (JSON form). Required to exercise an argument constraint (e.g. the swap-path token set on swap_exact_tokens_for_tokens): copy recording.calls[i].args for that function and edit the constrained argument. When no array is present at the constrained index the constraint is NOT evaluated and the simulate output says so in warnings."
+          },
+          "outflows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "contractId": {
+                  "type": "string",
+                  "pattern": "^C[A-Z2-7]{55}$",
+                  "description": "The token contract."
+                },
+                "amount": {
+                  "type": "string",
+                  "pattern": "^\\d+$",
+                  "description": "Amount in the token’s smallest unit, as a decimal string."
+                },
+                "symbol": {
+                  "type": "string",
+                  "description": "Token symbol; defaults to the recording’s label for this token."
+                },
+                "decimals": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Token decimals; defaults to the recording’s value for this token (7 if unknown)."
+                }
+              },
+              "required": ["contractId", "amount"],
+              "additionalProperties": false
+            },
+            "description": "Token outflows this candidate would cause."
+          },
+          "timestamp": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Unix seconds the candidate executes at; defaults to 60 s into the rule lifetime."
+          },
+          "priorCallTimestamps": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "description": "Prior in-scope call timestamps (Unix seconds) for the frequency check; default none."
+          }
+        },
+        "required": ["label", "contract", "fnName"],
+        "additionalProperties": false,
+        "description": "A candidate call to evaluate against the synthesized policy set."
+      },
+      "description": "Extra candidate calls to evaluate."
+    },
+    "standardScenarios": {
+      "type": "boolean",
+      "description": "Include the standard scenario set (replay, over-cap, unseen fn, expiry, frequency, unobserved route). Default true."
+    }
+  },
+  "additionalProperties": false
+}

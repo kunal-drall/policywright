@@ -1,0 +1,316 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1,
+      "description": "MCP I/O schema version of this output."
+    },
+    "ok": {
+      "type": "boolean",
+      "const": true
+    },
+    "unauditedBanner": {
+      "type": "string",
+      "const": "Generated contracts are illustrative and unaudited — not for production deployment until the Audit Bank audit.",
+      "description": "Applies to rustPolicy. Show it whenever generated code is shown."
+    },
+    "spec": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {},
+      "description": "spec.json: the synthesized SmartAccountSpec (bigints as decimal strings)."
+    },
+    "contextRule": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {},
+      "description": "context-rule.json (schemaVersion 2): the installable OpenZeppelin context rules with real policy install params. This is what the human installs with the CLI."
+    },
+    "summary": {
+      "type": "string",
+      "description": "summary.txt: the human-readable rundown."
+    },
+    "rustPolicy": {
+      "type": "object",
+      "properties": {
+        "fileName": {
+          "type": "string",
+          "const": "FrequencyLimitPolicy.rs"
+        },
+        "banner": {
+          "type": "string",
+          "description": "The ILLUSTRATIVE / UNAUDITED header the file starts with, verbatim."
+        },
+        "unaudited": {
+          "type": "boolean",
+          "const": true
+        },
+        "sourceBytes": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Size of the generated Rust source in bytes."
+        },
+        "source": {
+          "type": "string",
+          "description": "The generated Rust source (starts with the banner). Present unless it was written to outDir and includeRustSource was not set."
+        },
+        "path": {
+          "type": "string",
+          "description": "Where the source was written, when outDir was given."
+        }
+      },
+      "required": ["fileName", "banner", "unaudited", "sourceBytes"],
+      "additionalProperties": false
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Composition deltas: unit conversions, constraints the stock policies cannot express, install-time obligations. Read these before installing."
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Synthesis advisories (e.g. policy count over the OZ cap)."
+    },
+    "recordingWarnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "The recorder caveats carried by the input recording."
+    },
+    "scopeNotes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Minimal-permission decisions and scope gaps in plain language, derived from the spec (what is NOT permitted and why)."
+    },
+    "realisations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "policy": {
+            "type": "string",
+            "description": "The policy, described."
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["composed", "generated", "offline-only"]
+          },
+          "via": {
+            "type": "string"
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Context rules the binding is attached to."
+          },
+          "because": {
+            "type": "string"
+          }
+        },
+        "required": ["policy", "kind", "via", "rules", "because"],
+        "additionalProperties": false
+      },
+      "description": "How each policy is realised on-chain (compose-first decision per policy)."
+    },
+    "installable": {
+      "type": "object",
+      "properties": {
+        "asIs": {
+          "type": "boolean",
+          "description": "Would the CLI install this artifact unmodified?"
+        },
+        "violations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "ozError": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              }
+            },
+            "required": ["path", "ozError", "message", "source"],
+            "additionalProperties": false
+          },
+          "description": "What the install gate would refuse, naming the OZ error."
+        }
+      },
+      "required": ["asIs", "violations"],
+      "additionalProperties": false
+    },
+    "config": {
+      "type": "object",
+      "properties": {
+        "lifetimeSecs": {
+          "type": "number"
+        },
+        "spendWindowSecs": {
+          "type": "number"
+        },
+        "capMultiplier": {
+          "type": "number"
+        },
+        "frequencyWindowSecs": {
+          "type": "number"
+        },
+        "frequencyMaxCalls": {
+          "type": "number"
+        },
+        "constrainArguments": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "lifetimeSecs",
+        "spendWindowSecs",
+        "capMultiplier",
+        "frequencyWindowSecs",
+        "frequencyMaxCalls",
+        "constrainArguments"
+      ],
+      "additionalProperties": false,
+      "description": "The effective synthesis configuration."
+    },
+    "installTargets": {
+      "type": "object",
+      "properties": {
+        "signers": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "Delegated"
+                  },
+                  "address": {
+                    "type": "string",
+                    "pattern": "^[GC][A-Z2-7]{55}$",
+                    "description": "A Stellar account (G…) or contract (C…) address."
+                  }
+                },
+                "required": ["type", "address"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "External"
+                  },
+                  "verifier": {
+                    "type": "string",
+                    "pattern": "^C[A-Z2-7]{55}$",
+                    "description": "A Soroban contract address (C… StrKey)."
+                  },
+                  "keyData": {
+                    "type": "string",
+                    "pattern": "^([0-9a-fA-F]{2})+$",
+                    "description": "Raw public-key bytes, hex (32 bytes for ed25519)."
+                  }
+                },
+                "required": ["type", "verifier", "keyData"],
+                "additionalProperties": false
+              }
+            ],
+            "description": "A context-rule signer in the OpenZeppelin Signer shape."
+          }
+        },
+        "policyAddresses": {
+          "type": "object",
+          "properties": {
+            "custom:FrequencyLimitPolicy": {
+              "type": "string",
+              "pattern": "^C[A-Z2-7]{55}$",
+              "description": "A Soroban contract address (C… StrKey)."
+            },
+            "stock:spending_limit": {
+              "type": "string",
+              "pattern": "^C[A-Z2-7]{55}$",
+              "description": "A Soroban contract address (C… StrKey)."
+            }
+          },
+          "additionalProperties": false
+        },
+        "ledgerHead": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["signers", "policyAddresses", "ledgerHead"],
+      "additionalProperties": false,
+      "description": "The deploy-time facts the rules were emitted with."
+    },
+    "now": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991,
+      "description": "The lifetime base that was used."
+    },
+    "outDir": {
+      "type": "string"
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Paths written, when outDir was given."
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "ok",
+    "unauditedBanner",
+    "spec",
+    "contextRule",
+    "summary",
+    "rustPolicy",
+    "notes",
+    "warnings",
+    "recordingWarnings",
+    "scopeNotes",
+    "realisations",
+    "installable",
+    "config",
+    "installTargets",
+    "now"
+  ],
+  "additionalProperties": false
+}

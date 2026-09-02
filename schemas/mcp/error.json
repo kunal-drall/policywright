@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1,
+      "description": "MCP I/O schema version of this output."
+    },
+    "ok": {
+      "type": "boolean",
+      "const": false
+    },
+    "error": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "BAD_INPUT",
+            "TX_NOT_FOUND",
+            "NETWORK",
+            "DECODE_FAILED",
+            "SHAPE_INVALID",
+            "INTERNAL"
+          ],
+          "description": "Machine-readable failure category."
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable, actionable message. Never contains a secret."
+        },
+        "source": {
+          "type": "string",
+          "description": "The typed error class this was mapped from (RecorderError, InstallError, SynthError, …)."
+        },
+        "section": {
+          "type": "string",
+          "description": "DECODE_FAILED only: the XDR section that failed."
+        },
+        "details": {
+          "description": "Structured details when the source carried them (InstallError details; the server’s own semantic checks). Absent for RecorderError, whose message is self-contained."
+        }
+      },
+      "required": ["code", "message", "source"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["schemaVersion", "ok", "error"],
+  "additionalProperties": false,
+  "description": "Tool execution error envelope (the result has isError: true)."
+}

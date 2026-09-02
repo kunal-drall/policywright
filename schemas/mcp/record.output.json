@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1,
+      "description": "MCP I/O schema version of this output."
+    },
+    "ok": {
+      "type": "boolean",
+      "const": true
+    },
+    "source": {
+      "type": "string",
+      "enum": ["rpc", "simulation"],
+      "description": "Where the recording came from."
+    },
+    "network": {
+      "type": "string",
+      "enum": ["testnet", "mainnet", "futurenet"],
+      "description": "Stellar network. Defaults to the server configuration (POLICYWRIGHT_NETWORK, testnet)."
+    },
+    "rpcUrl": {
+      "type": "string",
+      "description": "The RPC endpoint that was used."
+    },
+    "recording": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {},
+      "description": "The RecordedTx. Pass this object (or write it with outPath and pass the path) to synthesize and simulate."
+    },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "hash": {
+          "description": "Primary (earliest) transaction hash; null for a simulation.",
+          "type": ["string", "null"]
+        },
+        "ledger": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timestamp": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Unix seconds the first transaction was applied."
+        },
+        "subject": {
+          "description": "The account movements are attributed to.",
+          "type": ["string", "null"]
+        },
+        "calls": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "contract": {
+                "type": "string",
+                "pattern": "^C[A-Z2-7]{55}$",
+                "description": "A Soroban contract address (C… StrKey)."
+              },
+              "fnName": {
+                "type": "string"
+              },
+              "sourceHash": {
+                "type": ["string", "null"]
+              }
+            },
+            "required": ["contract", "fnName", "sourceHash"],
+            "additionalProperties": false
+          },
+          "description": "Observed contract calls in ledger order."
+        },
+        "flows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "contractId": {
+                "type": "string",
+                "pattern": "^C[A-Z2-7]{55}$",
+                "description": "A Soroban contract address (C… StrKey)."
+              },
+              "symbol": {
+                "type": "string"
+              },
+              "decimals": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "resolved": {
+                "type": "boolean",
+                "description": "Whether symbol/decimals came from on-chain metadata (false = fallback)."
+              },
+              "direction": {
+                "type": "string",
+                "enum": ["in", "out"]
+              },
+              "amount": {
+                "type": "string",
+                "description": "Smallest-unit amount, decimal string."
+              },
+              "amountFormatted": {
+                "type": "string",
+                "description": "Human amount using the token decimals."
+              }
+            },
+            "required": [
+              "contractId",
+              "symbol",
+              "decimals",
+              "resolved",
+              "direction",
+              "amount",
+              "amountFormatted"
+            ],
+            "additionalProperties": false
+          },
+          "description": "Token movements relative to the subject, aggregated per (token, direction)."
+        }
+      },
+      "required": ["hash", "ledger", "timestamp", "subject", "calls", "flows"],
+      "additionalProperties": false
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Recorder caveats (assumed subject, unresolved token metadata, skipped events). Surface these to the user."
+    },
+    "outPath": {
+      "type": "string",
+      "description": "Where the recording was written, when outPath was given."
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "ok",
+    "source",
+    "network",
+    "rpcUrl",
+    "recording",
+    "summary",
+    "warnings"
+  ],
+  "additionalProperties": false
+}

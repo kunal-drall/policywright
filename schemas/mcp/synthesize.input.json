@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "description": "MCP I/O schema version of this input. Optional; when present it must be 1.",
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "recording": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {},
+      "description": "A RecordedTx exactly as the record tool returns it in `recording` (or as `npm run record` prints): bigints as decimal strings, bytes as hex:… strings."
+    },
+    "recordingPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\.json$",
+      "description": "Path to a saved recording (e.g. examples/live/recorded-claim-swap-fresh.json). Alternative to recording."
+    },
+    "config": {
+      "type": "object",
+      "properties": {
+        "lifetimeSecs": {
+          "type": "number",
+          "description": "Context-rule lifetime in seconds (default 2592000)."
+        },
+        "spendWindowSecs": {
+          "type": "number",
+          "description": "Rolling spend-cap window in seconds (default 86400)."
+        },
+        "capMultiplier": {
+          "type": "number",
+          "description": "Cap = observed gross outflow × this, rounded up (default 1.1)."
+        },
+        "frequencyWindowSecs": {
+          "type": "number",
+          "description": "Rolling frequency window in seconds (default 86400)."
+        },
+        "frequencyMaxCalls": {
+          "type": "number",
+          "description": "Max calls per frequency window (default 5)."
+        },
+        "constrainArguments": {
+          "type": "boolean",
+          "description": "Enforce the derived argument constraints (swap-path token set): a violating route is DENIED. Default false: permitted and FLAGGED as a scope gap."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Synthesis configuration overrides; omitted fields keep their defaults."
+    },
+    "installTargets": {
+      "type": "object",
+      "properties": {
+        "signers": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "Delegated"
+                  },
+                  "address": {
+                    "type": "string",
+                    "pattern": "^[GC][A-Z2-7]{55}$",
+                    "description": "A Stellar account (G…) or contract (C…) address."
+                  }
+                },
+                "required": ["type", "address"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "External"
+                  },
+                  "verifier": {
+                    "type": "string",
+                    "pattern": "^C[A-Z2-7]{55}$",
+                    "description": "A Soroban contract address (C… StrKey)."
+                  },
+                  "keyData": {
+                    "type": "string",
+                    "pattern": "^([0-9a-fA-F]{2})+$",
+                    "description": "Raw public-key bytes, hex (32 bytes for ed25519)."
+                  }
+                },
+                "required": ["type", "verifier", "keyData"],
+                "additionalProperties": false
+              }
+            ],
+            "description": "A context-rule signer in the OpenZeppelin Signer shape."
+          },
+          "description": "Signers attached to every emitted rule (≤ 15)."
+        },
+        "policyAddresses": {
+          "type": "object",
+          "properties": {
+            "custom:FrequencyLimitPolicy": {
+              "type": "string",
+              "pattern": "^C[A-Z2-7]{55}$",
+              "description": "A Soroban contract address (C… StrKey)."
+            },
+            "stock:spending_limit": {
+              "type": "string",
+              "pattern": "^C[A-Z2-7]{55}$",
+              "description": "A Soroban contract address (C… StrKey)."
+            }
+          },
+          "additionalProperties": false,
+          "description": "Deployed policy contract address per binding kind."
+        },
+        "ledgerHead": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Live ledger head at synthesis time; when given, validUntilLedger is emitted absolute (head + lifetime). Omit to emit the relative lifetimeLedgers only."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Deploy-time facts (signers, deployed policy addresses, ledger head). Without them the artifact is a design document and installable.asIs is false."
+    },
+    "now": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991,
+      "description": "Unix seconds used as the base of the rule lifetime. Defaults to the recording timestamp (the CLI’s rule), keeping the output deterministic."
+    },
+    "outDir": {
+      "type": "string",
+      "minLength": 1,
+      "description": "If given, also write summary.txt, spec.json, context-rule.json and FrequencyLimitPolicy.rs into this directory (created if missing). Existing files are not replaced unless overwrite is true."
+    },
+    "overwrite": {
+      "type": "boolean",
+      "description": "Allow outDir writes to replace existing files (default false: an existing file is a BAD_INPUT and nothing is written)."
+    },
+    "includeRustSource": {
+      "type": "boolean",
+      "description": "Include the full generated Rust source inline in rustPolicy.source (about 11 KB). Default: true when outDir is not given; false when the file was written to outDir (rustPolicy.path names it). The banner, fileName and sourceBytes are always present."
+    }
+  },
+  "additionalProperties": false
+}

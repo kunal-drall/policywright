@@ -1,0 +1,208 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1,
+      "description": "MCP I/O schema version of this output."
+    },
+    "ok": {
+      "type": "boolean",
+      "const": true
+    },
+    "pass": {
+      "type": "boolean",
+      "description": "Every diff row matched."
+    },
+    "account": {
+      "type": "string",
+      "pattern": "^C[A-Z2-7]{55}$",
+      "description": "A Soroban contract address (C… StrKey)."
+    },
+    "network": {
+      "type": "string",
+      "enum": ["testnet", "mainnet", "futurenet"],
+      "description": "Stellar network. Defaults to the server configuration (POLICYWRIGHT_NETWORK, testnet)."
+    },
+    "rpcUrl": {
+      "type": "string"
+    },
+    "latestLedger": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991,
+      "description": "The ledger the on-chain state was read at."
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "rule": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "expected": {
+            "type": "string"
+          },
+          "actual": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": ["rule", "field", "expected", "actual", "ok"],
+        "additionalProperties": false
+      },
+      "description": "The diff, one row per (rule, field)."
+    },
+    "extraRules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "contextType": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "contract": {
+                "type": ["string", "null"]
+              }
+            },
+            "required": ["type", "contract"],
+            "additionalProperties": false
+          },
+          "name": {
+            "type": "string"
+          },
+          "signers": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "Delegated"
+                    },
+                    "address": {
+                      "type": "string",
+                      "pattern": "^[GC][A-Z2-7]{55}$",
+                      "description": "A Stellar account (G…) or contract (C…) address."
+                    }
+                  },
+                  "required": ["type", "address"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "External"
+                    },
+                    "verifier": {
+                      "type": "string",
+                      "pattern": "^C[A-Z2-7]{55}$",
+                      "description": "A Soroban contract address (C… StrKey)."
+                    },
+                    "keyData": {
+                      "type": "string",
+                      "pattern": "^([0-9a-fA-F]{2})+$",
+                      "description": "Raw public-key bytes, hex (32 bytes for ed25519)."
+                    }
+                  },
+                  "required": ["type", "verifier", "keyData"],
+                  "additionalProperties": false
+                }
+              ],
+              "description": "A context-rule signer in the OpenZeppelin Signer shape."
+            }
+          },
+          "policies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "validUntil": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["id", "contextType", "name", "signers", "policies", "validUntil"],
+        "additionalProperties": false
+      },
+      "description": "Installed rules the artifact does not describe (e.g. the constructor’s admin rule). Informational."
+    },
+    "report": {
+      "type": "string",
+      "description": "The Markdown verify report (PASS/FAIL)."
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Policy params that could not be read back."
+    },
+    "artifactViolations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "ozError": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": ["path", "ozError", "message", "source"],
+        "additionalProperties": false
+      },
+      "description": "Schema/shape issues found in the artifact itself (checked as a design document, not for install)."
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "ok",
+    "pass",
+    "account",
+    "network",
+    "rpcUrl",
+    "latestLedger",
+    "rows",
+    "extraRules",
+    "report",
+    "warnings",
+    "artifactViolations"
+  ],
+  "additionalProperties": false
+}

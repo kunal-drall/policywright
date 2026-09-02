@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "description": "MCP I/O schema version of this input. Optional; when present it must be 1.",
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "artifact": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {},
+      "description": "The emitted context-rule.json document (as synthesize returns in contextRule). Alternative to artifactPath."
+    },
+    "artifactPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\.json$",
+      "description": "Path to an emitted context-rule.json."
+    },
+    "account": {
+      "type": "string",
+      "pattern": "^C[A-Z2-7]{55}$",
+      "description": "The OpenZeppelin smart account (C…) to read."
+    },
+    "installLog": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {},
+      "description": "A policywright install log; when given, valid_until is compared with what the install computed."
+    },
+    "installLogPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\.json$",
+      "description": "Path to a policywright install log (alternative to installLog)."
+    },
+    "network": {
+      "type": "string",
+      "enum": ["testnet", "mainnet", "futurenet"],
+      "description": "Stellar network. Defaults to the server configuration (POLICYWRIGHT_NETWORK, testnet)."
+    },
+    "rpcUrl": {
+      "type": "string",
+      "format": "uri",
+      "description": "Soroban RPC endpoint override for this call. Defaults to the server configuration (POLICYWRIGHT_RPC_URL) or the public endpoint for the network."
+    }
+  },
+  "required": ["account"],
+  "additionalProperties": false
+}

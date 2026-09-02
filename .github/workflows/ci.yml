@@ -32,6 +32,12 @@ jobs:
       - name: Test
         run: npm test
 
+      # D2.1: the JSON Schemas committed under schemas/mcp/ must be exactly
+      # what src/mcp/schemas.ts defines (the server advertises the same in
+      # tools/list — asserted by test/mcp.test.ts against the committed files).
+      - name: MCP tool schemas match the committed copies
+        run: npm run mcp:schemas -- --check
+
       - name: Demo (offline smoke test)
         run: npm run demo
 

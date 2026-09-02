@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1,
+      "description": "MCP I/O schema version of this output."
+    },
+    "ok": {
+      "type": "boolean",
+      "const": true
+    },
+    "constrainArguments": {
+      "type": "boolean",
+      "description": "Whether argument constraints were enforced (deny) or advisory (flag)."
+    },
+    "probeToken": {
+      "type": "object",
+      "properties": {
+        "contractId": {
+          "type": "string",
+          "pattern": "^C[A-Z2-7]{55}$",
+          "description": "A Soroban contract address (C… StrKey)."
+        },
+        "label": {
+          "type": "string"
+        },
+        "provenance": {
+          "type": "string"
+        }
+      },
+      "required": ["contractId", "label", "provenance"],
+      "additionalProperties": false
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string",
+            "enum": ["permit", "deny", "flag"],
+            "description": "permit — every check passed; deny — the named check failed; flag — permitted, but an advisory argument constraint was violated (scope gap)."
+          },
+          "reasonCode": {
+            "type": "string",
+            "description": "scope | lifetime | argument-constraint | spending-limit | frequency-limit | permit"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "enforcedBy": {
+            "type": "string",
+            "description": "Which artifact realises the deciding check."
+          },
+          "expected": {
+            "type": "object",
+            "properties": {
+              "decision": {
+                "type": "string",
+                "enum": ["permit", "deny", "flag"]
+              },
+              "reasonCode": {
+                "type": "string"
+              }
+            },
+            "required": ["decision", "reasonCode"],
+            "additionalProperties": false
+          },
+          "asExpected": {
+            "type": "boolean",
+            "description": "Standard scenarios only: did the decision match its expectation?"
+          }
+        },
+        "required": ["label", "decision", "reasonCode", "reason", "enforcedBy"],
+        "additionalProperties": false
+      },
+      "description": "The permit/deny/flag table."
+    },
+    "counts": {
+      "type": "object",
+      "properties": {
+        "permit": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "deny": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "flag": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": ["permit", "deny", "flag"],
+      "additionalProperties": false
+    },
+    "deviations": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991,
+      "description": "Standard scenarios whose decision deviated from expectation (0 = the harness self-check passed)."
+    },
+    "report": {
+      "type": "string",
+      "description": "The Markdown dry-run report with provenance header, table, and token legend."
+    },
+    "tokens": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "contractId": {
+            "type": "string",
+            "pattern": "^C[A-Z2-7]{55}$",
+            "description": "A Soroban contract address (C… StrKey)."
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": ["contractId", "label"],
+        "additionalProperties": false
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Caveats about the evaluation — e.g. a caller-supplied candidate whose argument constraint could not be evaluated because it carries no array at the constrained index. Empty when nothing was skipped."
+    },
+    "config": {
+      "type": "object",
+      "properties": {
+        "lifetimeSecs": {
+          "type": "number"
+        },
+        "spendWindowSecs": {
+          "type": "number"
+        },
+        "capMultiplier": {
+          "type": "number"
+        },
+        "frequencyWindowSecs": {
+          "type": "number"
+        },
+        "frequencyMaxCalls": {
+          "type": "number"
+        },
+        "constrainArguments": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "lifetimeSecs",
+        "spendWindowSecs",
+        "capMultiplier",
+        "frequencyWindowSecs",
+        "frequencyMaxCalls",
+        "constrainArguments"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "ok",
+    "constrainArguments",
+    "probeToken",
+    "results",
+    "counts",
+    "deviations",
+    "report",
+    "tokens",
+    "warnings",
+    "config"
+  ],
+  "additionalProperties": false
+}

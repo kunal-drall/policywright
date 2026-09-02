@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "policywright": {
+      "command": "node",
+      "args": ["node_modules/tsx/dist/cli.mjs", "src/mcp/server.ts"],
+      "env": { "POLICYWRIGHT_NETWORK": "testnet" }
+    }
+  }
+}

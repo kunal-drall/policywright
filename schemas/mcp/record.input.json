@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "description": "MCP I/O schema version of this input. Optional; when present it must be 1.",
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "hashes": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9a-fA-F]{64}$",
+        "description": "A 64-hex transaction hash."
+      },
+      "description": "Transaction hashes to fetch and merge into ONE recording, in any order (Soroban allows one InvokeHostFunction per transaction, so a multi-step flow is several hashes). Exclusive with simulation/simulationPath."
+    },
+    "simulation": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {},
+      "description": "A saved simulateTransaction exchange to ingest instead of fetching hashes (the shape scripts/capture-simulation.ts writes; request.params.transaction + response.result). Exclusive with hashes."
+    },
+    "simulationPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\.json$",
+      "description": "Path to a saved simulateTransaction exchange (alternative to simulation)."
+    },
+    "account": {
+      "type": "string",
+      "pattern": "^[GC][A-Z2-7]{55}$",
+      "description": "The account (G… or C…) token movements are attributed to. Pass it explicitly for smart-account flows; without it the first transaction’s source account is assumed and a warning records the assumption."
+    },
+    "network": {
+      "type": "string",
+      "enum": ["testnet", "mainnet", "futurenet"],
+      "description": "Stellar network. Defaults to the server configuration (POLICYWRIGHT_NETWORK, testnet)."
+    },
+    "rpcUrl": {
+      "type": "string",
+      "format": "uri",
+      "description": "Soroban RPC endpoint override for this call. Defaults to the server configuration (POLICYWRIGHT_RPC_URL) or the public endpoint for the network."
+    },
+    "outPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\.json$",
+      "description": "If given, also write the recording JSON to this path (what `npm run record` would print). An existing file is not replaced unless overwrite is true."
+    },
+    "overwrite": {
+      "type": "boolean",
+      "description": "Allow outPath to replace an existing file (default false: an existing file is a BAD_INPUT)."
+    }
+  },
+  "additionalProperties": false
+}
