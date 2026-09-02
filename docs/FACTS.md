@@ -1428,6 +1428,117 @@ validate <path>` validates a plugin/marketplace manifest, not a bare skill);
   1 permit / 5 deny / 0 flag) and 6 for the reference session (all succeed on
   replayed captures; live, its Turn 2 is `TX_NOT_FOUND` — §15.4).
 
+## GATE 17 — Tranche 2 close-out checks (verified 2026-09-02)
+
+### 17.1 Retention and every cited transaction, re-checked live
+
+`getHealth` on `https://soroban-testnet.stellar.org` at 15:23 UTC:
+`latestLedger` 4467817, `oldestLedger` 4346858, `ledgerRetentionWindow`
+120960 (≈ 7 days at 5 s/ledger). `getTransaction` per hash at the same time:
+
+| Hash (short) | What                               | Status        | Ledger  | Leaves retention (≈ ledger / date) |
+| ------------ | ---------------------------------- | ------------- | ------- | ---------------------------------- |
+| `9fff676c…`  | D1/T1 Blend claim (2026-08-08)     | **NOT_FOUND** | —       | gone since ≈ 2026-08-15            |
+| `ae943f99…`  | D1/T1 Soroswap swap (2026-08-08)   | **NOT_FOUND** | —       | gone                               |
+| `35ddaeaa…`  | D1.3 policy deploy (2026-08-03)    | **NOT_FOUND** | —       | gone                               |
+| `83062a25…`  | D2.5 spending-limit wrapper deploy | SUCCESS       | 4464544 | ≈ 4585504 / 2026-09-09             |
+| `89cec37e…`  | D2.5 smart-account deploy          | SUCCESS       | 4464568 | ≈ 4585528 / 2026-09-09             |
+| `2bd245b6…`  | D2.5 install rule 1                | SUCCESS       | 4464616 | ≈ 4585576 / 2026-09-09             |
+| `065bf20b…`  | D2.5 install rule 2                | SUCCESS       | 4464617 | ≈ 4585577 / 2026-09-09             |
+| `6593a5a0…`  | D2.5 install rule 3                | SUCCESS       | 4464618 | ≈ 4585578 / 2026-09-09             |
+| `6fee5fc8…`  | demo-script install rule 4 (§17.2) | SUCCESS       | 4467932 | ≈ 4588892 / 2026-09-09             |
+| `7763c0f6…`  | demo-script install rule 5         | SUCCESS       | 4467933 | ≈ 4588893                          |
+| `cdb5266d…`  | demo-script install rule 6         | SUCCESS       | 4467934 | ≈ 4588894                          |
+
+Consequences: `record` by the T1 hashes returns `TX_NOT_FOUND` (the MCP
+envelope names the node's window: "ledgers 4346894–4467853, oldest closed
+2026-08-26T15:24:29.000Z"); the committed recording
+(`examples/live/recorded-claim-swap-fresh.json`, byte-identical to its raw
+captures — §12.2) is the reproduction path, and a fresh claim→swap is an
+optional human step for the video (the `GBMWJIAD…` key that performed the T1
+flow is not on this machine — `stellar keys ls` shows only unrelated aliases
+and `scf-tester`; a Blend `claim` with `scf-tester` would need an accrued
+emissions position it does not have). Explorer pages (`stellar.expert`)
+keep showing the aged-out transactions; the RPC does not. The contract
+entries are unaffected by transaction retention: `CDSVPSTS…` live until
+4982933/4982936 (§14), the account and wrapper instances since 2026-09-02.
+
+### 17.2 The second install of the same artifact (the demo-script run)
+
+`scripts/install-testnet.sh <examples/live/demo/context-rule.json>` — the
+7-day, route-enforced artifact emitted with the flags in
+`examples/live/demo/synth.args` (`--lifetime=604800 --spend-window=604800 --constrain-arguments` +
+the D2.5 targets); byte-identical to what the MCP `synthesize` tool wrote to
+`out/grant-blend-swap/` with the skill demo's Turn-3 input (pure function,
+same values):
+
+| Item                                          | Value                                                                                                                                                                                                                          |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Dry run                                       | head 4467898; three enforcing simulations passed, 2 auth entries each, min resource fees 118420 / 118421 / 180149; nothing submitted (`install-dry-run-20260902T153120Z.json`)                                                 |
+| Install                                       | head 4467930 → `valid_until` 4588890 (= head + 120960); rule ids **4, 5, 6**; txs `6fee5fc8…` (4467932), `7763c0f6…` (4467933), `cdb5266d…` (4467934); 2 auth entries each; `local-fallback` (`install-20260902T153356Z.json`) |
+| Fees                                          | `GATUKCIM…` balance 9993.3956242 → 9993.3606965 XLM (0.0349277 XLM for the three transactions; the dry run cost nothing)                                                                                                       |
+| Verify, new artifact + new log                | **PASS** 15/15 at ledger 4467941 — rules found as ids 4–6, `period_ledgers` 120960, `valid_until` 4588890; extra rules 0–3 (`verify-demo-20260902T153356Z.md`)                                                                 |
+| Verify, D2.5 artifact + D2.5 log (regression) | **PASS** at 4467941 — still ids 1–3, `valid_until` 4983015                                                                                                                                                                     |
+| Verify, new artifact, no log                  | **FAIL** — matches ids 1–3 (earliest) whose `period_ledgers` is 17280 ≠ 120960; the install log is the selector (§17.3)                                                                                                        |
+| Secrets                                       | neither log contains the secret (`grep` for the `.env` value: no match); the logs carry the public key, nonce, expiration ledger and digest only                                                                               |
+
+### 17.3 `verify` matching after the fix (`src/verify.ts` `findInstalledRule`)
+
+Before: the first installed rule with the same (context type, contract,
+name) not yet matched — so a second install of the same artifact (same
+names, ids 4–6) would have been verified against ids 1–3, and a log naming
+the new `valid_until` would have FAILed every `valid_until` row. After:
+among the unmatched candidates with that key, the one whose `valid_until`
+equals the install log's expected value is preferred; otherwise the
+lowest-id candidate; each installed rule is matched at most once, for both
+the diff and the parameter read-back. Committed outputs are unchanged (the
+stub RPC serves ids 0–3 only; `verify.md` still reproduces). Unit test:
+`test/install.test.ts` "matches a re-installed artifact through the install
+log, not the first name hit" (new log → 4–6; old log → 1–3; no log → 1–3
+with 4–6 extra; a log naming no installed value → FAIL). Suite total 215.
+
+### 17.4 Repository and CI state
+
+| Fact                           | Value                                                                                                                                                                                                              | Verified by                             |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------- |
+| GitHub Issues                  | **still disabled** (`has_issues: false`) — the T1 form's blocker #1 is unresolved; the T2 form's feedback sentence therefore names pull requests and Telegram, not issues                                          | `gh api repos/kunal-drall/policywright` |
+| Fork / push-triggered CI       | `fork: true`, parent `kunaldrall29/policywright`; no `push` event run exists — run 31122779882 for the 2026-08-06 empty commit is still `queued`; every green run is a `workflow_dispatch`                         | `gh run list --workflow ci.yml`         |
+| Cited T2 runs                  | 33561221471 (`82e9fd9`), 33618871930 (`4efafc0`), 33622880981 (`7ac99cf`), 33631174115 (`98f9271`), 33647377983 (`0d46381`) — all `success`                                                                        | `gh api …/actions/runs/<id>`            |
+| Badge                          | `badge.svg` for `ci.yml` renders **passing** (latest run on `main` is green)                                                                                                                                       | `curl` of the badge SVG                 |
+| Public URLs the form cites     | GitHub repo/blob/tree pages, `policywright.lemmalabs.space` pages, `stellar.expert` contract and tx pages, the SCF project page — all HTTP 200; the T1 Loom video resolves through Loom's oEmbed endpoint (public) | `curl -o /dev/null -w '%{http_code}'`   |
+| `npm run build` (tsc, `dist/`) | exit 0; `dist/mcp/{schemas,server,tools}.js` emitted — now a CI step                                                                                                                                               | local run                               |
+
+### 17.5 The SCF tranche form — what is public
+
+The SCF Handbook (`stellar.gitbook.io/scf-handbook`, "Build Award" and
+"Budget & Deliverable Guidelines", fetched 2026-09-02): the tranche
+completion form "is received via email when your Tranche #0 payment has
+been sent"; each form must be submitted "within 90 calendar days of
+receiving your previous tranche payment"; the suggested structure is
+Tranche #1 MVP, Tranche #2 "Testnet Expansion", Tranche #3 "Mainnet Launch";
+payments 10 % / 20 % / 30 % / 40 % (Tranche #0–#3). The form's field names
+and dropdown options (e.g. the "Project Stage" values) are **not public**;
+`evidence/TRANCHE2-FORM.md` keeps the T1 form's field list and, for the
+stage field, records the T1 selection with a selection note. Per-deliverable
+dollar amounts for Tranche 2 are not recorded anywhere in this repository
+(the T1 form carried $5,000 / $6,000 / $3,500 / $2,000 from the funded plan);
+the T2 form states none rather than inventing them.
+
+### 17.6 Six live MCP tool calls from the agent host
+
+Made from Claude Code 2.0.76 on 2026-09-02 through the project `.mcp.json`
+server: `record` (simulation path — `ok`, `resolved: true` for both tokens),
+`record` (the T1 hashes — the `TX_NOT_FOUND` envelope), `synthesize`
+(defaults — `installable.asIs: false`, four violations), `synthesize` (the
+skill demo's Turn-3 input, `outDir: out/grant-blend-swap` —
+`installable.asIs: true`, four files), `simulate` (same config —
+`{ permit: 1, deny: 5, flag: 0 }`, `deviations: 0`), `verify` (the D2.5
+artifact and log — `pass: true`, 15 rows, ids 1–3, read at 4467855). Results
+quoted in `docs/demo-script-t2.md`. The human-saved transcripts remain the
+open D2.1/D2.2 blockers.
+
+---
+
 ## Changelog
 
 | Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
@@ -1442,3 +1553,4 @@ validate <path>` validates a plugin/marketplace manifest, not a bare skill);
 | 2026-09-02 | D2.5 session: added §14 — vendored OZ account + spending-limit wrapper built and deployed to testnet (hashes, addresses, txs), the D1.3 policy restored, the stellar-cli constructor JSON form, the Delegated(G) install path proven end-to-end (two auth entries, enforcing simulation, three successful transactions), the getter read-back shapes; `stellar contract build` requirement for the two vendored crates.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | 2026-09-02 | D2.1 session: added §15 — MCP SDK v2 pins as installed (`server`/`client`/`core` 2.0.0, zod 4.5.4), the `serveStdio`/`registerTool` surface from the installed typings, the tool-dispatch semantics that force tools to return their own error envelope (input-schema failures and thrown errors are text-only `isError` results), JSON Schema conversion equality with `z.toJSONSchema`, Claude Code 2.0.76 `claude mcp add` flags and the observed project-root cwd for `.mcp.json`, clean-stdout probe, testnet RPC retention (120960 ledgers) and the raw `getTransaction`/`simulateTransaction` shapes the stub RPC mirrors, the transport-error and checksum edge cases fixed in `verify`.                                                                                                                                                                                                                                                                                                     |
 | 2026-09-02 | D2.2 session: added §16 — Claude Code 2.0.76 carries the project-skill loader (bundle markers), `skills-ref` 0.1.5 validates the package, six spec fields only, the deploy-time facts the skill must ask for, and the machine walkthrough of both scripts over the real server.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| 2026-09-02 | T2 close-out session: added §17 — retention re-check of every cited hash (T1 hashes and the D1.3 deploy gone; D2.5 and demo-run transactions live until ≈ 2026-09-09), the second install of the same artifact (rule ids 4–6, fees, verify with/without the log), `verify`'s install-log-aware matching, repository/CI state (Issues still disabled, no push-triggered run, badge passing, all cited URLs 200), what the SCF handbook says about the tranche form, and the six live MCP calls from Claude Code.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |

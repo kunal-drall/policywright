@@ -273,6 +273,17 @@ Ground truth from the installed SDK typings and compiled sources
 | 99  | The clarification questions can be answered from the recording alone                        | ✗/precise: cap, lifetime and route are; the signer and deployed policy addresses are deploy-time facts the recording cannot carry (E2/E3, rows 30–31) — without them `installable.asIs` is false                           | Trigger T5 asks for them; the demo supplies the D2.5 testnet addresses; `installable` flips false → true in the walkthrough    | `test/skill.test.ts` "the skill demo script hits record → …" |
 | 100 | Claude-Code-only frontmatter keys are needed for a usable skill                             | ✗ The six spec fields suffice: `description` carries the "use when" trigger, `allowed-tools` pre-approves the four `mcp__policywright__*` tools; no `argument-hint`/`user-invocable` needed, so the package stays portable | Frontmatter limited to the six fields; asserted by the test                                                                    | FACTS §10, §16                                               |
 
+## GATE 12 — Tranche 2 close-out: the docs, the demo, the form vs. reality (2026-09-02)
+
+| #   | Assumption                                                                             | Actual (verified)                                                                                                                                                                                                                                                                                                                           | Impact                                                                                                                                                                                                                    | Source                                                    |
+| --- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| 101 | `verify --install-log` handles a second install of the same artifact into one account  | ✗ It matched the first installed rule with the same (contract, name) — ids 1–3 — so the demo's verify with the new install's log would have FAILed every `valid_until` row (proven by the FAIL of the no-log verify against ids 1–3, FACTS §17.2)                                                                                           | `findInstalledRule` prefers the candidate whose `valid_until` equals the log's expected value; unit test; live PASS for ids 4–6 with the new log and for ids 1–3 with the D2.5 log; committed outputs unchanged           | `src/verify.ts`; `test/install.test.ts`; FACTS §17.2–17.3 |
+| 102 | The docs site describes Tranche 2 as delivered                                         | ✗ The overview said "There is no MCP server, Claude skill, or wallet integration yet; those are planned" and "90 tests"; the overview, security page and README said the only on-chain action is the policy deployment; the roadmap had no per-deliverable T2 rows; no skill, install, or harness page existed                              | Truthfulness pass: overview rewritten, security bullet corrected, roadmap gains the D2.1–D2.5 table with evidence links and a T3 "Planned" section, three new reference pages, architecture gains the agent-surface stage | `site/src/content/docs/**`; `README.md`                   |
+| 103 | A fresh claim→swap can be re-executed in this session so the video records live hashes | ✗ The T1 flow was signed by `GBMWJIAD…` in Stellar Lab; that key is not on this machine, and a Blend `claim` with the funded `scf-tester` identity needs an emissions position it does not have. The T1 hashes are past retention (FACTS §17.1)                                                                                             | Beat 1 records the committed real simulation exchange live and shows the honest `TX_NOT_FOUND`; a fresh flow is an optional human sub-step of the video blocker, not a separate blocker                                   | `docs/demo-script-t2.md` Prep; FACTS §17.1                |
+| 104 | An on-chain argument-scoping policy is "the remaining T2 policy-codegen deliverable"   | ✗/precise: it is not among the five approved T2 criteria (D2.3 is the offline harness by criterion; D2.4's codegen is the frequency policy). README, site and T2-NOTES now call it open design work, not built; the emitter's note text is unchanged (it says "not built", and changing it would churn every committed artifact and report) | No scope is claimed that the criteria do not cover                                                                                                                                                                        | `README.md`; `site/…/policies.mdx`; `docs/T2-NOTES.md`    |
+| 105 | The SCF tranche form's field options are public                                        | ✗ The handbook gives the 90-day rule, the payment split and the suggested tranche names only; the form arrives by email and its dropdowns are not published (FACTS §17.5). Per-deliverable T2 dollar amounts are recorded nowhere in the repository                                                                                         | The T2 form keeps the T1 field list, carries a selection note on the stage field, and states no amounts; blockers are exactly the three human recordings                                                                  | `evidence/TRANCHE2-FORM.md`; FACTS §17.5                  |
+| 106 | Installing again is harmless to existing evidence                                      | ✓/precise: rule ids 4–6 (`valid_until` 4588890) sit beside ids 1–3; every committed verify output still reproduces because the stub RPC serves ids 0–3, and the live reference-session Turn 6 still passes — its `extraRules` now lists ids 4–6 until they expire                                                                           | Reference session and demo script say so; each further install (a demo recording) appends the next three ids                                                                                                              | FACTS §17.2; `docs/mcp-reference-session.md` Turn 6       |
+
 ---
 
 ## Summary of discrepancies (inputs to the T2 prompts)
@@ -329,10 +340,16 @@ Ground truth from the installed SDK typings and compiled sources
     loader; the reference validator and a machine walkthrough replace
     hand-validation; the demo's Turn 1 is honestly two-branched; the
     deploy-time facts are asked for; six spec fields suffice.
+16. **Close-out** (rows 101–106): `verify` was not re-install safe — fixed
+    and proven live; the site still described T2 as planned — corrected with
+    per-deliverable rows and three new pages; the T1 hashes cannot be
+    re-executed here — the demo records the simulation exchange live and is
+    honest about retention; the argument-scoping policy is open design work,
+    not an approved criterion; the form's dropdowns are not public.
 
 ## Self-validation
 
-- No gated field is "unknown"/"TODO": rows 28–100 each carry an actual value
+- No gated field is "unknown"/"TODO": rows 28–106 each carry an actual value
   and a source; every source was read or executed this session (FACTS §7–§11,
   §15 give the commands/URLs and dates).
 - The emitter-fix list is explicit (E1–E5).
@@ -341,6 +358,8 @@ Ground truth from the installed SDK typings and compiled sources
   115 tests, demo, typecheck, lint, and the CI report diff are green; after
   D2.1, 205 tests (31 in the stdio MCP suite), demo, typecheck, lint,
   format, the schema drift check, and both CI diff steps are green; after
-  D2.2, 214 tests (9 in the skill suite) and `skills-ref validate` are green.
+  D2.2, 214 tests (9 in the skill suite) and `skills-ref validate` are green;
+  after the close-out, 215 tests, `npm run build`, the demo-artifact diff and
+  the site build are green.
 - No secret was printed: `.env` was inspected by key name only and the secret
   was used solely to derive its public key in-process.
