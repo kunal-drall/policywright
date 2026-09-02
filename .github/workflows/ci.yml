@@ -44,6 +44,11 @@ jobs:
       - name: Skill package validates (skills-ref)
         run: npx --yes skills-ref@0.1.5 validate .claude/skills/policywright-grant
 
+      # The published entry points (CLI, library, MCP server) compile under the
+      # build config, not only under tsx.
+      - name: Build (tsc, dist/)
+        run: npm run build
+
       - name: Demo (offline smoke test)
         run: npm run demo
 
@@ -69,6 +74,17 @@ jobs:
           cp examples/live/fresh/synth.args "$RUNNER_TEMP/fresh/"
           diff -r "$RUNNER_TEMP/fresh" examples/live/fresh
           echo "composed configuration and generated policy are reproducible"
+
+      # The artifact the T2 demo script installs (7-day lifetime and spend
+      # window, route enforced, the same deploy-time targets) — installed into
+      # the testnet account as rule ids 4-6 on 2026-09-02 — must be exactly
+      # what synth emits today from its pinned flags.
+      - name: Demo-script artifact matches the committed copy
+        run: |
+          npm run --silent cli -- synth --input examples/live/recorded-claim-swap-fresh.json --out "$RUNNER_TEMP/demo" $(cat examples/live/demo/synth.args) > /dev/null
+          cp examples/live/demo/synth.args "$RUNNER_TEMP/demo/"
+          diff -r "$RUNNER_TEMP/demo" examples/live/demo
+          echo "demo-script artifact is reproducible"
 
   site:
     runs-on: ubuntu-latest
