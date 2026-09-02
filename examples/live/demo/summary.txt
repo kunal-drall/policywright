@@ -1,0 +1,52 @@
+policywright — synthesized smart-account authorization
+======================================================
+
+Source tx : 9fff676c46c5b00afb124cd4f59f63d76177c7b4585bde31a518acf923f0a0b6
+Network   : testnet (recorded from rpc)
+
+Observed flow
+-------------
+  call claim @ CAPBMXIQTICKWFPWFDJWMAKBXBPJZUKLNONQH3MLPLLBKQ643CYN5PRW
+  call swap_exact_tokens_for_tokens @ CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD
+  in   2.1394095 BLND
+  out  2.1394095 BLND
+  in   1.0516011 USDC
+
+Context rule
+------------
+  name        : pw:claim+swap
+  valid until : 1786770912 (unix)
+  scope       :
+    - claim @ CAPBMXIQTICKWFPWFDJWMAKBXBPJZUKLNONQH3MLPLLBKQ643CYN5PRW
+    - swap_exact_tokens_for_tokens @ CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD
+
+Policies (3)
+--------
+  - spending-limit: BLND <= 2.3533505 per 604800s (observed gross out 2.1394095)
+  - frequency-limit: <= 5 call(s) per 86400s
+  - argument-constraint (swap-path): swap_exact_tokens_for_tokens arg[2] (path) restricted to 2 observed token(s)
+
+Argument scopes — ENFORCED (deny)
+--------------
+  - argument-constraint (swap-path): swap_exact_tokens_for_tokens arg[2] (path) restricted to 2 observed token(s)
+
+Installable OZ context rules (3) — see context-rule.json
+----------------------------
+  pw:claim  CallContract(CAPBMXIQTICKWFPWFDJWMAKBXBPJZUKLNONQH3MLPLLBKQ643CYN5PRW)
+    lifetime 120960 ledgers; valid until ledger (head + lifetime at install); observed fns: claim
+    signers: Delegated(GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W)
+    - custom:FrequencyLimitPolicy { window_secs: 86400, max_calls: 5 } @ CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP
+  pw:swap  CallContract(CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD)
+    lifetime 120960 ledgers; valid until ledger (head + lifetime at install); observed fns: swap_exact_tokens_for_tokens
+    signers: Delegated(GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W)
+    - custom:FrequencyLimitPolicy { window_secs: 86400, max_calls: 5 } @ CDSVPSTSKMJ2EEP4FOJ3NNIJZY5DKVA3VV5BM453AOYIWCLD4NMG2ZPP
+  pw:xfer:BLND  CallContract(CB22KRA3YZVCNCQI64JQ5WE7UY2VAV7WFLK6A2JN3HEX56T2EDAFO7QF)
+    lifetime 120960 ledgers; valid until ledger (head + lifetime at install); observed fns: transfer
+    signers: Delegated(GATUKCIMLZTQHNW3IFRNJWJZ5YDT5S2VFSTYMW3EXCKNPYVAYQCKKS3W)
+    - stock:spending_limit { spending_limit: 23533505, period_ledgers: 120960 } (caps BLND transfers) @ CCOQPGEYKZVNDRIUFMP6IQRDUONOURWWDJTXP22SJZ7NICJX7VGS4W4E
+
+  6 composition note(s) in context-rule.json (unit conversions,
+  deltas the stock policies cannot express).
+
+Note: the generated FrequencyLimitPolicy Rust is ILLUSTRATIVE and
+UNAUDITED — a starting point, not deploy-ready code.
