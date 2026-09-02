@@ -464,6 +464,73 @@ describe('verify — decoding and the diff', () => {
     expect(bad.pass).toBe(false);
   });
 
+  it('matches a re-installed artifact through the install log, not the first name hit', () => {
+    // Installing the same artifact again appends ids 4-6 with the same names
+    // and a later valid_until; the log of that install must find THAT set.
+    const later = HEAD + 600_000;
+    const reinstalled: InstalledRule[] = [
+      ...installed,
+      ...doc.contextRules.map((r, i) => ({
+        id: i + 4,
+        contextType: { type: 'CallContract', contract: r.contextType.contract },
+        name: r.name,
+        signers: [{ type: 'Delegated' as const, address: G }],
+        policies: r.policies.map((p) => p.address as string),
+        validUntil: later,
+      })),
+    ];
+    const bothParams = new Map(params);
+    bothParams.set(`4:${FREQ}`, { window_secs: '86400', max_calls: 5 });
+    bothParams.set(`5:${FREQ}`, { window_secs: '86400', max_calls: 5 });
+    bothParams.set(`6:${SPEND}`, { spending_limit: '23533505', period_ledgers: 17280 });
+    const ruleIds = (report: ReturnType<typeof diffRules>): string[] =>
+      report.rows.filter((r) => r.field === 'rule').map((r) => r.actual);
+
+    const newLog = new Map(doc.contextRules.map((r) => [r.name, later]));
+    const viaNewLog = diffRules(doc, reinstalled, {
+      ...base,
+      params: bothParams,
+      expectedValidUntil: newLog,
+    });
+    expect(viaNewLog.pass).toBe(true);
+    expect(ruleIds(viaNewLog)).toEqual([
+      'installed as rule id 4',
+      'installed as rule id 5',
+      'installed as rule id 6',
+    ]);
+    expect(viaNewLog.extraRules.map((r) => r.id)).toEqual([0, 1, 2, 3]);
+
+    const oldLog = new Map(doc.contextRules.map((r) => [r.name, HEAD + 518_400]));
+    const viaOldLog = diffRules(doc, reinstalled, {
+      ...base,
+      params: bothParams,
+      expectedValidUntil: oldLog,
+    });
+    expect(viaOldLog.pass).toBe(true);
+    expect(ruleIds(viaOldLog)).toEqual([
+      'installed as rule id 1',
+      'installed as rule id 2',
+      'installed as rule id 3',
+    ]);
+
+    // Without a log the lowest unmatched ids are taken and the newer set is extra.
+    const noLog = diffRules(doc, reinstalled, { ...base, params: bothParams });
+    expect(noLog.pass).toBe(true);
+    expect(ruleIds(noLog)).toEqual([
+      'installed as rule id 1',
+      'installed as rule id 2',
+      'installed as rule id 3',
+    ]);
+    expect(noLog.extraRules.map((r) => r.id)).toEqual([0, 4, 5, 6]);
+
+    // A log that names a valid_until no installed rule carries still fails honestly.
+    const wrongLog = new Map(doc.contextRules.map((r) => [r.name, 1]));
+    expect(
+      diffRules(doc, reinstalled, { ...base, params: bothParams, expectedValidUntil: wrongLog })
+        .pass,
+    ).toBe(false);
+  });
+
   it('fails on a missing rule, a wrong param, a wrong signer, or an expired rule', () => {
     const missing = diffRules(doc, installed.slice(0, 3), base);
     expect(missing.rows.some((r) => r.field === 'rule' && r.actual === 'not installed')).toBe(true);

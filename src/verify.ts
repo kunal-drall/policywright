@@ -221,8 +221,41 @@ export interface DiffOptions {
 }
 
 /**
+ * Find the installed rule an artifact rule describes. A rule matches by
+ * (context type, CallContract contract, name). The same artifact can be
+ * installed more than once into one account (every install appends new rule
+ * ids with the same names), so when the install log says which `valid_until`
+ * this install produced, the installed rule carrying exactly that value is
+ * preferred; otherwise the lowest-id unmatched match is taken. Each installed
+ * rule is matched at most once (`matched`).
+ */
+export function findInstalledRule(
+  installed: readonly InstalledRule[],
+  rule: ContextRuleDocument['contextRules'][number],
+  expectedValidUntil: number | undefined,
+  matched: Set<number>,
+): InstalledRule | undefined {
+  const candidates = installed.filter(
+    (r) =>
+      r.contextType.type === rule.contextType.type &&
+      r.contextType.contract === rule.contextType.contract &&
+      r.name === rule.name &&
+      !matched.has(r.id),
+  );
+  const found =
+    (expectedValidUntil === undefined
+      ? undefined
+      : candidates.find((r) => r.validUntil === expectedValidUntil)) ?? candidates[0];
+  if (found !== undefined) {
+    matched.add(found.id);
+  }
+  return found;
+}
+
+/**
  * Diff the artifact against what is installed. A rule matches by
- * (CallContract contract, name). Pure and network-free.
+ * (CallContract contract, name) — see {@link findInstalledRule} for how a
+ * re-installed artifact is matched. Pure and network-free.
  */
 export function diffRules(
   doc: ContextRuleDocument,
@@ -232,12 +265,11 @@ export function diffRules(
   const rows: DiffRow[] = [];
   const matched = new Set<number>();
   for (const rule of doc.contextRules) {
-    const found = installed.find(
-      (r) =>
-        r.contextType.type === rule.contextType.type &&
-        r.contextType.contract === rule.contextType.contract &&
-        r.name === rule.name &&
-        !matched.has(r.id),
+    const found = findInstalledRule(
+      installed,
+      rule,
+      options.expectedValidUntil?.get(rule.name),
+      matched,
     );
     if (found === undefined) {
       rows.push({
@@ -249,7 +281,6 @@ export function diffRules(
       });
       continue;
     }
-    matched.add(found.id);
     rows.push({
       rule: rule.name,
       field: 'rule',
@@ -393,9 +424,13 @@ export async function verifyArtifact(
   const { rules, latestLedger } = await readInstalledRules(network, account, rpcUrl);
   const params = new Map<string, InstalledParams>();
   const warnings: string[] = [];
+  const matched = new Set<number>();
   for (const rule of doc.contextRules) {
-    const found = rules.find(
-      (r) => r.contextType.contract === rule.contextType.contract && r.name === rule.name,
+    const found = findInstalledRule(
+      rules,
+      rule,
+      options.expectedValidUntil?.get(rule.name),
+      matched,
     );
     if (found === undefined) {
       continue;
