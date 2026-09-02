@@ -8,9 +8,9 @@ verified from the repository, it says so instead of claiming completion.
 
 **Scope note.** Tranche 1 (D1.1–D1.4 below) was delivered on 2026-08-03 and is
 closed. Tranche 2 is in progress: D2.3 (dry-run harness + argument-level
-scope), D2.4 (composed configuration + generated stateful policy) and D2.5
+scope), D2.4 (composed configuration + generated stateful policy), D2.5
 (testnet smart account with the installed generated policy — fallback signing
-path) are delivered as of 2026-09-02 — see
+path) and D2.1 (the MCP server) are delivered as of 2026-09-02 — see
 [Delivered — Tranche 2](#delivered--tranche-2); the remaining T2 items are
 listed under [Not yet delivered](#not-yet-delivered). Since D1.3 exactly one
 real testnet deployment exists — the generated frequency-limit policy contract
@@ -50,6 +50,11 @@ cp examples/live/fresh/synth.args /tmp/fresh/ && diff -r /tmp/fresh examples/liv
 npm run cli -- verify --artifact examples/live/fresh/context-rule.json \
   --account CBQ6H7ILH54ADWTVS7FCK36W7FY2RJJOWR4VGLZG7D4PZUG5FSA7QHDT \
   --install-log examples/live/testnet/install-20260902T105742Z.json
+# D2.1 — the MCP server: every tool over stdio against committed fixtures (in `npm test`),
+# the committed schemas, and the live registration:
+npx vitest run test/mcp.test.ts
+npm run mcp:schemas -- --check
+claude mcp list          # → policywright … ✓ Connected (from the committed .mcp.json)
 ```
 
 `npm run demo` is a self-checking smoke test: it asserts each dry-run scenario
@@ -861,6 +866,93 @@ lifetime — the install log is the record of the absolute value.
 
 ---
 
+### D2.1 — MCP server
+
+**Criterion (approved, verbatim):** "The server runs locally and an agent
+calls each tool end to end; a reference session is recorded."
+
+**Delivered 2026-09-02 — the server, the four tools, the schemas, the
+network-free end-to-end suite, the registration, and the reference-session
+script.** The human step that remains — running the reference session in
+Claude Code and saving the transcript — is the BLOCKER at the end.
+
+**What shipped.**
+
+| Item               | Where                                                                                                                                                                                                                                                                                                                                             |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Server (stdio)     | [src/mcp/server.ts](../src/mcp/server.ts) — `npm run mcp`; `@modelcontextprotocol/server` **2.0.0** (spec `2026-07-28`, dual-era `serveStdio`), `zod` **4.5.4**, both pinned exactly ([FACTS.md §15](../docs/FACTS.md))                                                                                                                           |
+| Exactly four tools | `record`, `synthesize`, `simulate`, `verify` — [src/mcp/tools.ts](../src/mcp/tools.ts). **No install/deploy/sign/submit tool** (structural rule 5); the server never signs and needs no secret                                                                                                                                                    |
+| Structured I/O     | [src/mcp/schemas.ts](../src/mcp/schemas.ts) — versioned (`schemaVersion: 1`; embedded `contextRule` keeps schema v2); JSON Schemas committed under [schemas/mcp/](../schemas/mcp/) and drift-checked in CI; error envelope `{ ok: false, error: { code, message, source } }` with codes mapped from the existing taxonomies                       |
+| Banner             | every `synthesize` output carries `unauditedBanner` and `rustPolicy.banner` verbatim: "Generated contracts are illustrative and unaudited — not for production deployment until the Audit Bank audit."                                                                                                                                            |
+| Agent-friendliness | tool descriptions say what/when/what-next; `synthesize` returns `notes`, `warnings`, `recordingWarnings`, `scopeNotes` (minimal-permission decisions, scope gaps) and `installable` (would the CLI install it as-is, with the OZ violations otherwise); `simulate` takes the candidate-call format and returns the permit/deny/flag table as data |
+| Config             | `POLICYWRIGHT_NETWORK`, `POLICYWRIGHT_RPC_URL`, `POLICYWRIGHT_ROOT` (env), per-call `network`/`rpcUrl` overrides; nothing hardcoded, no secret ever read ([docs/mcp-server.md](../docs/mcp-server.md#configuration))                                                                                                                              |
+| Determinism map    | written before the code — [docs/mcp-server.md](../docs/mcp-server.md#determinism-map): `synthesize`/`simulate` pure; `record`/`verify` deterministic per (input, chain state)                                                                                                                                                                     |
+| Reuse audit        | [docs/mcp-server.md](../docs/mcp-server.md#reuse-audit--what-each-tool-wraps): every tool wraps library entry points; three CLI-only compositions moved into the library (`verifyArtifact`, `recordedTxToJson`, `evaluateScenarios` — RECONCILIATION-T2 rows 79–81)                                                                               |
+| Registration       | [`.mcp.json`](../.mcp.json) (Claude Code project scope; `claude mcp list` → `✓ Connected`, observed with Claude Code 2.0.76); `claude mcp add` and Claude Desktop forms in the docs                                                                                                                                                               |
+| Reference session  | [docs/mcp-reference-session.md](../docs/mcp-reference-session.md) — seven turns exercising all four tools on the real recorded data and the live testnet account, with the expected tool call and result at each turn                                                                                                                             |
+
+**How to run the server.**
+
+```bash
+npm ci
+npm run mcp                        # stdio; logs to stderr only
+claude mcp list                    # from the repo root: policywright … ✓ Connected
+```
+
+**Tests (network-free, `npm test`, in CI)** — [test/mcp.test.ts](../test/mcp.test.ts),
+31 tests: the REAL server process is spawned over stdio (`node_modules/tsx` on
+`src/mcp/server.ts`, cwd deliberately outside the repo, a fake
+`STELLAR_SECRET_KEY` in its environment) and driven through
+`@modelcontextprotocol/client` against a local stub RPC
+([test/stub-rpc.ts](../test/stub-rpc.ts)) that replays the committed raw
+`getTransaction` captures of the real claim→swap sequence, answers the SEP-41
+metadata getters, and serves the testnet smart account's installed rules and
+policy parameters exactly as recorded in `examples/live/testnet/`. Asserted:
+the tool list is exactly the four (no install/deploy/sign/submit); the
+advertised schemas equal the committed files; `record` reproduces
+[recorded-claim-swap-fresh.json](../examples/live/recorded-claim-swap-fresh.json)
+byte-for-byte and ingests the committed real simulation exchange; `synthesize`
+reproduces every file in [examples/live/fresh/](../examples/live/fresh/) and
+reports the install verdict (four violations for a design artifact, none with
+the pinned targets); `simulate` reproduces both committed reports and evaluates
+caller-supplied candidates; `verify` reproduces
+[testnet/verify.md](../examples/live/testnet/verify.md) (PASS, 15 rows) and
+FAILs correctly against an account with only its admin rule; every error code
+(`BAD_INPUT`, `TX_NOT_FOUND`, `NETWORK`, `SHAPE_INVALID`, the SDK-formatted
+schema error, the unknown-tool protocol error), always as a text-only
+envelope (Claude Code's client validates any `structuredContent` —
+[FACTS.md §15.2](../docs/FACTS.md)); the banner; `now` = the recording
+timestamp; existing output files are never replaced without `overwrite`;
+RPC URLs are redacted; no output contains the fake secret; environment files
+are refused and non-JSON files are not echoed. Suite total: 205 tests.
+
+**CI run for this deliverable:** dispatched after this commit is pushed and
+cited in the follow-up commit (fork: runs are dispatched manually — see the
+D1.2 note).
+
+**BLOCKER — human step (exact instructions).** Run
+[docs/mcp-reference-session.md](../docs/mcp-reference-session.md) in Claude
+Code from the repository root (`npm ci`; `claude`; approve the project server),
+save the unedited transcript as
+`evidence/sessions/mcp-reference-session-<YYYY-MM-DD>.md` (or a screen
+recording for Claude Desktop), note the client version and date, and link it
+here. Turn 2 is expected to return `TX_NOT_FOUND` today (the D2.3 hashes are
+past the node's ~7-day retention window — [FACTS.md §15.4](../docs/FACTS.md));
+a fresh claim→swap gives the success path. Turn 6 reads the live testnet
+account and passes while the D2.5 rules are live (until ledger 4 983 015,
+≈ 2026-10-02).
+
+**Not done (stated plainly).** (1) The reference session has not been run by a
+human yet — the criterion's second clause. (2) The server serves the legacy
+protocol era to Claude Code 2.0.76 (which speaks it to stdio servers by
+default) and the `2026-07-28` era to modern clients; only the legacy handshake
+was observed end to end on this machine (the client library in the tests and
+the probe). (3) `record` by hash is proven against replayed captures, not a
+live node, in the test suite — the live path is the reference session's
+Turn 2 (and Turn 1's live token-metadata resolution).
+
+---
+
 ## Not yet delivered
 
 Stated plainly so no reviewer has to infer it.
@@ -872,7 +964,8 @@ Stated plainly so no reviewer has to infer it.
 | Deploy a generated policy to testnet                             | T1      | **Delivered** (D1.3, 2026-08-03)                                                                                                                                                                                                                      |
 | Resolve `valid_until` ledger-sequence mismatch                   | T1      | **Delivered** (D1.2, 2026-08-03)                                                                                                                                                                                                                      |
 | Resolve context-rule scope granularity                           | T1      | **Delivered** (D1.2, 2026-08-03)                                                                                                                                                                                                                      |
-| MCP server, Claude skill                                         | T2      | Not started ([T2-NOTES.md](../docs/T2-NOTES.md))                                                                                                                                                                                                      |
+| MCP server                                                       | T2      | **Delivered** (D2.1, 2026-09-02); the human-recorded reference session is the open blocker                                                                                                                                                            |
+| Claude skill                                                     | T2      | Not started ([T2-NOTES.md](../docs/T2-NOTES.md))                                                                                                                                                                                                      |
 | Wallet integration (testnet, end-to-end)                         | T2      | **Delivered — fallback path** (D2.5, 2026-09-02): OZ smart account on testnet, emitted rules installed as-is and verified on-chain, signed with the labelled local `.env` key; the Freighter/wallets-kit signing page is the open cohort-wallet track |
 | Composed configuration + generated stateful policy, side by side | T2      | **Delivered** (D2.4, 2026-09-02)                                                                                                                                                                                                                      |
 | Net-new policy codegen with storage segregation                  | T2      | **Delivered** (D2.4, 2026-09-02)                                                                                                                                                                                                                      |
@@ -899,16 +992,17 @@ with no credentials at all.
 
 ## Changelog
 
-| Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-08-03 | File created. Recorded D1–D8 with reproduction steps and artefact hashes. Added the "Not yet delivered" table after correcting the README's Tranche 2 completion claim.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| 2026-08-03 | D1.1 delivered: multi-hash recording of the real claim→swap sequence (committed output + reconciliation table above), simulated-path ingestion with a committed real `simulateTransaction` exchange, typed error taxonomy, capture-driven decoder tests (58 total). Superseded D1's "live path untested / simulated path not built" limits.                                                                                                                                                                                                                                                                                                                                                                                                       |
-| 2026-08-03 | D1.3 delivered: the generated policy as a compiled crate against the real OZ `Policy` trait (25 Rust tests; emitter byte-equality locked in CI), reproducible wasm build, and a hash-verified testnet deployment (`CDSVPSTS…2ZPP`); deploy script + deployment log added; FACTS §1.4–1.6 and §5 record the toolchain, CLI-surface, and deployment facts.                                                                                                                                                                                                                                                                                                                                                                                          |
-| 2026-08-03 | D1.2 delivered: versioned `context-rule.json` (schema v1) with installable OZ rules and real stock `spending_limit` params, emitted and committed for the real recorded sequence; field-by-field install-signature cross-check kept as a CI test; 28 new network-free tests (86 total). Closed the §4.1/§4.2 divergences.                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| 2026-09-02 | D2.5 delivered (fallback path): vendored OZ's example smart account and stock spending-limit wrapper (built from pinned source, hash-verified) and deployed both to testnet; restored the archived D1.3 policy; emitter fixes E1–E5 → `context-rule.json` schema v2 (relative lifetimes, real `Signer` shapes, deployed addresses, `installTargets`); `src/install-shape.ts` install gate; `src/install.ts` (simulate twice, hand-built `AuthPayload` + `Delegated(G)` nested entry, client-side signing, submit) and `src/verify.ts` (on-chain read-back diff) with CLI `install` / `verify`; three rules installed into `CBQ6H7IL…QHDT` (rule ids 1–3) and verified PASS; 29 new tests (174 total). The Delegated(G) path is proven end-to-end. |
-| 2026-09-02 | D2.4 delivered: the compose-first boundary made explicit per policy (`realisePolicies`: composed / generated / offline-only) and documented in `docs/compose-vs-generate.md`; `src/install-shape.ts` validates `context-rule.json` field-by-field against the OZ install signature and encodes install params as the sorted `ScMap` the contracts decode; `synth --out <dir>`; both artifacts for the fresh recording committed side by side under `examples/live/fresh/` and diffed in CI; the dry-run report gains an **Enforced by** column attributing each decision to the artifact that realises it; 30 new tests (145 total); crate re-verified (25 Rust tests, wasm hash reproduced). D3 hashes refreshed.                                |
-| 2026-09-02 | D2.3 delivered: argument-level scope promoted to supported T2 scope (explicit `swap-path` derivation rule, contract-address-shaped; default off); `simulate --input` and `--probe-token`; the unobserved-route scenario is the REAL recorded swap re-routed through the network's native XLM SAC; deny reasons name the violated constraint, flags say "permitted with a scope gap"; reports carry provenance; both reports for the fresh claim→swap recording committed and diffed in CI; 25 new tests (115 total). D3 hashes refreshed; `examples/live/context-rule.json` regenerated (DELTA note wording only). Scope note updated: T1 closed, T2 in progress.                                                                                 |
-| 2026-08-03 | D1.4 delivered: license switched Apache-2.0 → MIT per the funded plan; CI gains Rust caching and a pinned stellar-cli wasm build with hash reporting; README corrected (SCF #44 / "Record-to-Policy MCP + Agent skill" — the #43 / "OZ accounts policy builder" attribution was wrong — and the CI badge now points at this repo); completion criteria recorded per D1.x; demo script with really-executed expected outputs; `.env.example`, CONTRIBUTING.md, repo topics.                                                                                                                                                                                                                                                                        |
+| Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-08-03 | File created. Recorded D1–D8 with reproduction steps and artefact hashes. Added the "Not yet delivered" table after correcting the README's Tranche 2 completion claim.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 2026-08-03 | D1.1 delivered: multi-hash recording of the real claim→swap sequence (committed output + reconciliation table above), simulated-path ingestion with a committed real `simulateTransaction` exchange, typed error taxonomy, capture-driven decoder tests (58 total). Superseded D1's "live path untested / simulated path not built" limits.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| 2026-08-03 | D1.3 delivered: the generated policy as a compiled crate against the real OZ `Policy` trait (25 Rust tests; emitter byte-equality locked in CI), reproducible wasm build, and a hash-verified testnet deployment (`CDSVPSTS…2ZPP`); deploy script + deployment log added; FACTS §1.4–1.6 and §5 record the toolchain, CLI-surface, and deployment facts.                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 2026-08-03 | D1.2 delivered: versioned `context-rule.json` (schema v1) with installable OZ rules and real stock `spending_limit` params, emitted and committed for the real recorded sequence; field-by-field install-signature cross-check kept as a CI test; 28 new network-free tests (86 total). Closed the §4.1/§4.2 divergences.                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 2026-09-02 | D2.1 delivered: the MCP server (`@modelcontextprotocol/server` 2.0.0, stdio, dual-era) with exactly four tools — `record`, `synthesize`, `simulate`, `verify` — wrapping the library; versioned Zod/JSON schemas (`schemas/mcp/`, drift-checked in CI); typed error envelope; unaudited banner on every generated-code output; `synthesize` notes/warnings/scope-notes/installable channel; env-only config, no secret; project-scope `.mcp.json`; `docs/mcp-server.md` (determinism map, reuse audit) and `docs/mcp-reference-session.md`; `verifyArtifact`, `recordedTxToJson`, `evaluateScenarios` extracted from the CLI; `verify` maps transport failures to `NETWORK` and rejects checksum-invalid accounts; 31 new stdio tests against a stub RPC replaying the committed captures (205 total). |
+| 2026-09-02 | D2.5 delivered (fallback path): vendored OZ's example smart account and stock spending-limit wrapper (built from pinned source, hash-verified) and deployed both to testnet; restored the archived D1.3 policy; emitter fixes E1–E5 → `context-rule.json` schema v2 (relative lifetimes, real `Signer` shapes, deployed addresses, `installTargets`); `src/install-shape.ts` install gate; `src/install.ts` (simulate twice, hand-built `AuthPayload` + `Delegated(G)` nested entry, client-side signing, submit) and `src/verify.ts` (on-chain read-back diff) with CLI `install` / `verify`; three rules installed into `CBQ6H7IL…QHDT` (rule ids 1–3) and verified PASS; 29 new tests (174 total). The Delegated(G) path is proven end-to-end.                                                      |
+| 2026-09-02 | D2.4 delivered: the compose-first boundary made explicit per policy (`realisePolicies`: composed / generated / offline-only) and documented in `docs/compose-vs-generate.md`; `src/install-shape.ts` validates `context-rule.json` field-by-field against the OZ install signature and encodes install params as the sorted `ScMap` the contracts decode; `synth --out <dir>`; both artifacts for the fresh recording committed side by side under `examples/live/fresh/` and diffed in CI; the dry-run report gains an **Enforced by** column attributing each decision to the artifact that realises it; 30 new tests (145 total); crate re-verified (25 Rust tests, wasm hash reproduced). D3 hashes refreshed.                                                                                     |
+| 2026-09-02 | D2.3 delivered: argument-level scope promoted to supported T2 scope (explicit `swap-path` derivation rule, contract-address-shaped; default off); `simulate --input` and `--probe-token`; the unobserved-route scenario is the REAL recorded swap re-routed through the network's native XLM SAC; deny reasons name the violated constraint, flags say "permitted with a scope gap"; reports carry provenance; both reports for the fresh claim→swap recording committed and diffed in CI; 25 new tests (115 total). D3 hashes refreshed; `examples/live/context-rule.json` regenerated (DELTA note wording only). Scope note updated: T1 closed, T2 in progress.                                                                                                                                      |
+| 2026-08-03 | D1.4 delivered: license switched Apache-2.0 → MIT per the funded plan; CI gains Rust caching and a pinned stellar-cli wasm build with hash reporting; README corrected (SCF #44 / "Record-to-Policy MCP + Agent skill" — the #43 / "OZ accounts policy builder" attribution was wrong — and the CI badge now points at this repo); completion criteria recorded per D1.x; demo script with really-executed expected outputs; `.env.example`, CONTRIBUTING.md, repo topics.                                                                                                                                                                                                                                                                                                                             |
 
 ## Deployment log
 
