@@ -171,12 +171,24 @@ describe('simulateCall — argument scopes', () => {
 describe('renderReport', () => {
   it('renders a Markdown table with an icon per decision', () => {
     const results: SimulationResult[] = [
-      { label: 'ok', decision: 'permit', reasonCode: 'permit', reason: 'fine' },
-      { label: 'bad', decision: 'deny', reasonCode: 'scope', reason: 'out of scope' },
-      { label: 'odd', decision: 'flag', reasonCode: 'argument-constraint', reason: 'unseen route' },
+      { label: 'ok', decision: 'permit', reasonCode: 'permit', reason: 'fine', enforcedBy: '—' },
+      {
+        label: 'bad',
+        decision: 'deny',
+        reasonCode: 'scope',
+        reason: 'out of scope',
+        enforcedBy: 'context rule scope',
+      },
+      {
+        label: 'odd',
+        decision: 'flag',
+        reasonCode: 'argument-constraint',
+        reason: 'unseen route',
+        enforcedBy: 'dry-run harness only',
+      },
     ];
     const report = renderReport(results);
-    expect(report).toContain('| Scenario | Decision | Reason |');
+    expect(report).toContain('| Scenario | Decision | Enforced by | Reason |');
     expect(report).toContain('✅ permit');
     expect(report).toContain('⛔ deny');
     expect(report).toContain('⚠️ flag');

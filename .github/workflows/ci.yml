@@ -46,6 +46,15 @@ jobs:
             | diff - examples/live/simulation-report.constrained.md
           echo "both committed reports are reproducible"
 
+      # D2.4: the side-by-side artifacts for the same recording — the composed
+      # spending_limit configuration and the generated FrequencyLimitPolicy —
+      # must be exactly what synth emits today.
+      - name: Live side-by-side artifacts (composed config + generated policy) match the committed copies
+        run: |
+          npm run --silent cli -- synth --input examples/live/recorded-claim-swap-fresh.json --out "$RUNNER_TEMP/fresh" > /dev/null
+          diff -r "$RUNNER_TEMP/fresh" examples/live/fresh
+          echo "composed configuration and generated policy are reproducible"
+
   site:
     runs-on: ubuntu-latest
     steps:

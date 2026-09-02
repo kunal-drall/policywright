@@ -426,4 +426,33 @@ export interface SimulationResult {
   readonly reasonCode: string;
   /** Human-readable explanation. */
   readonly reason: string;
+  /**
+   * Which artifact realises the check that decided: a composed stock OZ
+   * policy binding, the generated policy contract, the context rule itself,
+   * or the offline harness alone (no on-chain artifact). `—` for a permit.
+   */
+  readonly enforcedBy: string;
+}
+
+/**
+ * How a synthesised policy is realised on-chain — the compose-first decision
+ * made explicit per policy (see docs/compose-vs-generate.md).
+ *
+ * - `composed`     — a stock OpenZeppelin policy expresses it; only params are emitted.
+ * - `generated`    — no stock policy can; policywright emits a policy contract.
+ * - `offline-only` — no on-chain realisation exists yet; the dry-run harness
+ *                    enforces it and `context-rule.json` records the delta.
+ */
+export type RealisationKind = 'composed' | 'generated' | 'offline-only';
+
+/** One policy's realisation, with the binding(s) and rule(s) that carry it. */
+export interface PolicyRealisation {
+  readonly policy: PolicySpec;
+  readonly kind: RealisationKind;
+  /** The binding id (`stock:spending_limit`, `custom:FrequencyLimitPolicy`) or `dry-run harness`. */
+  readonly via: string;
+  /** Names of the OZ context rules the binding is attached to (empty for offline-only). */
+  readonly rules: readonly string[];
+  /** Why this realisation (the compose-first rule that applied). */
+  readonly because: string;
 }

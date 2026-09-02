@@ -150,7 +150,7 @@ export function contextRuleJson(tx: RecordedTx, spec: SmartAccountSpec): string 
 }
 
 /** One human-readable line describing an OZ policy binding. */
-function describeBinding(binding: OzPolicyBinding): string {
+export function describeBinding(binding: OzPolicyBinding): string {
   switch (binding.policy) {
     case 'stock:spending_limit':
       return `stock:spending_limit { spending_limit: ${binding.installParams.spending_limit}, period_ledgers: ${binding.installParams.period_ledgers} } (caps ${tokenLabel(binding.derivedFrom.asset)} transfers)`;

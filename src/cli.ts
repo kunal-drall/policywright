@@ -12,7 +12,8 @@
  * flag left out keeps its documented default from DEFAULT_SYNTH_CONFIG.
  */
 
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { emit } from './emitter.js';
 import { runDemo } from './demo.js';
 import { loadFixture } from './sources/fixture.js';
@@ -59,6 +60,9 @@ merges them into ONE RecordedTx ordered by ledger close time.
 Synthesis flags (defaults in parentheses):
   --input <recorded.json>    synthesize from a saved record output instead of
                              the baked-in fixture (e.g. examples/live/recorded-claim-swap.json)
+  --out <dir>                (synth) write spec.json, context-rule.json, summary.txt
+                             and FrequencyLimitPolicy.rs into <dir> instead of
+                             printing them
   --lifetime <secs>          context-rule lifetime (${D.lifetimeSecs})
   --spend-window <secs>      spend-cap rolling window (${D.spendWindowSecs})
   --cap-multiplier <number>  cap = observed gross out * this (${D.capMultiplier})
@@ -168,10 +172,24 @@ function recordedTxToJson(tx: RecordedTx): string {
   );
 }
 
-function cmdSynth(config: SynthConfig, inputPath: string | undefined): void {
+function cmdSynth(
+  config: SynthConfig,
+  inputPath: string | undefined,
+  outDir: string | undefined,
+): void {
   const tx = inputPath === undefined ? loadFixture() : loadRecordedTx(inputPath);
   const spec = synthesize(tx, config, tx.timestamp ?? 0);
   const artifacts = emit(tx, spec);
+  if (outDir !== undefined) {
+    mkdirSync(outDir, { recursive: true });
+    writeFileSync(join(outDir, 'summary.txt'), artifacts.summary);
+    writeFileSync(join(outDir, 'spec.json'), `${artifacts.specJson}\n`);
+    writeFileSync(join(outDir, 'context-rule.json'), `${artifacts.contextRuleJson}\n`);
+    writeFileSync(join(outDir, 'FrequencyLimitPolicy.rs'), artifacts.rustPolicy);
+    process.stdout.write(artifacts.summary);
+    process.stdout.write(`Artefacts written to ${outDir}/\n`);
+    return;
+  }
   process.stdout.write(artifacts.summary);
   process.stdout.write('\n--- spec.json ---\n');
   process.stdout.write(`${artifacts.specJson}\n`);
@@ -265,7 +283,7 @@ async function main(): Promise<void> {
       return;
     case 'synth': {
       const flags = parseFlags(rest);
-      cmdSynth(parseSynthConfig(flags), flags.get('input'));
+      cmdSynth(parseSynthConfig(flags), flags.get('input'), flags.get('out'));
       return;
     }
     case 'simulate': {

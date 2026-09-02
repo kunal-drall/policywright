@@ -14,12 +14,15 @@
  * If every check passes, the call is permitted.
  */
 
-import { describePolicy, formatAmount } from './emitter.js';
+import { describeBinding, describePolicy, formatAmount } from './emitter.js';
 import { CONTRACT_ADDRESS_SHAPE, nativeSacContractId } from './network.js';
+import { realisePolicies } from './synthesizer.js';
 import type {
   ArgumentConstraintPolicy,
   CallArg,
   CandidateCall,
+  PolicyRealisation,
+  PolicySpec,
   RecordedTx,
   SimulationResult,
   SmartAccountSpec,
@@ -114,6 +117,32 @@ function describeViolation(
   return `${scope.fnName} arg[${scope.argIndex}] ${scope.argName} (rule ${scope.rule}) must stay within the observed token set {${allowed}}; candidate routes through unobserved ${violating}`;
 }
 
+/** Short statement of which artifact realises a policy (for the report). */
+function realisationLabel(r: PolicyRealisation): string {
+  switch (r.kind) {
+    case 'composed':
+      return `composed ${r.via} on rule ${r.rules.join(', ')}`;
+    case 'generated':
+      return `generated ${r.via} (FrequencyLimitPolicy.rs) on rules ${r.rules.join(', ')}`;
+    case 'offline-only':
+      return `${r.via} only — no on-chain artifact yet`;
+  }
+}
+
+/** What enforces a given policy, looked up from the spec's realisations. */
+function enforcedByPolicy(spec: SmartAccountSpec, policy: PolicySpec): string {
+  const realisation = realisePolicies(spec).find((r) => r.policy === policy);
+  return realisation === undefined ? 'dry-run harness only' : realisationLabel(realisation);
+}
+
+/** The context rule's own scope model (contract + observed function). */
+const ENFORCED_BY_SCOPE =
+  'context rule scope — CallContract(contract) on-chain; the function-level narrowing is the harness model (a generated policy would be needed on-chain)';
+/** The context rule's own lifetime. */
+const ENFORCED_BY_LIFETIME =
+  'context rule valid_until — a ledger sequence on-chain (storage.rs:282); seconds in the harness';
+const ENFORCED_BY_ADVISORY = 'dry-run harness only — advisory, no on-chain artifact';
+
 /**
  * Evaluate one candidate call against the spec.
  *
@@ -131,6 +160,7 @@ export function simulateCall(
       decision: 'deny',
       reasonCode: 'scope',
       reason: `${candidate.fnName} @ ${candidate.contract} is outside the context rule's scope`,
+      enforcedBy: ENFORCED_BY_SCOPE,
     };
   }
 
@@ -141,6 +171,7 @@ export function simulateCall(
       decision: 'deny',
       reasonCode: 'lifetime',
       reason: `call at ${candidate.timestamp} is after the rule expires at ${spec.contextRule.validUntil}`,
+      enforcedBy: ENFORCED_BY_LIFETIME,
     };
   }
 
@@ -156,6 +187,7 @@ export function simulateCall(
         decision: 'deny',
         reasonCode: 'argument-constraint',
         reason: `argument constraint violated: ${describeViolation(policy, bad, labels)}`,
+        enforcedBy: enforcedByPolicy(spec, policy),
       };
     }
   }
@@ -174,6 +206,7 @@ export function simulateCall(
         decision: 'deny',
         reasonCode: 'spending-limit',
         reason: `outflow of ${sent} ${policy.asset.symbol} exceeds the ${cap} cap per ${policy.windowSecs}s`,
+        enforcedBy: enforcedByPolicy(spec, policy),
       };
     }
   }
@@ -188,6 +221,7 @@ export function simulateCall(
         decision: 'deny',
         reasonCode: 'frequency-limit',
         reason: `this would be call ${prior + 1} within ${frequency.windowSecs}s, over the cap of ${frequency.maxCalls}`,
+        enforcedBy: enforcedByPolicy(spec, frequency),
       };
     }
   }
@@ -202,6 +236,7 @@ export function simulateCall(
           decision: 'flag',
           reasonCode: 'argument-constraint',
           reason: `permitted with a scope gap (constrainArguments is off, so this constraint is advisory): ${describeViolation(scope, bad, labels)}; enable --constrain-arguments to deny it`,
+          enforcedBy: ENFORCED_BY_ADVISORY,
         };
       }
     }
@@ -212,6 +247,7 @@ export function simulateCall(
     decision: 'permit',
     reasonCode: 'permit',
     reason: 'within scope, lifetime, argument, spend cap, and frequency limits',
+    enforcedBy: '—',
   };
 }
 
@@ -442,8 +478,15 @@ export function renderReport(
     lines.push(
       `Generated policy set (context rule \`${spec.contextRule.name}\`, ${spec.policies.length} enforced polic${spec.policies.length === 1 ? 'y' : 'ies'}):`,
     );
-    for (const policy of spec.policies) {
-      lines.push(`- ${describePolicy(policy)}`);
+    for (const r of realisePolicies(spec)) {
+      const binding = spec.ozContextRules
+        .flatMap((rule) => rule.policies)
+        .find((b) => b.policy === r.via);
+      const via =
+        r.kind === 'offline-only' || binding === undefined
+          ? realisationLabel(r)
+          : `${r.kind}: ${describeBinding(binding)} on rule${r.rules.length === 1 ? '' : 's'} ${r.rules.join(', ')}`;
+      lines.push(`- ${describePolicy(r.policy)} — ${via}`);
     }
     if (spec.argumentScopes.length > 0) {
       lines.push(
@@ -455,15 +498,15 @@ export function renderReport(
     }
     lines.push('');
     lines.push(
-      'Decisions: ✅ permit — every check passed; ⛔ deny — the named check failed; ⚠️ flag — every enforced check passed (the call would be permitted) but an advisory argument constraint was violated.',
+      'Decisions: ✅ permit — every check passed; ⛔ deny — the named check failed; ⚠️ flag — every enforced check passed (the call would be permitted) but an advisory argument constraint was violated. "Enforced by" names the artifact that realises the deciding check: a composed stock OZ policy, the generated policy contract, the context rule itself, or the offline harness alone.',
     );
     lines.push('');
   }
-  lines.push('| Scenario | Decision | Reason |');
-  lines.push('| --- | --- | --- |');
+  lines.push('| Scenario | Decision | Enforced by | Reason |');
+  lines.push('| --- | --- | --- | --- |');
   for (const r of results) {
     lines.push(
-      `| ${r.label} | ${icon(r.decision)} ${r.decision} (${r.reasonCode}) | ${r.reason} |`,
+      `| ${r.label} | ${icon(r.decision)} ${r.decision} (${r.reasonCode}) | ${r.enforcedBy} | ${r.reason} |`,
     );
   }
   lines.push('');

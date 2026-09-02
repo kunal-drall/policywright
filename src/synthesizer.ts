@@ -23,6 +23,7 @@ import {
   type InvocationNode,
   type OzContextRule,
   type OzPolicyBinding,
+  type PolicyRealisation,
   type PolicySpec,
   type RecordedTx,
   type ScopedCall,
@@ -452,6 +453,74 @@ function deriveOzContextRules(
     });
   }
   return { rules, notes };
+}
+
+/**
+ * The compose-first decision, made explicit per synthesised policy.
+ *
+ * Decision boundary as implemented (docs/compose-vs-generate.md):
+ * 1. A spending limit whose asset the subject directly `transfer`red (so a
+ *    `CallContract(token)` rule exists) is COMPOSED: the stock OZ
+ *    `spending_limit` is bound with real install params. Never generated.
+ * 2. A spending limit with no such transfer cannot fire through the stock
+ *    policy (it meters `transfer` only) and no policywright codegen covers
+ *    it yet → OFFLINE-ONLY (DELTA note; harness enforces).
+ * 3. The frequency limit has no stock counterpart → GENERATED
+ *    (`FrequencyLimitPolicy`), bound to every called-contract rule.
+ * 4. Argument constraints have no stock counterpart and no codegen yet →
+ *    OFFLINE-ONLY.
+ */
+export function realisePolicies(spec: SmartAccountSpec): PolicyRealisation[] {
+  const rulesWith = (predicate: (b: OzPolicyBinding) => boolean): string[] =>
+    spec.ozContextRules.filter((r) => r.policies.some(predicate)).map((r) => r.name);
+
+  return spec.policies.map((policy): PolicyRealisation => {
+    switch (policy.kind) {
+      case 'spending-limit': {
+        const rules = rulesWith(
+          (b) =>
+            b.policy === 'stock:spending_limit' &&
+            b.derivedFrom.asset.contractId === policy.asset.contractId,
+        );
+        if (rules.length > 0) {
+          return {
+            policy,
+            kind: 'composed',
+            via: 'stock:spending_limit',
+            rules,
+            because:
+              'the stock spending_limit expresses a per-window cap on direct transfers, and the subject authorized a direct transfer of this token (FACTS §2.4–2.5)',
+          };
+        }
+        return {
+          policy,
+          kind: 'offline-only',
+          via: 'dry-run harness',
+          rules: [],
+          because:
+            'the stock spending_limit meters direct transfer calls only and the recording shows no subject-authorized transfer of this token; no policywright codegen covers it yet (DELTA note in context-rule.json)',
+        };
+      }
+      case 'frequency-limit':
+        return {
+          policy,
+          kind: 'generated',
+          via: 'custom:FrequencyLimitPolicy',
+          rules: rulesWith((b) => b.policy === 'custom:FrequencyLimitPolicy'),
+          because:
+            'OpenZeppelin ships no call-frequency policy (FACTS §2.4), so policywright generates one implementing the real Policy trait',
+        };
+      case 'argument-constraint':
+        return {
+          policy,
+          kind: 'offline-only',
+          via: 'dry-run harness',
+          rules: [],
+          because:
+            'no stock policy scopes argument values and the argument-checking policy codegen is not built yet (docs/T2-NOTES.md)',
+        };
+    }
+  });
 }
 
 /**

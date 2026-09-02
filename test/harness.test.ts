@@ -276,7 +276,7 @@ describe('report rendering', () => {
       'Argument constraints (`constrainArguments: true`): ENFORCED — a violation is denied.',
     );
     expect(report).toContain(
-      '| BLND→XLM swap (route through unobserved XLM) | ⛔ deny (argument-constraint) | argument constraint violated: ',
+      '| BLND→XLM swap (route through unobserved XLM) | ⛔ deny (argument-constraint) | dry-run harness only — no on-chain artifact yet | argument constraint violated: ',
     );
     expect(report).toContain(`- XLM = ${XLM_SAC} — native XLM Stellar Asset Contract on testnet`);
   });
@@ -288,7 +288,7 @@ describe('report rendering', () => {
     );
     expect(report).toContain('2 enforced policies');
     expect(report).toContain(
-      '| BLND→XLM swap (route through unobserved XLM) | ⚠️ flag (argument-constraint) | permitted with a scope gap',
+      '| BLND→XLM swap (route through unobserved XLM) | ⚠️ flag (argument-constraint) | dry-run harness only — advisory, no on-chain artifact | permitted with a scope gap',
     );
     expect(report).toContain('⚠️ flag — every enforced check passed (the call would be permitted)');
     expect(report).toContain(`- BLND = ${BLND}`);
@@ -300,7 +300,7 @@ describe('report rendering', () => {
     const results = buildScenarios(spec, tx).map((s) => simulateCall(spec, s.candidate));
     const report = renderReport(results);
     expect(report).not.toContain('Recording:');
-    expect(report).toContain('| Scenario | Decision | Reason |');
+    expect(report).toContain('| Scenario | Decision | Enforced by | Reason |');
     // Without labels the reason still names the constraint and the raw address.
     expect(report).toContain(`routes through unobserved ${XLM_SAC}`);
   });
