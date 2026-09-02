@@ -1280,6 +1280,119 @@ Read at ledger 4464624: rules 1–3 exactly as emitted (`examples/live/testnet/v
 
 ---
 
+## GATE 15 — D2.1 MCP server, as built (verified 2026-09-02)
+
+### 15.1 Pinned packages
+
+| Package                        | Version   | Role                       | Verified by                                          |
+| ------------------------------ | --------- | -------------------------- | ---------------------------------------------------- |
+| `@modelcontextprotocol/server` | `2.0.0`   | dependency (exact)         | `npm ls`, `npm view` (2026-07-28; `latest`)          |
+| `@modelcontextprotocol/core`   | `2.0.0`   | transitive (server/client) | `npm ls`                                             |
+| `@modelcontextprotocol/client` | `2.0.0`   | devDependency (exact)      | `npm ls`                                             |
+| `zod`                          | `4.5.4`   | dependency (exact)         | `npm view zod` (`latest`, 2026-08-29); peer `^4.2.0` |
+| `tsx` (server launcher)        | `^4.20.6` | devDependency (unchanged)  | `node_modules/tsx/dist/cli.mjs` runs `src/cli.ts`    |
+| Claude Code CLI (this machine) | `2.0.76`  | agent host used to verify  | `claude --version`                                   |
+
+### 15.2 SDK surface used (from the installed typings and compiled sources)
+
+- `serveStdio(factory, { legacy?: 'serve' \| 'reject', transport?, onerror?,
+maxSubscriptions? })` — `server/dist/stdio.d.mts`; `legacy` defaults to
+  `'serve'`, so one factory serves the 2026-07-28 era and the legacy
+  `initialize` era. Observed: a `2025-06-18` `initialize` request over stdio is
+  answered with `protocolVersion: "2025-06-18"` and the server's `serverInfo`;
+  `tools/list` follows (probe script, this session).
+- `McpServer.registerTool(name, { title?, description?, inputSchema?,
+outputSchema?, annotations?, icons?, _meta? }, cb)` with Standard-Schema
+  objects (`z.object(...)`); the raw-shape overload is `@deprecated`
+  (`server/dist/createMcpHandler-*.d.mts:3300-3320`). `ToolAnnotations` =
+  `{ title?, readOnlyHint?, destructiveHint?, idempotentHint?, openWorldHint? }`;
+  `Implementation` = `{ name, version, title?, description?, websiteUrl?, icons? }`
+  (`core/dist/auth-*.d.mts`).
+- **Tool dispatch semantics** (`server/dist/mcp-*.mjs:1394-1424`): an input
+  that fails the schema throws `ProtocolError(InvalidParams)` which the
+  `tools/call` handler catches and returns as
+  `{ content: [{ type: 'text', text: 'Input validation error: …' }], isError: true }`
+  with **no** `structuredContent`; a thrown error inside the callback becomes
+  the same text-only `isError` shape; output validation runs only when
+  `!result.isError` and, when an `outputSchema` exists, requires
+  `structuredContent`; an unknown tool is a `ProtocolError(InvalidParams)`
+  (JSON-RPC `-32602`), which the client raises as an exception. Consequence:
+  policywright's tools return their error envelope themselves instead of
+  throwing (`src/mcp/tools.ts` `runTool`/`toToolError`).
+- **Client-side output validation.** The v1 client bundled in Claude Code
+  2.0.76 (`@anthropic-ai/claude-code/cli.js`) validates `structuredContent`
+  against the tool's advertised `outputSchema` **whenever it is present**,
+  `isError` or not: `if(G.structuredContent)try{let Y=Z(G.structuredContent);
+if(!Y.valid)throw new w9(E4.InvalidParams,\`Structured content does not match
+  the tool's output schema: …\`)}`(and`!G.isError`guards only the
+  missing-structured-content check). The v2 SDK client and server skip
+  validation on`isError`. Consequence: an error result must **not** carry
+  the envelope as `structuredContent` (it cannot match a success schema) —
+  the server puts it in the single text block only (`src/mcp/server.ts`
+  `toResult`).
+- **JSON Schema advertised in `tools/list`**: `standardSchemaToJsonSchema`
+  calls `schema['~standard'].jsonSchema[io]({ target: 'draft-2020-12' })`
+  (zod ≥ 4.2) and stamps `type: 'object'` (`server/dist/src-*.mjs:5280-5330`).
+  Observed equal to `z.toJSONSchema(schema, { target: 'draft-2020-12', io })`
+  for the same schema; the server's advertised schemas deep-equal the
+  committed `schemas/mcp/*.json` (`test/mcp.test.ts`).
+- Client (`@modelcontextprotocol/client`): `new Client({ name, version })`,
+  `connect(new StdioClientTransport({ command, args, env, cwd, stderr }))`,
+  `listTools()`, `callTool({ name, arguments })` →
+  `{ content, structuredContent?, isError? }`, `getServerVersion()`,
+  `getInstructions()` (`client/dist/index.d.mts:1889-2450`,
+  `client/dist/stdio.d.mts`). Passing `env` replaces the child's environment;
+  `getDefaultEnvironment()` supplies the safe baseline.
+
+### 15.3 Agent registration, as observed
+
+- `claude mcp add [-s local|user|project] [-t stdio|sse|http] [-e KEY=value]
+<name> <commandOrUrl> [args...]` (`claude mcp add --help`, 2.0.76).
+- The committed project-scope `.mcp.json` uses **relative** `command`/`args`
+  (`node node_modules/tsx/dist/cli.mjs src/mcp/server.ts`); from the
+  repository root `claude mcp list` reports `policywright: … ✓ Connected`,
+  i.e. Claude Code 2.0.76 spawns project-scope servers with the project root
+  as the working directory. `${CLAUDE_PROJECT_DIR}` expansion was not needed
+  and not exercised. Claude Desktop still requires absolute paths (§9.4).
+- `npm run --silent mcp` writes only JSON-RPC lines to stdout; the one-line
+  startup banner goes to stderr (probe script). Tools are callable as
+  `mcp__policywright__record|synthesize|simulate|verify`.
+
+### 15.4 Chain and SDK facts the stub RPC and the reference session rely on
+
+- Public testnet RPC retention: `ledgerRetentionWindow: 120960` ledgers
+  (`getHealth` in the committed captures' `nodeContext`, 2026-08-02/08) —
+  about 7 days. The D2.3 hashes closed at ledger 4029100 (2026-08-08) and the
+  head is ≈ 4.46 M at D2.5, so `record` by those hashes now returns
+  `TX_NOT_FOUND`; the reference session states this and uses the committed
+  recording (proven byte-identical to the raw captures) plus the committed
+  real simulation exchange (whose token metadata still resolves live).
+- `getTransaction` NOT_FOUND raw shape the SDK returns verbatim:
+  `{ status, latestLedger, latestLedgerCloseTime, oldestLedger, oldestLedgerCloseTime }`
+  (used by `src/sources/rpc.ts`); SUCCESS is parsed by `parseTransactionInfo`
+  from `envelopeXdr`, `resultXdr`, `resultMetaXdr`, `ledger`, `createdAt`,
+  `applicationOrder`, `feeBump`, `events.contractEventsXdr`
+  (`@stellar/stellar-sdk/lib/rpc/parsers.js:38-78`) — the committed captures
+  carry exactly these, so the stub replays `response.result` verbatim.
+- `simulateTransaction` raw shapes: success needs `transactionData`,
+  `minResourceFee`, `results[0].xdr` (+ `auth`), `latestLedger`
+  (`parsers.js:95-160` `parseSuccessful`); an error is `{ error, latestLedger,
+events }` and `Api.isSimulationError` is `'error' in sim`
+  (`lib/rpc/api.js:16-31`). The SDK's JSON-RPC client posts
+  `{ jsonrpc: '2.0', id: 1, method, params }` and returns `result`, throwing
+  `error` when present (`lib/rpc/jsonrpc.js`).
+- A transport failure inside `server.simulateTransaction` surfaces as a raw
+  axios error; `src/verify.ts` now maps it to `InstallError('NETWORK')` the way
+  `src/sources/rpc.ts` already did for `getTransaction`.
+- Node 22's `JSON.parse` `SyntaxError` quotes the input's first bytes
+  (observed: `Unexpected token 'S', "STELLAR_SE"... is not valid JSON`), so
+  the server's file reader reports a non-JSON file without the parser message
+  and refuses `.env*` basenames outright.
+- `StrKey.isValidContract` distinguishes a shape-valid from a checksum-valid
+  `C…` address; the SDK's `Contract` constructor throws a generic
+  `Invalid contract ID` for the former, which `verify` now rejects as
+  `BAD_INPUT` before any RPC call.
+
 ## Changelog
 
 | Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
@@ -1292,3 +1405,4 @@ Read at ledger 4464624: rules 1–3 exactly as emitted (`examples/live/testnet/v
 | 2026-09-02 | D2.3 session: added §12 — native XLM SAC addresses per network computed with the pinned SDK and cross-checked against the live-resolved `native` token; the fresh claim→swap recording proven byte-identical to its raw captures offline (decoded args, ledgers, flows; XLM absent); the `swap-path` derivation rule as implemented (contract-address shape, arg[2] on the Soroswap signature); `npm run --silent` stdout diffability. Also regenerated `examples/live/context-rule.json` (DELTA note wording only) and the fixture artefacts under `examples/`.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | 2026-09-02 | D2.4 session: added §13 — install params encode as sorted `ScMap`s with the pinned SDK (spending-limit XDR pinned), the generated crate re-verified (25 tests, wasm hash `42227f2b…` reproduced, emitted source byte-identical), and the compose/generate decision boundary as implemented.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | 2026-09-02 | D2.5 session: added §14 — vendored OZ account + spending-limit wrapper built and deployed to testnet (hashes, addresses, txs), the D1.3 policy restored, the stellar-cli constructor JSON form, the Delegated(G) install path proven end-to-end (two auth entries, enforcing simulation, three successful transactions), the getter read-back shapes; `stellar contract build` requirement for the two vendored crates.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 2026-09-02 | D2.1 session: added §15 — MCP SDK v2 pins as installed (`server`/`client`/`core` 2.0.0, zod 4.5.4), the `serveStdio`/`registerTool` surface from the installed typings, the tool-dispatch semantics that force tools to return their own error envelope (input-schema failures and thrown errors are text-only `isError` results), JSON Schema conversion equality with `z.toJSONSchema`, Claude Code 2.0.76 `claude mcp add` flags and the observed project-root cwd for `.mcp.json`, clean-stdout probe, testnet RPC retention (120960 ledgers) and the raw `getTransaction`/`simulateTransaction` shapes the stub RPC mirrors, the transport-error and checksum edge cases fixed in `verify`.                                                                                                                                                                                                                                                                                                     |
