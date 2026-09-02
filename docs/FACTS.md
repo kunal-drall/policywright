@@ -1393,6 +1393,41 @@ events }` and `Api.isSimulationError` is `'error' in sim`
   `Invalid contract ID` for the former, which `verify` now rejects as
   `BAD_INPUT` before any RPC call.
 
+## GATE 16 — D2.2 skill packaging, as verified (2026-09-02)
+
+- **The installed Claude Code (2.0.76) carries the project-skill loader.**
+  Its bundle (`@anthropic-ai/claude-code/cli.js`, 11 MB) contains the
+  markers `.claude/skills` (4×), `SKILL.md` (5×), `allowed-tools` (12×),
+  `argument-hint`, `disable-model-invocation`, `user-invocable`,
+  `when_to_use` — i.e. the `.claude/skills/<name>/SKILL.md` location and the
+  Claude-Code frontmatter extensions of §10 are implemented in this version
+  (static evidence: `grep -o` over the bundle; a runtime load is the human
+  demo). `claude --help` lists `mcp` and `plugin` subcommands (`plugin
+validate <path>` validates a plugin/marketplace manifest, not a bare skill);
+  there is no `skills` subcommand.
+- **Reference validator.** `skills-ref` 0.1.5 on npm (`validate`,
+  `read-properties`, `to-prompt`). `npx --yes skills-ref@0.1.5 validate
+.claude/skills/policywright-grant` → `Valid skill: …`; `read-properties`
+  echoes the six fields as parsed (`name`, `description`, `license`,
+  `compatibility`, `allowed-tools` as one space-separated string, `metadata`
+  as a string map). CI runs the validator.
+- **Frontmatter used.** Only the six spec fields (§10) — no Claude-Code-only
+  keys — so the same package is portable to the other surfaces; the tools
+  are referenced as `mcp__policywright__<tool>` and pre-approved through
+  `allowed-tools`. `SKILL.md` body 195 lines; two references one level deep.
+- **The skill's questions need facts the recording cannot carry.** A rule
+  installs as-is only with a signer and deployed policy addresses
+  (`installTargets`, schema v2 — §13/§14); the skill asks for them (trigger
+  T5) and the demo supplies the D2.5 testnet addresses.
+- **Machine walkthrough.** `test/skill.test.ts` parses every "Expected tool
+  call" JSON block in `docs/skill-demo-script.md` and
+  `docs/mcp-reference-session.md`, validates each against the committed
+  input schemas, and executes them in order against the real server over
+  stdio (shared `test/mcp-harness.ts`, stub RPC): 4 calls for the demo
+  (record → synthesize → synthesize → simulate; installable false then true;
+  1 permit / 5 deny / 0 flag) and 6 for the reference session (all succeed on
+  replayed captures; live, its Turn 2 is `TX_NOT_FOUND` — §15.4).
+
 ## Changelog
 
 | Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
@@ -1406,3 +1441,4 @@ events }` and `Api.isSimulationError` is `'error' in sim`
 | 2026-09-02 | D2.4 session: added §13 — install params encode as sorted `ScMap`s with the pinned SDK (spending-limit XDR pinned), the generated crate re-verified (25 tests, wasm hash `42227f2b…` reproduced, emitted source byte-identical), and the compose/generate decision boundary as implemented.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | 2026-09-02 | D2.5 session: added §14 — vendored OZ account + spending-limit wrapper built and deployed to testnet (hashes, addresses, txs), the D1.3 policy restored, the stellar-cli constructor JSON form, the Delegated(G) install path proven end-to-end (two auth entries, enforcing simulation, three successful transactions), the getter read-back shapes; `stellar contract build` requirement for the two vendored crates.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | 2026-09-02 | D2.1 session: added §15 — MCP SDK v2 pins as installed (`server`/`client`/`core` 2.0.0, zod 4.5.4), the `serveStdio`/`registerTool` surface from the installed typings, the tool-dispatch semantics that force tools to return their own error envelope (input-schema failures and thrown errors are text-only `isError` results), JSON Schema conversion equality with `z.toJSONSchema`, Claude Code 2.0.76 `claude mcp add` flags and the observed project-root cwd for `.mcp.json`, clean-stdout probe, testnet RPC retention (120960 ledgers) and the raw `getTransaction`/`simulateTransaction` shapes the stub RPC mirrors, the transport-error and checksum edge cases fixed in `verify`.                                                                                                                                                                                                                                                                                                     |
+| 2026-09-02 | D2.2 session: added §16 — Claude Code 2.0.76 carries the project-skill loader (bundle markers), `skills-ref` 0.1.5 validates the package, six spec fields only, the deploy-time facts the skill must ask for, and the machine walkthrough of both scripts over the real server.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |

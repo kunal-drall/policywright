@@ -263,6 +263,18 @@ Ground truth from the installed SDK typings and compiled sources
 
 ---
 
+## GATE 11 — D2.2: the skill, as packaged vs. as assumed (2026-09-02)
+
+| #   | Assumption                                                                                  | Actual (verified 2026-09-02)                                                                                                                                                                                               | Impact                                                                                                                         | Source                                                       |
+| --- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| 96  | The installed Claude Code (2.0.76) predates the skills docs and may not load project skills | ✓/precise: its bundle carries the `.claude/skills` / `SKILL.md` loader and the `allowed-tools` handling (FACTS §16); a runtime load was not exercised in this session                                                      | The package is placed at `.claude/skills/policywright-grant/`; the human demo is the runtime proof and is the EVIDENCE blocker | FACTS §16                                                    |
+| 97  | A skill can only be validated by hand                                                       | ✗ `skills-ref validate` (agentskills.io reference library) validates the package; the structure, guardrails and triggers are asserted in `test/skill.test.ts`; both scripts are executed against the real server           | Validator in CI; the walkthrough runs in `npm test`                                                                            | `.github/workflows/ci.yml`; `test/skill.test.ts`             |
+| 98  | The demo can record the criterion's transactions live                                       | ✗ The D2.3 hashes are past the node's retention window (row 84); the script states the live `TX_NOT_FOUND` branch and continues with the committed recording, while the machine walkthrough replays the captures           | Honest two-branch Turn 1 in `docs/skill-demo-script.md`; a fresh claim→swap gives the live path                                | `docs/skill-demo-script.md`                                  |
+| 99  | The clarification questions can be answered from the recording alone                        | ✗/precise: cap, lifetime and route are; the signer and deployed policy addresses are deploy-time facts the recording cannot carry (E2/E3, rows 30–31) — without them `installable.asIs` is false                           | Trigger T5 asks for them; the demo supplies the D2.5 testnet addresses; `installable` flips false → true in the walkthrough    | `test/skill.test.ts` "the skill demo script hits record → …" |
+| 100 | Claude-Code-only frontmatter keys are needed for a usable skill                             | ✗ The six spec fields suffice: `description` carries the "use when" trigger, `allowed-tools` pre-approves the four `mcp__policywright__*` tools; no `argument-hint`/`user-invocable` needed, so the package stays portable | Frontmatter limited to the six fields; asserted by the test                                                                    | FACTS §10, §16                                               |
+
+---
+
 ## Summary of discrepancies (inputs to the T2 prompts)
 
 1. **No prebuilt account** (row 28): build the OZ example / Wizard-shaped
@@ -313,10 +325,14 @@ Ground truth from the installed SDK typings and compiled sources
     without consent; URLs redacted; scope notes read the spec; unevaluated
     argument constraints are declared; `.mcp.json` works relative;
     annotations honest.
+15. **D2.2 skill packaged** (rows 96–100): the installed client carries the
+    loader; the reference validator and a machine walkthrough replace
+    hand-validation; the demo's Turn 1 is honestly two-branched; the
+    deploy-time facts are asked for; six spec fields suffice.
 
 ## Self-validation
 
-- No gated field is "unknown"/"TODO": rows 28–95 each carry an actual value
+- No gated field is "unknown"/"TODO": rows 28–100 each carry an actual value
   and a source; every source was read or executed this session (FACTS §7–§11,
   §15 give the commands/URLs and dates).
 - The emitter-fix list is explicit (E1–E5).
@@ -324,6 +340,7 @@ Ground truth from the installed SDK typings and compiled sources
   were green before and after the pre-flight (no code touched); after D2.3,
   115 tests, demo, typecheck, lint, and the CI report diff are green; after
   D2.1, 205 tests (31 in the stdio MCP suite), demo, typecheck, lint,
-  format, the schema drift check, and both CI diff steps are green.
+  format, the schema drift check, and both CI diff steps are green; after
+  D2.2, 214 tests (9 in the skill suite) and `skills-ref validate` are green.
 - No secret was printed: `.env` was inspected by key name only and the secret
   was used solely to derive its public key in-process.

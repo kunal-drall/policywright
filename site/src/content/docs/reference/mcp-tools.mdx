@@ -74,6 +74,20 @@ network. `record` and `verify` read the chain and are deterministic per
 (input, chain state). The full map, written before the code, is in
 [docs/mcp-server.md](https://github.com/kunal-drall/policywright/blob/main/docs/mcp-server.md#determinism-map).
 
+## The skill
+
+The project skill
+[`policywright-grant`](https://github.com/kunal-drall/policywright/tree/main/.claude/skills/policywright-grant)
+wraps the four tools in a conversation — "grant permission to do X from this
+transaction" — that records, synthesizes, presents the rule in plain
+language, asks the clarification questions (cap, lifetime, route
+constraint, signer and policy addresses, anything that changes scope),
+re-synthesizes, dry-runs, and hands over the artifacts. It never installs.
+The demo conversation is
+[docs/skill-demo-script.md](https://github.com/kunal-drall/policywright/blob/main/docs/skill-demo-script.md);
+the package and the script are validated and executed by
+[test/skill.test.ts](https://github.com/kunal-drall/policywright/blob/main/test/skill.test.ts).
+
 ## The reference session
 
 The conversation to run in Claude Code against the real recorded data and the

@@ -13,6 +13,18 @@ codegen with storage segregation, wallet integration (testnet, end-to-end).
 
 ## Delivered
 
+### D2.2 — Claude skill (2026-09-02)
+
+Criterion: _"Skill packaged; a demo shows 'grant permission to do X from
+this transaction' producing a reviewed policy."_ The `policywright-grant`
+skill (`.claude/skills/policywright-grant/`, six spec fields, `allowed-tools`
+= the four MCP tools), the clarification-trigger list (written first), the
+demo script, the external validator in CI, and a machine walkthrough of the
+demo script against the real server are delivered
+([EVIDENCE.md § D2.2](../evidence/EVIDENCE.md#d22--claude-skill)). The
+human-recorded demo conversation is the BLOCKER listed there. Not built, by
+rule: any install/deploy capability in the skill.
+
 ### D2.1 — MCP server (2026-09-02)
 
 Criterion: _"The server runs locally and an agent calls each tool end to end;
@@ -116,7 +128,9 @@ blocker) and the Claude skill that wraps the tools.
 
 ### Claude skill
 
-Packaged agent skill over the MCP server. Not started.
+Delivered as **D2.2** (2026-09-02) — see the Delivered section above. What
+remains here is only the human-recorded demo conversation (the EVIDENCE
+blocker).
 
 ### Wallet integration (testnet, end-to-end)
 
