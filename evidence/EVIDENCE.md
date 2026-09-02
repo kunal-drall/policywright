@@ -812,8 +812,13 @@ and the D2.4 boundary tests now reading `synth.args`. Rust: the vendored
 account's own 2 OZ tests run in `cargo test`; CI builds all three wasms and
 asserts their hashes against the deployed ones.
 
-**CI run for this deliverable:** _pending — dispatched after push; run URL
-recorded here once green._
+**CI run for this deliverable:**
+[run 33622880981](https://github.com/kunal-drall/policywright/actions/runs/33622880981)
+— all three jobs green on commit `7ac99cf` (`build`: lint → format → typecheck
+→ 174 tests → demo → live reports and side-by-side artefacts diffed with
+`synth.args`; `site`: docs build; `contracts`: fmt → clippy → 27 Rust tests →
+three wasm builds asserted against the deployed hashes `42227f2b…`,
+`1815dda1…`, `5a45420d…`). Dispatched manually (fork).
 
 **BLOCKERS — human steps (exact instructions).**
 
