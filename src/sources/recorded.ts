@@ -191,6 +191,37 @@ export function parseRecordedJson(doc: unknown): RecordedTx {
   };
 }
 
+/**
+ * Serialise a RecordedTx to the JSON the recorder prints and this module
+ * loads back: bigints as decimal strings, byte arguments as `hex:<...>`
+ * strings (JSON.stringify would otherwise explode a Uint8Array into an
+ * index-keyed object). Shared by the CLI (`record`) and the MCP `record` tool.
+ */
+export function recordedTxToJson(tx: RecordedTx): string {
+  return JSON.stringify(
+    tx,
+    // Must be a `function` (not arrow) to reach `this[key]`: JSON.stringify
+    // applies Buffer.prototype.toJSON BEFORE the replacer sees the value, so
+    // byte arguments must be intercepted on the holder object.
+    function (this: Record<string, unknown>, key: string, value: unknown) {
+      const raw = this[key];
+      if (raw instanceof Uint8Array) {
+        return `hex:${Buffer.from(raw).toString('hex')}`;
+      }
+      if (typeof value === 'bigint') {
+        return value.toString();
+      }
+      return value;
+    },
+    2,
+  );
+}
+
+/** The same serialisation as {@link recordedTxToJson}, as a plain JSON value. */
+export function recordedTxToJsonValue(tx: RecordedTx): Record<string, unknown> {
+  return JSON.parse(recordedTxToJson(tx)) as Record<string, unknown>;
+}
+
 /** Load and parse a saved recorder output from disk. */
 export function loadRecordedTx(path: string): RecordedTx {
   let raw: string;

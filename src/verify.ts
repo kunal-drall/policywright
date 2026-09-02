@@ -75,7 +75,15 @@ async function simulateCall(
     .addOperation(new Contract(contract).call(method, ...args))
     .setTimeout(30)
     .build();
-  const sim = await server.simulateTransaction(tx);
+  let sim: rpc.Api.SimulateTransactionResponse;
+  try {
+    sim = await server.simulateTransaction(tx);
+  } catch (cause) {
+    throw new InstallError(
+      'NETWORK',
+      `RPC request for ${method} on ${contract} failed: ${(cause as Error).message}. Check the RPC endpoint and network.`,
+    );
+  }
   if (rpc.Api.isSimulationError(sim)) {
     throw new InstallError('NETWORK', `simulating ${method} on ${contract} failed: ${sim.error}`);
   }
@@ -324,6 +332,106 @@ export function diffRules(
     rows,
     extraRules,
   };
+}
+
+/**
+ * The per-rule `valid_until` an install log recorded, keyed by rule name —
+ * the `--install-log` input of `verify`. Throws BAD_INPUT on any other shape.
+ */
+export function expectedValidUntilFromInstallLog(log: unknown): Map<string, number> {
+  const results =
+    typeof log === 'object' && log !== null
+      ? (log as Record<string, unknown>)['results']
+      : undefined;
+  if (!Array.isArray(results)) {
+    throw new InstallError(
+      'BAD_INPUT',
+      'install log must be a policywright install log with a results array',
+    );
+  }
+  const out = new Map<string, number>();
+  results.forEach((r: unknown, i) => {
+    const row = r as { rule?: unknown; validUntil?: unknown };
+    if (typeof row.rule !== 'string' || typeof row.validUntil !== 'number') {
+      throw new InstallError(
+        'BAD_INPUT',
+        `install log results[${i}] must carry a rule name and a numeric validUntil`,
+      );
+    }
+    out.set(row.rule, row.validUntil);
+  });
+  return out;
+}
+
+/** Options for {@link verifyArtifact}. */
+export interface VerifyOptions {
+  readonly network: Network;
+  readonly account: string;
+  readonly rpcUrl?: string;
+  /** From {@link expectedValidUntilFromInstallLog}, when an install log is supplied. */
+  readonly expectedValidUntil?: ReadonlyMap<string, number>;
+}
+
+/** The outcome of {@link verifyArtifact}: the report plus non-fatal read warnings. */
+export interface VerifyOutcome {
+  readonly report: VerifyReport;
+  /** Policy params that could not be read back (the row then shows `unreadable`). */
+  readonly warnings: readonly string[];
+}
+
+/**
+ * Verify an emitted artifact against what a smart account has installed:
+ * read every rule, read the params of each bound policy the account actually
+ * carries, and diff. Read-only. This is the composition the CLI `verify`
+ * command and the MCP `verify` tool share; {@link diffRules} is its pure core.
+ */
+export async function verifyArtifact(
+  doc: ContextRuleDocument,
+  options: VerifyOptions,
+): Promise<VerifyOutcome> {
+  const { network, account, rpcUrl } = options;
+  const { rules, latestLedger } = await readInstalledRules(network, account, rpcUrl);
+  const params = new Map<string, InstalledParams>();
+  const warnings: string[] = [];
+  for (const rule of doc.contextRules) {
+    const found = rules.find(
+      (r) => r.contextType.contract === rule.contextType.contract && r.name === rule.name,
+    );
+    if (found === undefined) {
+      continue;
+    }
+    for (const binding of rule.policies) {
+      if (binding.address !== null && found.policies.includes(binding.address)) {
+        try {
+          params.set(
+            `${found.id}:${binding.address}`,
+            await readInstalledParams(
+              network,
+              binding.policy,
+              binding.address,
+              found.id,
+              account,
+              rpcUrl,
+            ),
+          );
+        } catch (cause) {
+          warnings.push(
+            `could not read ${binding.policy} params for rule ${found.id}: ${(cause as Error).message}`,
+          );
+        }
+      }
+    }
+  }
+  const report = diffRules(doc, rules, {
+    account,
+    network,
+    latestLedger,
+    params,
+    ...(options.expectedValidUntil === undefined
+      ? {}
+      : { expectedValidUntil: options.expectedValidUntil }),
+  });
+  return { report, warnings };
 }
 
 /** Render a verification report as Markdown. */

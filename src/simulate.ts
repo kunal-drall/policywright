@@ -444,6 +444,83 @@ export function buildScenarios(
   return scenarios;
 }
 
+/** Options for {@link evaluateScenarios}. */
+export interface EvaluateOptions extends ScenarioOptions {
+  /** Extra candidate calls to evaluate after the standard scenarios (no expectation attached). */
+  readonly candidates?: readonly CandidateCall[];
+  /** Skip the standard scenario set and evaluate only `candidates` (default: include both). */
+  readonly standardScenarios?: boolean;
+}
+
+/** One evaluated row: the result plus the scenario's expectation, when it had one. */
+export interface EvaluatedScenario {
+  readonly result: SimulationResult;
+  /** Present for the standard scenarios; absent for caller-supplied candidates. */
+  readonly expected?: {
+    readonly decision: SimulationResult['decision'];
+    readonly reasonCode: string;
+  };
+}
+
+/** What {@link evaluateScenarios} returns. */
+export interface Evaluation {
+  readonly probe: ProbeToken;
+  readonly labels: TokenLabels;
+  readonly rows: readonly EvaluatedScenario[];
+  /** The results in row order (the shape {@link renderReport} takes). */
+  readonly results: readonly SimulationResult[];
+  /** The Markdown report with its provenance header. */
+  readonly report: string;
+  /** Rows whose decision or reason code deviated from the scenario's expectation. */
+  readonly deviations: readonly EvaluatedScenario[];
+}
+
+/**
+ * Run the dry run for a spec + recording: the standard scenarios (and any
+ * extra candidates), each evaluated with the recording's token labels, plus
+ * the rendered report. This is the composition the CLI `simulate`, the demo
+ * self-check, and the MCP `simulate` tool share.
+ */
+export function evaluateScenarios(
+  spec: SmartAccountSpec,
+  tx: RecordedTx,
+  options: EvaluateOptions = {},
+): Evaluation {
+  const probe = probeTokenFor(spec, tx, options.probeToken);
+  const labels = tokenLabelsFor(tx, probe);
+  const scenarios =
+    options.standardScenarios === false
+      ? []
+      : buildScenarios(
+          spec,
+          tx,
+          options.probeToken === undefined ? {} : { probeToken: options.probeToken },
+        );
+  const rows: EvaluatedScenario[] = [
+    ...scenarios.map((s) => ({
+      result: simulateCall(spec, s.candidate, labels),
+      expected: { decision: s.expectedDecision, reasonCode: s.expectedReasonCode },
+    })),
+    ...(options.candidates ?? []).map((candidate) => ({
+      result: simulateCall(spec, candidate, labels),
+    })),
+  ];
+  const results = rows.map((r) => r.result);
+  const deviations = rows.filter(
+    (r) =>
+      r.expected !== undefined &&
+      (r.result.decision !== r.expected.decision || r.result.reasonCode !== r.expected.reasonCode),
+  );
+  return {
+    probe,
+    labels,
+    rows,
+    results,
+    report: renderReport(results, { tx, spec, probe }),
+    deviations,
+  };
+}
+
 /** What a report was evaluated against, rendered as its provenance header. */
 export interface ReportContext {
   readonly tx: RecordedTx;

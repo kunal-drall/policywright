@@ -52,6 +52,11 @@ const RPC_URLS: Record<Network, string> = {
   futurenet: 'https://rpc-futurenet.stellar.org',
 };
 
+/** The public RPC endpoint the recorder uses for a network unless overridden. */
+export function defaultRpcUrl(network: Network): string {
+  return RPC_URLS[network];
+}
+
 /**
  * A throwaway, all-zero source account for read-only simulations. Simulation
  * does not verify or charge the source, so this account need not exist.

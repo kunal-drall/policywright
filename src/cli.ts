@@ -30,26 +30,14 @@ import {
 } from './install.js';
 import { parseContextRuleDocument, validateContextRuleDocument } from './install-shape.js';
 import { CONTRACT_ADDRESS_SHAPE, isContractAddressShaped } from './network.js';
-import {
-  diffRules,
-  readInstalledParams,
-  readInstalledRules,
-  renderVerifyReport,
-  type InstalledParams,
-} from './verify.js';
+import { expectedValidUntilFromInstallLog, renderVerifyReport, verifyArtifact } from './verify.js';
 import { runDemo } from './demo.js';
 import { loadFixture } from './sources/fixture.js';
-import { loadRecordedTx } from './sources/recorded.js';
+import { loadRecordedTx, recordedTxToJson } from './sources/recorded.js';
 import { recordFromHashes, tokenResolverFor } from './sources/rpc.js';
 import { ingestSimulation } from './sources/simulation.js';
 import { badInput } from './sources/errors.js';
-import {
-  buildScenarios,
-  probeTokenFor,
-  renderReport,
-  simulateCall,
-  tokenLabelsFor,
-} from './simulate.js';
+import { evaluateScenarios } from './simulate.js';
 import { synthesize } from './synthesizer.js';
 import {
   DEFAULT_SYNTH_CONFIG,
@@ -263,31 +251,6 @@ function parseNetwork(value: string | undefined): Network {
   return value;
 }
 
-/**
- * Serialise a RecordedTx to JSON: bigints as decimal strings, byte arguments
- * as `hex:<...>` strings (JSON.stringify would otherwise explode a Uint8Array
- * into an index-keyed object).
- */
-function recordedTxToJson(tx: RecordedTx): string {
-  return JSON.stringify(
-    tx,
-    // Must be a `function` (not arrow) to reach `this[key]`: JSON.stringify
-    // applies Buffer.prototype.toJSON BEFORE the replacer sees the value, so
-    // byte arguments must be intercepted on the holder object.
-    function (this: Record<string, unknown>, key: string, value: unknown) {
-      const raw = this[key];
-      if (raw instanceof Uint8Array) {
-        return `hex:${Buffer.from(raw).toString('hex')}`;
-      }
-      if (typeof value === 'bigint') {
-        return value.toString();
-      }
-      return value;
-    },
-    2,
-  );
-}
-
 function cmdSynth(
   config: SynthConfig,
   inputPath: string | undefined,
@@ -321,12 +284,8 @@ function cmdSimulate(
 ): void {
   const tx = inputPath === undefined ? loadFixture() : loadRecordedTx(inputPath);
   const spec = synthesize(tx, config, tx.timestamp ?? 0);
-  const probe = probeTokenFor(spec, tx, probeToken);
-  const labels = tokenLabelsFor(tx, probe);
-  const results = buildScenarios(spec, tx, probeToken === undefined ? {} : { probeToken }).map(
-    (s) => simulateCall(spec, s.candidate, labels),
-  );
-  process.stdout.write(`${renderReport(results, { tx, spec, probe })}\n`);
+  const evaluation = evaluateScenarios(spec, tx, probeToken === undefined ? {} : { probeToken });
+  process.stdout.write(`${evaluation.report}\n`);
 }
 
 /** Positional (non-flag) arguments, skipping each flag's value token. */
@@ -518,52 +477,22 @@ async function cmdVerify(rest: readonly string[]): Promise<void> {
   const account = requireAccount(flags);
   const rpcUrl = flags.get('rpc-url');
   const { doc } = loadArtifact(flags.get('artifact'), false);
-  const { rules, latestLedger } = await readInstalledRules(network, account, rpcUrl);
-  const params = new Map<string, InstalledParams>();
-  for (const rule of doc.contextRules) {
-    const found = rules.find(
-      (r) => r.contextType.contract === rule.contextType.contract && r.name === rule.name,
-    );
-    if (found === undefined) {
-      continue;
-    }
-    for (const binding of rule.policies) {
-      if (binding.address !== null && found.policies.includes(binding.address)) {
-        try {
-          params.set(
-            `${found.id}:${binding.address}`,
-            await readInstalledParams(
-              network,
-              binding.policy,
-              binding.address,
-              found.id,
-              account,
-              rpcUrl,
-            ),
-          );
-        } catch (cause) {
-          process.stderr.write(
-            `warning: could not read ${binding.policy} params for rule ${found.id}: ${(cause as Error).message}\n`,
-          );
-        }
-      }
-    }
-  }
   let expectedValidUntil: Map<string, number> | undefined;
   const logPath = flags.get('install-log');
   if (logPath !== undefined) {
-    const log = JSON.parse(readFileSync(logPath, 'utf8')) as {
-      results: { rule: string; validUntil: number }[];
-    };
-    expectedValidUntil = new Map(log.results.map((r) => [r.rule, r.validUntil]));
+    expectedValidUntil = expectedValidUntilFromInstallLog(
+      JSON.parse(readFileSync(logPath, 'utf8')),
+    );
   }
-  const report = diffRules(doc, rules, {
-    account,
+  const { report, warnings } = await verifyArtifact(doc, {
     network,
-    latestLedger,
-    params,
+    account,
+    ...(rpcUrl === undefined ? {} : { rpcUrl }),
     ...(expectedValidUntil === undefined ? {} : { expectedValidUntil }),
   });
+  for (const warning of warnings) {
+    process.stderr.write(`warning: ${warning}\n`);
+  }
   const rendered = renderVerifyReport(report);
   process.stdout.write(`${rendered}\n`);
   const out = flags.get('out');
