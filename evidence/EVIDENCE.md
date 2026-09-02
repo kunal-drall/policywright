@@ -547,14 +547,17 @@ build/render facts from headless Chrome in both themes, the 174-URL link
 check, every command re-run); reconciliation rows 107–113 in
 [RECONCILIATION-T2.md](../docs/RECONCILIATION-T2.md).
 
-**CI run for this work:**
+**CI runs for this work:**
+[run 33679794459](https://github.com/kunal-drall/policywright/actions/runs/33679794459)
+— all three jobs green on `f0a8d94`, the final state of this pass — and
 [run 33679049443](https://github.com/kunal-drall/policywright/actions/runs/33679049443)
-— all three jobs green on commit `659ebe5` (`build`: lint → format →
+— all three jobs green on the first commit `659ebe5` (`build`: lint → format →
 typecheck → 215 tests → MCP schema drift check → `skills-ref validate` →
 `tsc` build → demo → live reports, side-by-side artefacts and the demo-script
 artifact diffed; `site`: the docs build with the four new pages;
 `contracts`: fmt → clippy → Rust tests → three wasm builds asserted against
-the deployed hashes). Dispatched manually (fork).
+the deployed hashes). Both dispatched manually (fork); the intermediate
+commits `c5ca364` and `f414eb5` are documentation-only.
 
 **Not done (stated plainly).** The live site is not redeployed by this work:
 the Vercel project has no git integration and the CLI here has no
