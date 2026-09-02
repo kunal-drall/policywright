@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["frequency-limit-policy"]
+members = ["frequency-limit-policy", "multisig-account", "spending-limit-policy"]
 
 [workspace.package]
 edition = "2021"
@@ -13,6 +13,7 @@ version = "0.1.0"
 # pins soroban-sdk 26.1.0; compiling against OZ v0.7.2 means using 26.1.0.
 soroban-sdk = "=26.1.0"
 stellar-accounts = "=0.7.2"
+stellar-contract-utils = "=0.7.2"
 
 # Mirrors the OZ stellar-contracts v0.7.2 workspace release profile.
 [profile.release]

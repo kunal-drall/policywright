@@ -945,6 +945,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
+name = "multisig-account"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+ "stellar-accounts",
+ "stellar-contract-utils",
+]
+
+[[package]]
 name = "num-bigint"
 version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1545,6 +1554,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "spending-limit-policy"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+ "stellar-accounts",
+]
+
+[[package]]
 name = "spin"
 version = "0.9.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1580,6 +1597,15 @@ checksum = "e3fd796d2412b3f5dc2573fd9233cf7748773d9f99faa956c16a94d1b2b5b67d"
 dependencies = [
  "serde",
  "serde-json-core",
+ "soroban-sdk",
+]
+
+[[package]]
+name = "stellar-contract-utils"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c45490c0ca2176bf9283445f59734ab304b17153f55fe9155de7f5cdffa4a85"
+dependencies = [
  "soroban-sdk",
 ]
 

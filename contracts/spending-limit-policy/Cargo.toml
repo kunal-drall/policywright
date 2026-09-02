@@ -1,0 +1,19 @@
+[package]
+name = "spending-limit-policy"
+edition.workspace = true
+license = "MIT"
+repository.workspace = true
+version.workspace = true
+publish = false
+description = "OpenZeppelin's spending-limit policy wrapper example (stellar-contracts v0.7.2), vendored verbatim: the deployable form of the stock spending_limit module policywright composes."
+
+[lib]
+crate-type = ["lib", "cdylib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+stellar-accounts = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }

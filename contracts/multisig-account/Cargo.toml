@@ -1,0 +1,20 @@
+[package]
+name = "multisig-account"
+edition.workspace = true
+license = "MIT"
+repository.workspace = true
+version.workspace = true
+publish = false
+description = "OpenZeppelin's multisig smart-account example (stellar-contracts v0.7.2), vendored verbatim so the account policywright installs into is built from pinned source."
+
+[lib]
+crate-type = ["lib", "cdylib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+stellar-accounts = { workspace = true }
+stellar-contract-utils = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
