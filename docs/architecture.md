@@ -136,8 +136,12 @@ check, and — when an argument constraint was derived — the REAL observed swa
 through a **probe token**: the recording network's native XLM Stellar Asset Contract
 (address derived from the network passphrase in `src/network.ts`; `--probe-token` to
 override; a synthetic placeholder only if XLM itself was observed). `renderReport` formats
-results as Markdown with a provenance header (recording, generated policy set, mode,
-decision legend) and a token legend, so a committed report is self-describing.
+results as Markdown with a provenance header (recording, generated policy set — each policy
+annotated with its realisation: composed stock binding, generated contract, or offline-only
+— mode, decision legend), an **Enforced by** column attributing each decision to the
+artifact that realises the deciding check, and a token legend, so a committed report is
+self-describing. The realisation itself comes from `realisePolicies` in the synthesizer
+([compose vs. generate](compose-vs-generate.md)).
 
 ## Design choices
 

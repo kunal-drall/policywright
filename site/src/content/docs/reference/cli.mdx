@@ -18,7 +18,7 @@ with defaults defined in
 | Command                                        | What it does                                                                                                                              |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `npm run demo`                                 | End-to-end pipeline + dry-run self-check (offline). Exits non-zero if a scenario deviates.                                                 |
-| `npm run cli -- synth`                         | Synthesize a spec from the baked-in fixture (or `--input <recorded.json>`) and print the summary + `spec.json` + `context-rule.json`.      |
+| `npm run cli -- synth`                         | Synthesize a spec from the baked-in fixture (or `--input <recorded.json>`) and print the summary + `spec.json` + `context-rule.json`; with `--out <dir>` write all four artefacts (incl. `FrequencyLimitPolicy.rs`) to a directory. |
 | `npm run cli -- simulate`                      | Run the dry-run scenarios against the fixture's spec (or `--input <recorded.json>`) and print the permit / deny / flag report.             |
 | `npm run record -- <txHash> [<txHash> ...]`    | Fetch one or more live transactions by hash and print them merged (ledger-close-time order) as ONE `RecordedTx` JSON.                      |
 | `npm run record -- --from-simulation <file>`   | Ingest a saved `simulateTransaction` exchange instead of fetching hashes (`source: "simulation"`). Cannot be combined with hashes.         |
@@ -35,6 +35,7 @@ Anything omitted keeps its default.
 | Flag                        | Default         | Meaning                                                        |
 | --------------------------- | --------------- | -------------------------------------------------------------- |
 | `--input <recorded.json>`   | baked-in fixture | Synthesize (and, for `simulate`, dry-run) from a saved `record` output — e.g. `examples/live/recorded-claim-swap-fresh.json` — instead of the fixture. |
+| `--out <dir>`               | print to stdout | **`synth` only.** Write `summary.txt`, `spec.json`, `context-rule.json`, and `FrequencyLimitPolicy.rs` into `<dir>` (e.g. `examples/live/fresh`).  |
 | `--lifetime <secs>`         | `2592000` (30d) | Context-rule lifetime (sets `valid_until` = synth time + this). |
 | `--spend-window <secs>`     | `86400` (1d)    | Rolling window the spend cap is measured over.                  |
 | `--cap-multiplier <number>` | `1.1`           | Cap = observed gross outflow × this (rounded up).               |

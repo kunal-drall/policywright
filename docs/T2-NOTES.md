@@ -38,6 +38,19 @@ Still true, and stated in the README: the constraint is a token **set** (no
 ordering, hop count, or amounts); `swap-path` is the only rule; enforcement is
 offline-only until the policy codegen below exists.
 
+### D2.4 — Composed configuration + generated stateful policy (2026-09-02)
+
+Criterion: _"Generates both a composed-policy configuration and a net-new
+stateful policy contract; both compile and pass simulation."_ Delivered;
+evidence in
+[EVIDENCE.md § D2.4](../evidence/EVIDENCE.md#d24--composed-configuration--generated-stateful-policy).
+The boundary is documented once in
+[compose-vs-generate.md](compose-vs-generate.md) and asserted in
+`test/compose-boundary.test.ts`; both artifacts for the real recording sit in
+`examples/live/fresh/`; `src/install-shape.ts` is the configuration's
+"compile" (OZ install-signature validation + `ScVal` encoding) and the
+installer's only input path.
+
 ---
 
 ## Deferred to T2
@@ -68,10 +81,12 @@ for T2 is exactly the _policy codegen_ half: a generated policy whose
 
 ### Net-new policy codegen with storage segregation
 
-The current generated `FrequencyLimitPolicy` keys storage on
-`(smart_account, context_rule.id)`, which is already per-account. T2 wants this
-generalised and stated as a deliberate multi-tenancy design across all generated
-policies, with tests.
+Delivered as D2.4 for the one generated policy: `FrequencyLimitPolicy` keys all
+state on `(smart_account, context_rule.id)` — the stock-policy pattern — with
+isolation tests in both directions, and the compose/generate boundary is
+documented and asserted ([compose-vs-generate.md](compose-vs-generate.md)).
+What remains here is generalising the same segregation to any further generated
+policy (the argument/function-scoping policy above).
 
 ### MCP server
 

@@ -60,12 +60,12 @@ any scenario deviates, so it doubles as a smoke test. It needs no network access
 
 ## Commands
 
-| Command                                                                                                      | What it does                                                                                                                                              |
-| ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run demo`                                                                                               | End-to-end pipeline + dry-run self-check (offline).                                                                                                       |
-| `npm run cli -- synth [--input <recorded.json>]`                                                             | Synthesize from the fixture (or a saved record output, e.g. `examples/live/recorded-claim-swap.json`) and print the summary, spec, and context-rule JSON. |
-| `npm run cli -- simulate [--input <recorded.json>] [--constrain-arguments] [--probe-token <C…>]`             | Run the dry-run scenarios against the fixture's spec (or a saved recording's) and print the permit / deny / flag report.                                  |
-| `npm run record -- <txHash>... [--account <G\|C>] [--network testnet\|mainnet\|futurenet] [--rpc-url <url>]` | Fetch live transaction(s) by hash and print one merged recording. `record --from-simulation <file>` ingests a saved simulation instead.                   |
+| Command                                                                                                      | What it does                                                                                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `npm run demo`                                                                                               | End-to-end pipeline + dry-run self-check (offline).                                                                                                                                                                            |
+| `npm run cli -- synth [--input <recorded.json>] [--out <dir>]`                                               | Synthesize from the fixture (or a saved record output, e.g. `examples/live/recorded-claim-swap-fresh.json`) and print — or with `--out`, write — the summary, `spec.json`, `context-rule.json`, and `FrequencyLimitPolicy.rs`. |
+| `npm run cli -- simulate [--input <recorded.json>] [--constrain-arguments] [--probe-token <C…>]`             | Run the dry-run scenarios against the fixture's spec (or a saved recording's) and print the permit / deny / flag report.                                                                                                       |
+| `npm run record -- <txHash>... [--account <G\|C>] [--network testnet\|mainnet\|futurenet] [--rpc-url <url>]` | Fetch live transaction(s) by hash and print one merged recording. `record --from-simulation <file>` ingests a saved simulation instead.                                                                                        |
 
 The live `record` path is optional: the network fetch itself is not exercised by the demo
 or tests, but its decoders and multi-hash merge logic run network-free in
@@ -157,6 +157,20 @@ and CI regenerates and diffs them on every run. Every report states the recordin
 generated policy set and mode it was evaluated against, what each decision means, and which
 addresses the token symbols refer to.
 
+## Compose first, generate second
+
+Every synthesised policy is realised one of three ways, decided per policy by
+`realisePolicies` and stated in the artifacts: **composed** (a stock OpenZeppelin policy
+expresses it — only parameters are emitted), **generated** (no stock policy can — policywright
+emits a policy contract), or **offline-only** (no on-chain realisation yet — the dry-run
+harness enforces it and `context-rule.json` records the delta). The boundary, why it sits
+where it does, and what "compiles" and "passes simulation" mean for each artifact are on one
+page: [docs/compose-vs-generate.md](docs/compose-vs-generate.md). For the real recorded
+sequence both artifacts sit side by side under
+[examples/live/fresh/](examples/live/fresh/) — the composed `stock:spending_limit`
+configuration and the generated `FrequencyLimitPolicy.rs` — and the dry-run report's
+**Enforced by** column attributes each deny to the artifact that realises it.
+
 ## The generated Rust policy is illustrative
 
 The emitted `FrequencyLimitPolicy.rs` implements OpenZeppelin's real `Policy` trait
@@ -191,19 +205,20 @@ dispatched manually and cited per deliverable in
 
 ## Project layout
 
-| Path                                   | Purpose                                                                                                          |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `src/types.ts`                         | Core domain types (single source of truth).                                                                      |
-| `src/sources/fixture.ts`               | Loads the baked-in offline recording.                                                                            |
-| `src/sources/rpc.ts`                   | Optional live Soroban RPC adapter.                                                                               |
-| `src/synthesizer.ts`                   | `RecordedTx` → `SmartAccountSpec`.                                                                               |
-| `src/emitter.ts`, `src/rust-policy.ts` | Render spec JSON, context-rule JSON, summary, and Rust.                                                          |
-| `src/simulate.ts`                      | Dry-run evaluator + scenarios + report (permit / deny / flag, argument constraints, probe token).                |
-| `src/network.ts`                       | Network passphrases, the native XLM SAC address per network, the contract-address shape check.                   |
-| `src/demo.ts`, `src/cli.ts`            | Demo orchestration and CLI.                                                                                      |
-| `fixtures/recorded-tx.json`            | The committed offline recording.                                                                                 |
-| `contracts/`                           | Rust workspace: the compiled-and-tested frequency-limit-policy crate (source of truth for the emitted template). |
-| `scripts/deploy-testnet.sh`            | Testnet-only build + upload + deploy + hash-verify; appends the deployment log to evidence/EVIDENCE.md.          |
+| Path                                   | Purpose                                                                                                           |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `src/types.ts`                         | Core domain types (single source of truth).                                                                       |
+| `src/sources/fixture.ts`               | Loads the baked-in offline recording.                                                                             |
+| `src/sources/rpc.ts`                   | Optional live Soroban RPC adapter.                                                                                |
+| `src/synthesizer.ts`                   | `RecordedTx` → `SmartAccountSpec`.                                                                                |
+| `src/emitter.ts`, `src/rust-policy.ts` | Render spec JSON, context-rule JSON, summary, and Rust.                                                           |
+| `src/simulate.ts`                      | Dry-run evaluator + scenarios + report (permit / deny / flag, argument constraints, probe token).                 |
+| `src/network.ts`                       | Network passphrases, the native XLM SAC address per network, the contract-address shape check.                    |
+| `src/install-shape.ts`                 | Validates `context-rule.json` field-by-field against the OZ install signature; encodes install params as `ScVal`. |
+| `src/demo.ts`, `src/cli.ts`            | Demo orchestration and CLI.                                                                                       |
+| `fixtures/recorded-tx.json`            | The committed offline recording.                                                                                  |
+| `contracts/`                           | Rust workspace: the compiled-and-tested frequency-limit-policy crate (source of truth for the emitted template).  |
+| `scripts/deploy-testnet.sh`            | Testnet-only build + upload + deploy + hash-verify; appends the deployment log to evidence/EVIDENCE.md.           |
 
 See [docs/architecture.md](docs/architecture.md) for the design in depth.
 
@@ -250,11 +265,11 @@ This project is built for Stellar SCF #44 — the awarded submission
 what is actually verifiable in this repository today — see
 [the roadmap](https://policywright.lemmalabs.space/roadmap/) for the full plan.
 
-| Tranche                    | Target      | Deliverables                                                                                                                          | Status                          |
-| -------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| **T1 — MVP (testnet)**     | 31 Aug 2026 | Recording layer (live + simulated); least-privilege synthesizer; generated-policy compile + testnet deploy; open-source CLI + CI      | ✅ Delivered (D1.1–D1.4)        |
-| **T2 — Testnet expansion** | 15 Oct 2026 | MCP server; Claude skill; dry-run harness + argument-level scope; net-new policy codegen with storage segregation; wallet integration | 🚧 In progress (D2.3 delivered) |
-| **T3 — Mainnet launch**    | 30 Nov 2026 | Three end-to-end walkthroughs; OpenZeppelin validation; production release; mainnet demonstration; audit readiness (SCF Audit Bank)   | ⏳ Not started                  |
+| Tranche                    | Target      | Deliverables                                                                                                                          | Status                                |
+| -------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| **T1 — MVP (testnet)**     | 31 Aug 2026 | Recording layer (live + simulated); least-privilege synthesizer; generated-policy compile + testnet deploy; open-source CLI + CI      | ✅ Delivered (D1.1–D1.4)              |
+| **T2 — Testnet expansion** | 15 Oct 2026 | MCP server; Claude skill; dry-run harness + argument-level scope; net-new policy codegen with storage segregation; wallet integration | 🚧 In progress (D2.3, D2.4 delivered) |
+| **T3 — Mainnet launch**    | 30 Nov 2026 | Three end-to-end walkthroughs; OpenZeppelin validation; production release; mainnet demonstration; audit readiness (SCF Audit Bank)   | ⏳ Not started                        |
 
 **Shipped and verifiable today**: the recording layer from the
 offline fixture, from a live Soroban RPC node (multi-hash sequences with authorization
@@ -276,10 +291,11 @@ is deployed to testnet — contract ID and hash-verification trail in the deploy
 [evidence/EVIDENCE.md](evidence/EVIDENCE.md). The deployed instance is testnet-only and
 unaudited.
 
-**Tranche 2 so far:** D2.3 — the dry-run harness with supported argument-level scope —
-is delivered (evidence section D2.3 in [evidence/EVIDENCE.md](evidence/EVIDENCE.md)). The
-rest of T2 — MCP server, Claude skill, storage-segregated codegen, wallet integration — is
-tracked in [docs/T2-NOTES.md](docs/T2-NOTES.md).
+**Tranche 2 so far:** D2.3 (the dry-run harness with supported argument-level scope) and
+D2.4 (the composed configuration and the generated stateful policy, side by side, both
+compiling and passing simulation) are delivered — evidence sections D2.3 and D2.4 in
+[evidence/EVIDENCE.md](evidence/EVIDENCE.md). The rest of T2 — MCP server, Claude skill,
+wallet integration — is tracked in [docs/T2-NOTES.md](docs/T2-NOTES.md).
 
 ## Acknowledgements
 

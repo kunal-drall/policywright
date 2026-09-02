@@ -36,6 +36,30 @@ For those reasons the ordering is not a maturity phase to grow out of: even
 with a hardened generator, composing stock policies stays the first choice, and
 generation stays the fallback.
 
+## The boundary, stated
+
+Every synthesised policy is classified by `realisePolicies` in
+[src/synthesizer.ts](https://github.com/kunal-drall/policywright/blob/main/src/synthesizer.ts)
+and the classification is visible in the artifacts — in `context-rule.json`
+bindings, and in the dry-run report's policy-set header and **Enforced by**
+column:
+
+| Constraint                                                       | Realisation      | Artifact                                                                 |
+| ---------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------ |
+| Spend cap on a token the subject directly `transfer`red          | **composed**     | `stock:spending_limit { spending_limit, period_ledgers }` on the token rule |
+| Spend cap with no subject-authorized direct transfer             | **offline-only** | `DELTA` note; the harness enforces it                                    |
+| Call-frequency limit                                             | **generated**    | `FrequencyLimitPolicy.rs` — a net-new stateful policy contract           |
+| Argument constraint (swap `path` set), function-level narrowing  | **offline-only** | the harness (argument case when `--constrain-arguments`); `DELTA` note   |
+
+Two invariants are asserted by
+[test/compose-boundary.test.ts](https://github.com/kunal-drall/policywright/blob/main/test/compose-boundary.test.ts):
+a constraint a stock policy can express is **never generated**, and the one
+generated policy re-implements **no** stock policy. The full page — including
+what "compiles" and "passes simulation" mean for each artifact — is
+[docs/compose-vs-generate.md](https://github.com/kunal-drall/policywright/blob/main/docs/compose-vs-generate.md);
+both artifacts for the real recorded sequence sit side by side under
+[examples/live/fresh/](https://github.com/kunal-drall/policywright/tree/main/examples/live/fresh).
+
 ## What v0 does today
 
 - **Composes the stock `spending_limit` under its real install shape.** The

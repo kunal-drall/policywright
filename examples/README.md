@@ -48,5 +48,15 @@ npm run cli -- simulate --input examples/live/recorded-claim-swap-fresh.json
 npm run cli -- simulate --input examples/live/recorded-claim-swap-fresh.json --constrain-arguments
 ```
 
+[`live/fresh/`](live/fresh/) holds the emitted artefacts for that same recording, side by
+side — the **composed** configuration (`context-rule.json`: `stock:spending_limit` on the
+BLND token rule with its real install params) and the **generated** stateful policy
+(`FrequencyLimitPolicy.rs`, byte-identical to the compiled crate) plus `spec.json` and
+`summary.txt` — regenerated and diffed by CI ([boundary](../docs/compose-vs-generate.md)):
+
+```bash
+npm run cli -- synth --input examples/live/recorded-claim-swap-fresh.json --out examples/live/fresh
+```
+
 These are generated artefacts and are intentionally excluded from Prettier so
 they match the tool's raw output verbatim.
